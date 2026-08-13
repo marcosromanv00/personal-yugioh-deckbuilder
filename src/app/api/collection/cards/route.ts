@@ -331,21 +331,33 @@ export async function DELETE(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const id = searchParams.get('id');
+    const cardId = searchParams.get('card_id');
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID de registro es obligatorio' }, { status: 400 });
+    if (!id && !cardId) {
+      return NextResponse.json({ error: 'ID o card_id de registro es obligatorio' }, { status: 400 });
     }
 
     const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (isSupabaseConfigured) {
-      const { error } = await supabase
-        .from('yg_user_cards')
-        .delete()
-        .eq('id', id);
+      if (id) {
+        const { error } = await supabase
+          .from('yg_user_cards')
+          .delete()
+          .eq('id', id);
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+      } else if (cardId) {
+        const { error } = await supabase
+          .from('yg_user_cards')
+          .delete()
+          .eq('card_id', parseInt(cardId));
+
+        if (error) {
+          throw error;
+        }
       }
     }
 

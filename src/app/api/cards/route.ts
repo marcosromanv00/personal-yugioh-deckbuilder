@@ -29,6 +29,7 @@ interface YGOPRODeckCard {
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
+    const id = searchParams.get('id') || '';
     const query = searchParams.get('q') || '';
     const archetype = searchParams.get('archetype') || '';
     const type = searchParams.get('type') || '';
@@ -53,6 +54,9 @@ export async function GET(req: NextRequest) {
           .order('name', { ascending: true })
           .limit(limit);
 
+        if (id) {
+          dbQuery = dbQuery.eq('id', parseInt(id));
+        }
         if (query) {
           dbQuery = dbQuery.ilike('name', `%${query}%`);
         }
@@ -109,11 +113,15 @@ export async function GET(req: NextRequest) {
     console.log('Consultando directamente a YGOPRODeck API...');
     let url = `${YGOPRODECK_API_URL}?misc=yes`;
     
-    if (query) {
-      url += `&fname=${encodeURIComponent(query)}`;
-    }
-    if (archetype) {
-      url += `&archetype=${encodeURIComponent(archetype)}`;
+    if (id) {
+      url = `${YGOPRODECK_API_URL}?id=${id}`;
+    } else {
+      if (query) {
+        url += `&fname=${encodeURIComponent(query)}`;
+      }
+      if (archetype) {
+        url += `&archetype=${encodeURIComponent(archetype)}`;
+      }
     }
 
     const response = await fetch(url);
