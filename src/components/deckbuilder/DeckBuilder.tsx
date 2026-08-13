@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -51,15 +52,6 @@ interface DeckCard {
   archetype?: string;
 }
 
-interface Recommendation {
-  type: 'ratio_warning' | 'missing_archetype_card' | 'missing_staple';
-  cardId: number;
-  cardName: string;
-  image_url?: string;
-  usagePercent: number;
-  averageCopies: number;
-  message: string;
-}
 
 interface BanlistAlert {
   cardId: number;
@@ -366,9 +358,12 @@ export default function DeckBuilder() {
 
 
 
-  // Disparar análisis cuando cambia la lista de cartas o el formato
+  // Disparar análisis cuando cambia la lista de cartas o el formato (con debounce)
   useEffect(() => {
-    analyzeDeck(deckCards, format);
+    const timer = setTimeout(() => {
+      analyzeDeck(deckCards, format);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [deckCards, format, analyzeDeck]);
 
   // Cargar desglose de la barra lateral reactivamente según la pestaña de arquetipo activa
