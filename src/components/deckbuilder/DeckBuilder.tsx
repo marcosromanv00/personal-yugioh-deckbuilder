@@ -154,6 +154,8 @@ export default function DeckBuilder() {
 
   // Estado y lógica para la vista técnica de carta en Hover
   const [favoriteCardIds, setFavoriteCardIds] = useState<number[]>([]);
+  const [searchScope, setSearchScope] = useState<'global' | 'collection'>('global');
+  const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
   const [hoveredCard, setHoveredCard] = useState<{ id: number; name: string; type?: string; image_url?: string; [key: string]: any } | null>(null);
   const [hoverTimer, setHoverTimer] = useState<NodeJS.Timeout | null>(null);
   const [previewCard, setPreviewCard] = useState<Card | null>(null);
@@ -553,43 +555,169 @@ export default function DeckBuilder() {
   };
 
   // 1. Efectuar búsqueda de cartas
-  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState) => {
+  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: 'global' | 'collection', favs: boolean) => {
     setIsSearching(true);
     try {
-      let url = `/api/cards?limit=30`;
-      if (query) url += `&q=${encodeURIComponent(query)}`;
-      
-      const typeToUse = type !== 'All' ? type : adv.type;
-      if (typeToUse) url += `&type=${typeToUse}`;
-      
-      if (adv.attribute) url += `&attribute=${encodeURIComponent(adv.attribute)}`;
-      if (adv.race) url += `&race=${encodeURIComponent(adv.race)}`;
-      if (adv.level) url += `&level=${encodeURIComponent(adv.level)}`;
-      if (adv.atkMin) url += `&atkMin=${encodeURIComponent(adv.atkMin)}`;
-      if (adv.atkMax) url += `&atkMax=${encodeURIComponent(adv.atkMax)}`;
-      if (adv.defMin) url += `&defMin=${encodeURIComponent(adv.defMin)}`;
-      if (adv.defMax) url += `&defMax=${encodeURIComponent(adv.defMax)}`;
-      if (adv.archetype) url += `&archetype=${encodeURIComponent(adv.archetype)}`;
+      if (scope === 'collection') {
+        let url = `/api/collection/cards?limit=100`;
+        if (query) url += `&q=${encodeURIComponent(query)}`;
+        
+        const typeToUse = type !== 'All' ? type : adv.type;
+        if (typeToUse) url += `&type=${typeToUse}`;
+        
+        if (adv.attribute) url += `&attribute=${encodeURIComponent(adv.attribute)}`;
+        if (adv.race) url += `&race=${encodeURIComponent(adv.race)}`;
+        if (adv.level) url += `&level=${encodeURIComponent(adv.level)}`;
+        if (adv.atkMin) url += `&atkMin=${encodeURIComponent(adv.atkMin)}`;
+        if (adv.atkMax) url += `&atkMax=${encodeURIComponent(adv.atkMax)}`;
+        if (adv.defMin) url += `&defMin=${encodeURIComponent(adv.defMin)}`;
+        if (adv.defMax) url += `&defMax=${encodeURIComponent(adv.defMax)}`;
+        if (adv.archetype) url += `&archetype=${encodeURIComponent(adv.archetype)}`;
+        if (favs) url += `&favorites=true`;
 
-      const res = await fetch(url);
-      if (res.ok) {
-        const json = await res.json();
-        setSearchResults(json.data || []);
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          const rawList = json.data || [];
+          
+          // Eliminar duplicados para que una misma carta física no aparezca repetida en los resultados de búsqueda
+          const seen = new Set<number>();
+          const mappedCards: Card[] = [];
+          
+          for (const uc of rawList) {
+            if (!uc.card_details) continue;
+            if (seen.has(uc.card_details.id)) continue;
+            seen.add(uc.card_details.id);
+            mappedCards.push({
+              id: uc.card_details.id,
+              name: uc.card_details.name,
+              type: uc.card_details.type,
+              desc: uc.card_details.desc || '',
+              image_url: uc.card_details.image_url || '',
+              image_url_small: uc.card_details.image_url_small || '',
+              archetype: uc.card_details.archetype || undefined,
+              ban_master_duel: uc.card_details.ban_master_duel,
+              ban_tcg: uc.card_details.ban_tcg,
+              ban_duel_links: uc.card_details.ban_duel_links,
+              atk: uc.card_details.atk,
+              def: uc.card_details.def,
+              level: uc.card_details.level,
+              race: uc.card_details.race,
+              attribute: uc.card_details.attribute,
+            });
+          }
+          setSearchResults(mappedCards);
+        }
+      } else {
+        // Modo global
+        // Si buscamos favoritas y no hay filtro de query ni otros, podemos cargar todas las favoritas del usuario
+        // combinando favoritos locales y colección para mayor comodidad.
+        if (favs && !query && !adv.attribute && !adv.race && !adv.level && !adv.atkMin && !adv.atkMax && !adv.defMin && !adv.defMax && !adv.archetype) {
+          // Consultar favoritas de la colección
+          const res = await fetch('/api/collection/cards?favorites=true');
+          if (res.ok) {
+            const json = await res.json();
+            const rawList = json.data || [];
+            const seen = new Set<number>();
+            const mappedCards: Card[] = [];
+            
+            for (const uc of rawList) {
+              if (!uc.card_details) continue;
+              if (seen.has(uc.card_details.id)) continue;
+              seen.add(uc.card_details.id);
+              mappedCards.push({
+                id: uc.card_details.id,
+                name: uc.card_details.name,
+                type: uc.card_details.type,
+                desc: uc.card_details.desc || '',
+                image_url: uc.card_details.image_url || '',
+                image_url_small: uc.card_details.image_url_small || '',
+                archetype: uc.card_details.archetype || undefined,
+                ban_master_duel: uc.card_details.ban_master_duel,
+                ban_tcg: uc.card_details.ban_tcg,
+                ban_duel_links: uc.card_details.ban_duel_links,
+                atk: uc.card_details.atk,
+                def: uc.card_details.def,
+                level: uc.card_details.level,
+                race: uc.card_details.race,
+                attribute: uc.card_details.attribute,
+              });
+            }
+            
+            // Si el usuario tiene favoritas locales (localStorage) pero no en yg_user_cards, podemos agregarlas consultándolas
+            if (favoriteCardIds.length > 0) {
+              // Obtener ids locales que falten
+              const existingIds = new Set(mappedCards.map(c => c.id));
+              const missingIds = favoriteCardIds.filter(id => !existingIds.has(id));
+              if (missingIds.length > 0) {
+                // Hacer fetch para las locales faltantes (hasta un límite razonable de 20 para no sobrecargar)
+                const promises = missingIds.slice(0, 20).map(async (id) => {
+                  try {
+                    const r = await fetch(`/api/cards?id=${id}`);
+                    if (r.ok) {
+                      const j = await r.json();
+                      return j.data?.[0];
+                    }
+                  } catch (e) {
+                    console.error('Error fetching missing local favorite:', e);
+                  }
+                  return null;
+                });
+                const fetchedMissing = await Promise.all(promises);
+                fetchedMissing.forEach(c => {
+                  if (c && !seen.has(c.id)) {
+                    seen.add(c.id);
+                    mappedCards.push(c);
+                  }
+                });
+              }
+            }
+            setSearchResults(mappedCards);
+            return;
+          }
+        }
+
+        let url = `/api/cards?limit=50`;
+        if (query) url += `&q=${encodeURIComponent(query)}`;
+        
+        const typeToUse = type !== 'All' ? type : adv.type;
+        if (typeToUse) url += `&type=${typeToUse}`;
+        
+        if (adv.attribute) url += `&attribute=${encodeURIComponent(adv.attribute)}`;
+        if (adv.race) url += `&race=${encodeURIComponent(adv.race)}`;
+        if (adv.level) url += `&level=${encodeURIComponent(adv.level)}`;
+        if (adv.atkMin) url += `&atkMin=${encodeURIComponent(adv.atkMin)}`;
+        if (adv.atkMax) url += `&atkMax=${encodeURIComponent(adv.atkMax)}`;
+        if (adv.defMin) url += `&defMin=${encodeURIComponent(adv.defMin)}`;
+        if (adv.defMax) url += `&defMax=${encodeURIComponent(adv.defMax)}`;
+        if (adv.archetype) url += `&archetype=${encodeURIComponent(adv.archetype)}`;
+
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          let cards: Card[] = json.data || [];
+          
+          if (favs) {
+            // Filtrar usando los favoritos locales guardados en localStorage
+            cards = cards.filter(c => favoriteCardIds.includes(c.id));
+          }
+          setSearchResults(cards);
+        }
       }
     } catch (e) {
       console.error('Error buscando cartas:', e);
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [favoriteCardIds]);
 
   // Debounce simple para búsqueda
   useEffect(() => {
     const timer = setTimeout(() => {
-      executeSearch(searchQuery, searchType, advancedFilters);
+      executeSearch(searchQuery, searchType, advancedFilters, searchScope, onlyFavorites);
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, searchType, advancedFilters, executeSearch]);
+  }, [searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, executeSearch]);
 
 
 
@@ -1163,17 +1291,54 @@ export default function DeckBuilder() {
                 </button>
               </div>
             </div>
+            {/* BUSCABLE INPUT Y FAVORITAS */}
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder={searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
+                />
+                <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[hsl(215,15%,70%)]" />
+              </div>
+              
+              <button
+                onClick={() => setOnlyFavorites(prev => !prev)}
+                className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                  onlyFavorites
+                    ? 'bg-pink-950/40 text-pink-500 border-pink-500/50 shadow-md shadow-pink-950/20'
+                    : 'bg-[hsl(224,25%,6%)] border-[hsl(224,15%,16%)] text-slate-400 hover:text-pink-400 hover:border-pink-900/30'
+                }`}
+                title={onlyFavorites ? "Mostrar todas las cartas" : "Filtrar por Favoritas"}
+              >
+                <Heart className={`w-4 h-4 ${onlyFavorites ? 'fill-pink-500' : ''}`} />
+              </button>
+            </div>
 
-            {/* BUSCABLE INPUT */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Nombre de carta..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
-              />
-              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[hsl(215,15%,70%)]" />
+            {/* TOGGLE ALCANCE (GLOBAL / COLECCIÓN) */}
+            <div className="grid grid-cols-2 gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-xl border border-[hsl(224,15%,16%)] shrink-0">
+              <button
+                onClick={() => setSearchScope('global')}
+                className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+                  searchScope === 'global'
+                    ? 'bg-zinc-800 text-white shadow-sm'
+                    : 'text-[hsl(215,15%,70%)] hover:text-white'
+                }`}
+              >
+                🌐 Base Global
+              </button>
+              <button
+                onClick={() => setSearchScope('collection')}
+                className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+                  searchScope === 'collection'
+                    ? 'bg-zinc-800 text-white shadow-sm'
+                    : 'text-[hsl(215,15%,70%)] hover:text-white'
+                }`}
+              >
+                📦 Mi Colección
+              </button>
             </div>
 
             {/* FILTROS RAPIDOS */}

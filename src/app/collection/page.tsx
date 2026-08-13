@@ -264,6 +264,11 @@ export default function CollectionPage() {
   };
 
   const handleDropDeck = async (deckId: string, locationId: string | null) => {
+    // Optimistic update: actualizar estado local sin recargar toda la página
+    const previousDecks = decks;
+    setDecks(prev =>
+      prev.map(d => d.id === deckId ? { ...d, storage_location_id: locationId ?? undefined } : d)
+    );
     try {
       const res = await fetch('/api/decks', {
         method: 'PUT',
@@ -273,10 +278,13 @@ export default function CollectionPage() {
           storage_location_id: locationId
         })
       });
-      if (res.ok) {
-        fetchCollectionData();
+      if (!res.ok) {
+        // Revertir si la API falla
+        setDecks(previousDecks);
+        console.error('Error al reubicar baraja: respuesta no OK');
       }
     } catch (err) {
+      setDecks(previousDecks);
       console.error('Error al reubicar baraja:', err);
     }
   };
@@ -716,14 +724,20 @@ export default function CollectionPage() {
                           onClick={async (e) => {
                             e.stopPropagation();
                             const newActive = !isActive;
+                            // Optimistic update: sin recargar página completa
+                            const previousDecks = decks;
+                            setDecks(prev =>
+                              prev.map(d => d.id === deck.id ? { ...d, is_active: newActive } : d)
+                            );
                             try {
                               const res = await fetch('/api/decks', {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ id: deck.id, is_active: newActive })
                               });
-                              if (res.ok) fetchCollectionData();
+                              if (!res.ok) setDecks(previousDecks);
                             } catch (err) {
+                              setDecks(previousDecks);
                               console.error('Error al cambiar estado activo del deck:', err);
                             }
                           }}
