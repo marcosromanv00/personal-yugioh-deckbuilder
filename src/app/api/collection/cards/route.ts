@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
     const defMin = searchParams.get('defMin');
     const defMax = searchParams.get('defMax');
     const archetype = searchParams.get('archetype');
+    const rarity = searchParams.get('rarity');
+    const onlyFavorites = searchParams.get('favorites') === 'true';
 
     let dbQuery = supabase
       .from('yg_user_cards')
@@ -68,13 +70,28 @@ export async function GET(req: NextRequest) {
         const cType = uc.card_details?.type;
         if (!cType) return false;
         if (type === 'Monster') {
-          return cType.includes('Monster') && !['Fusion Monster', 'Link Monster', 'Synchro Monster', 'XYZ Monster'].some(t => cType.includes(t));
+          // Main Deck monsters: includes 'Monster' but NOT extra deck types
+          const EXTRA_TYPES = ['Fusion Monster', 'Link Monster', 'Synchro Monster', 'XYZ Monster', 'Pendulum Effect Fusion Monster'];
+          return cType.includes('Monster') && !EXTRA_TYPES.some(t => cType.includes(t));
         } else if (type === 'Spell') {
           return cType === 'Spell Card';
         } else if (type === 'Trap') {
           return cType === 'Trap Card';
         } else if (type === 'Extra') {
-          return ['Fusion', 'Link', 'Synchro', 'XYZ'].some(t => cType.includes(t));
+          // All extra deck monsters
+          return ['Fusion Monster', 'Link Monster', 'Synchro Monster', 'XYZ Monster'].some(t => cType.includes(t));
+        } else if (type === 'Fusion Monster') {
+          return cType.includes('Fusion Monster');
+        } else if (type === 'Synchro Monster') {
+          return cType.includes('Synchro Monster');
+        } else if (type === 'XYZ Monster') {
+          return cType.includes('XYZ Monster');
+        } else if (type === 'Link Monster') {
+          return cType.includes('Link Monster');
+        } else if (type === 'Ritual Monster') {
+          return cType.includes('Ritual Monster');
+        } else if (type === 'Pendulum Effect Monster') {
+          return cType.includes('Pendulum');
         } else {
           return cType.toLowerCase().includes(type.toLowerCase());
         }
@@ -129,6 +146,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    if (rarity) {
+      filteredCards = filteredCards.filter((uc: UserCard) =>
+        uc.rarity?.toLowerCase() === rarity.toLowerCase()
+      );
+    }
+
+    if (onlyFavorites) {
+      filteredCards = filteredCards.filter((uc: UserCard) => uc.is_favorite === true);
+    }
+
     return NextResponse.json({ data: filteredCards });
 
   } catch (error: unknown) {
@@ -160,7 +187,8 @@ export async function PUT(req: NextRequest) {
       sleeve_condition, 
       sale_price, 
       notes,
-      is_proxy
+      is_proxy,
+      is_favorite
     } = body;
 
     if (!id) {
@@ -190,6 +218,7 @@ export async function PUT(req: NextRequest) {
     if (sleeve_color !== undefined) updatePayload.sleeve_color = sleeve_color;
     if (sleeve_condition !== undefined) updatePayload.sleeve_condition = sleeve_condition;
     if (is_proxy !== undefined) updatePayload.is_proxy = is_proxy;
+    if (is_favorite !== undefined) updatePayload.is_favorite = is_favorite;
     if (sale_price !== undefined) updatePayload.sale_price = sale_price;
     if (notes !== undefined) updatePayload.notes = notes;
 

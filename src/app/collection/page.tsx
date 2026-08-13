@@ -21,7 +21,8 @@ import {
   Layers,
   HelpCircle,
   Search,
-  Trash
+  Trash,
+  Heart
 } from 'lucide-react';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
 
@@ -32,7 +33,7 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
 
   // Colección completa y Filtros
-  const [activeTab, setActiveTab] = useState<'containers' | 'complete'>('containers');
+  const [activeTab, setActiveTab] = useState<'containers' | 'complete' | 'favorites'>('containers');
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
   const [allCollectionFilters, setAllCollectionFilters] = useState<FilterState>({
@@ -90,7 +91,7 @@ export default function CollectionPage() {
     }
   };
 
-  const fetchAllCards = async (query: string, filters: FilterState) => {
+  const fetchAllCards = async (query: string, filters: FilterState, favoritesOnly = false) => {
     setLoadingAllCards(true);
     try {
       const url = '/api/collection/cards?';
@@ -107,6 +108,7 @@ export default function CollectionPage() {
       if (filters.archetype) params.append('archetype', filters.archetype);
       if (filters.rarity) params.append('rarity', filters.rarity);
       if (filters.status) params.append('status', filters.status);
+      if (favoritesOnly) params.append('favorites', 'true');
 
       const res = await fetch(url + params.toString());
       if (res.ok) {
@@ -121,9 +123,9 @@ export default function CollectionPage() {
   };
 
   useEffect(() => {
-    if (activeTab === 'complete') {
+    if (activeTab === 'complete' || activeTab === 'favorites') {
       const timer = setTimeout(() => {
-        fetchAllCards(allSearchQuery, allCollectionFilters);
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
       }, 400);
       return () => clearTimeout(timer);
     }
@@ -136,7 +138,7 @@ export default function CollectionPage() {
         method: 'DELETE'
       });
       if (res.ok) {
-        fetchAllCards(allSearchQuery, allCollectionFilters);
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
         fetchCollectionData();
       }
     } catch (err) {
@@ -152,10 +154,25 @@ export default function CollectionPage() {
         body: JSON.stringify({ id: userCardId, status_flag: newStatus })
       });
       if (res.ok) {
-        fetchAllCards(allSearchQuery, allCollectionFilters);
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
       }
     } catch (err) {
       console.error('Error al cambiar estado de carta:', err);
+    }
+  };
+
+  const handleToggleFavorite = async (uc: UserCard) => {
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: uc.id, is_favorite: !uc.is_favorite })
+      });
+      if (res.ok) {
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
+      }
+    } catch (err) {
+      console.error('Error al cambiar favorito:', err);
     }
   };
 
@@ -405,12 +422,23 @@ export default function CollectionPage() {
                   <Layers className="w-4 h-4" />
                   <span>Colección Completa ({totalCardsInCollection})</span>
                 </button>
+                <button
+                  onClick={() => setActiveTab('favorites')}
+                  className={`font-bold text-sm uppercase tracking-wider flex items-center gap-2 pb-2 border-b-2 transition-all cursor-pointer ${
+                    activeTab === 'favorites' 
+                      ? 'border-pink-500 text-pink-400' 
+                      : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
+                  }`}
+                >
+                  <Heart className={`w-4 h-4 ${activeTab === 'favorites' ? 'fill-pink-500 text-pink-500' : ''}`} />
+                  <span>Favoritas</span>
+                </button>
               </div>
               
               <button
                 onClick={() => {
                   fetchCollectionData();
-                  if (activeTab === 'complete') fetchAllCards(allSearchQuery, allCollectionFilters);
+                  if (activeTab === 'complete' || activeTab === 'favorites') fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
                 }}
                 className="p-1.5 rounded-lg bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] text-[hsl(215,15%,70%)] hover:text-white hover:border-zinc-700 transition-all cursor-pointer"
                 title="Refrescar todo"
@@ -444,8 +472,16 @@ export default function CollectionPage() {
                 </div>
               )
             ) : (
-              /* COMPLETE COLLECTION VIEW */
+              /* COMPLETE / FAVORITES COLLECTION VIEW */
               <div className="space-y-6">
+                {/* Tab header for favorites mode */}
+                {activeTab === 'favorites' && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-pink-950/20 border border-pink-900/30">
+                    <Heart className="w-4 h-4 fill-pink-500 text-pink-500" />
+                    <span className="text-xs font-semibold text-pink-300">Mostrando sólo cartas marcadas como favoritas</span>
+                  </div>
+                )}
+
                 {/* Search header for all cards */}
                 <div className="relative w-full">
                   <input
@@ -485,7 +521,9 @@ export default function CollectionPage() {
                   </div>
                 ) : allCollectionCards.length === 0 ? (
                   <div className="text-center py-20 bg-[hsl(224,22%,10%)] rounded-2xl border border-[hsl(224,15%,16%)] text-slate-500 text-sm">
-                    No se encontraron cartas en tu colección con los filtros seleccionados.
+                    {activeTab === 'favorites'
+                      ? 'No tienes cartas marcadas como favoritas. ¡Pulsa el corazón en cualquier carta para agregarla!'
+                      : 'No se encontraron cartas en tu colección con los filtros seleccionados.'}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -513,6 +551,18 @@ export default function CollectionPage() {
                                 PROXY
                               </span>
                             )}
+                            {/* Favorite toggle button */}
+                            <button
+                              onClick={() => handleToggleFavorite(uc)}
+                              className={`absolute bottom-3.5 right-1.5 p-1 rounded-full transition-all cursor-pointer ${
+                                uc.is_favorite
+                                  ? 'text-pink-500 opacity-100'
+                                  : 'text-slate-500 opacity-0 group-hover:opacity-100 hover:text-pink-400'
+                              }`}
+                              title={uc.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+                            >
+                              <Heart className={`w-4 h-4 ${uc.is_favorite ? 'fill-pink-500' : ''}`} />
+                            </button>
                           </div>
 
                           <div className="flex-1 flex flex-col justify-between">

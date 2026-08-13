@@ -69,6 +69,7 @@ export interface UserCard {
   sleeve_color?: string;
   sleeve_condition?: SleeveCondition;
   is_proxy?: boolean;
+  is_favorite?: boolean;
   sale_price?: number;
   notes?: string;
   created_at: string;
