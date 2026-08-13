@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
       format,
       skill_name,
       storage_location_id,
+      is_active,
       cards, // array of { id, count, section, name, type, image_url }
       register_to_inventory, // boolean
       inventory_cards_to_add // array of card IDs (filtered by user preview) to add to yg_user_cards
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
     }
 
     const deckId = `deck-demo-${Date.now()}`;
+    const isActiveVal = is_active !== undefined ? Boolean(is_active) : true;
 
     if (!isSupabaseConfigured()) {
       const newDeck = {
@@ -120,6 +122,7 @@ export async function POST(req: NextRequest) {
         format,
         skill_name: skill_name || '',
         storage_location_id: storage_location_id || null,
+        is_active: isActiveVal,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -151,7 +154,8 @@ export async function POST(req: NextRequest) {
         description: description || '',
         format,
         skill_name: skill_name || '',
-        storage_location_id: storage_location_id || null
+        storage_location_id: storage_location_id || null,
+        is_active: isActiveVal
       }])
       .select()
       .single();
@@ -176,17 +180,26 @@ export async function POST(req: NextRequest) {
 
     // 3. Registrar cartas al inventario general (yg_user_cards)
     if (register_to_inventory && inventory_cards_to_add && inventory_cards_to_add.length > 0) {
-      const inventoryPayload = inventory_cards_to_add.map((c: any) => ({
-        card_id: c.id,
-        storage_location_id: storage_location_id || null,
-        quantity: c.count || 1,
-        rarity: 'Common',
-        condition: 'Near Mint',
-        language: 'en',
-        status_flag: 'collection',
-        sleeve_type: 'none',
-        notes: `Registrado automáticamente desde deck "${name}"`
-      }));
+      const inventoryPayload = inventory_cards_to_add.map((c: any) => {
+        const matchingDeckCard = (cards || []).find((dc: any) => dc.id === c.id);
+        const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
+          ? matchingDeckCard.section
+          : null;
+
+        return {
+          card_id: c.id,
+          storage_location_id: storage_location_id || null,
+          deck_id: deck.id,
+          deck_section: section,
+          quantity: c.count || 1,
+          rarity: 'Common',
+          condition: 'Near Mint',
+          language: 'en',
+          status_flag: isActiveVal ? 'in_deck' : 'collection',
+          sleeve_type: 'none',
+          notes: `Registrado automáticamente desde deck "${name}"`
+        };
+      });
 
       const { error: invErr } = await supabase
         .from('yg_user_cards')
@@ -215,6 +228,7 @@ export async function PUT(req: NextRequest) {
       format,
       skill_name,
       storage_location_id,
+      is_active,
       cards,
       register_to_inventory,
       inventory_cards_to_add
@@ -234,6 +248,7 @@ export async function PUT(req: NextRequest) {
             format: format !== undefined ? format : d.format,
             skill_name: skill_name !== undefined ? skill_name : d.skill_name,
             storage_location_id: storage_location_id !== undefined ? storage_location_id : d.storage_location_id,
+            is_active: is_active !== undefined ? is_active : d.is_active,
             updated_at: new Date().toISOString()
           };
         }
@@ -266,6 +281,7 @@ export async function PUT(req: NextRequest) {
     if (format !== undefined) updatePayload.format = format;
     if (skill_name !== undefined) updatePayload.skill_name = skill_name;
     if (storage_location_id !== undefined) updatePayload.storage_location_id = storage_location_id;
+    if (is_active !== undefined) updatePayload.is_active = is_active;
     updatePayload.updated_at = new Date().toISOString();
 
     const { error: deckErr } = await supabase
@@ -274,6 +290,40 @@ export async function PUT(req: NextRequest) {
       .eq('id', id);
 
     if (deckErr) throw deckErr;
+
+    if (is_active !== undefined) {
+      const newStatusFlag = is_active ? 'in_deck' : 'collection';
+      await supabase
+        .from('yg_user_cards')
+        .update({ status_flag: newStatusFlag })
+        .eq('deck_id', id);
+    }
+
+    // Si se asigna el deck a una ubicación física (Deckbox / Contenedor)
+    if (storage_location_id !== undefined) {
+      // 1. Obtener cartas que pertenecen a este deck en yg_deck_cards
+      const { data: currentDeckCards } = await supabase
+        .from('yg_deck_cards')
+        .select('card_id, section')
+        .eq('deck_id', id);
+
+      if (currentDeckCards && currentDeckCards.length > 0) {
+        for (const dc of currentDeckCards) {
+          if (['main', 'extra', 'side'].includes(dc.section)) {
+            // Actualizar cartas físicas del inventario que no tengan ubicación o que estén asociadas a este deck
+            await supabase
+              .from('yg_user_cards')
+              .update({
+                storage_location_id: storage_location_id,
+                deck_id: id,
+                deck_section: dc.section
+              })
+              .eq('card_id', dc.card_id)
+              .or(`storage_location_id.is.null,deck_id.eq.${id}`);
+          }
+        }
+      }
+    }
 
     if (cards !== undefined) {
       // Eliminar cartas anteriores
@@ -303,17 +353,37 @@ export async function PUT(req: NextRequest) {
 
     // Registrar al inventario
     if (register_to_inventory && inventory_cards_to_add && inventory_cards_to_add.length > 0) {
-      const inventoryPayload = inventory_cards_to_add.map((c: any) => ({
-        card_id: c.id,
-        storage_location_id: storage_location_id || null,
-        quantity: c.count || 1,
-        rarity: 'Common',
-        condition: 'Near Mint',
-        language: 'en',
-        status_flag: 'collection',
-        sleeve_type: 'none',
-        notes: `Registrado automáticamente desde deck "${name || 'Actualizado'}"`
-      }));
+      let activeStatus = is_active;
+      if (activeStatus === undefined) {
+        const { data: existingDeck } = await supabase
+          .from('yg_decks')
+          .select('is_active')
+          .eq('id', id)
+          .single();
+        activeStatus = existingDeck?.is_active ?? true;
+      }
+      const newStatusFlag = activeStatus ? 'in_deck' : 'collection';
+
+      const inventoryPayload = inventory_cards_to_add.map((c: any) => {
+        const matchingDeckCard = (cards || []).find((dc: any) => dc.id === c.id);
+        const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
+          ? matchingDeckCard.section
+          : null;
+
+        return {
+          card_id: c.id,
+          storage_location_id: storage_location_id || null,
+          deck_id: id,
+          deck_section: section,
+          quantity: c.count || 1,
+          rarity: 'Common',
+          condition: 'Near Mint',
+          language: 'en',
+          status_flag: newStatusFlag,
+          sleeve_type: 'none',
+          notes: `Registrado automáticamente desde deck "${name || 'Actualizado'}"`
+        };
+      });
 
       const { error: invErr } = await supabase
         .from('yg_user_cards')
