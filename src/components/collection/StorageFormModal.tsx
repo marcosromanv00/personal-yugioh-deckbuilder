@@ -81,10 +81,10 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
       setCompartmentsCount(1);
       setCompartmentNames(['Principal']);
     } else if (newType === 'deckbox') {
-      setSubType('deckbox_single');
-      setCapacity(80);
+      setSubType('standard');
+      setCapacity(300);
       setCompartmentsCount(1);
-      setCompartmentNames(['Deck 1']);
+      setCompartmentNames(['Principal']);
     } else if (newType === 'tin') {
       setSubType('standard');
       setCapacity(200);
@@ -116,28 +116,8 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
       setCols(4);
       setCapacity(3 * 4 * totalPages);
       newCount = 1;
-    } else if (newSubType === 'deckbox_single') {
-      newCount = 1;
-      setCapacity(80);
-    } else if (newSubType === 'deckbox_double') {
-      newCount = 2;
-      setCapacity(160);
-    } else if (newSubType === 'deckbox_triple') {
-      newCount = 3;
-      setCapacity(240);
     }
     setCompartmentsCount(newCount);
-    setCompartmentNames(prev => {
-      const arr = [...prev];
-      if (arr.length < newCount) {
-        for (let i = arr.length; i < newCount; i++) {
-          arr.push(`Deck ${i + 1}`);
-        }
-      } else if (arr.length > newCount) {
-        arr.splice(newCount);
-      }
-      return arr;
-    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -159,10 +139,8 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
         total_pages: Math.ceil(capacity / (rows * cols || 1)),
       },
       compartments: {
-        count: compartmentsCount,
-        names: type === 'deckbox'
-          ? compartmentNames.map((n, i) => n?.trim() || `Deck ${i + 1}`)
-          : Array.from({ length: compartmentsCount }, (_, i) => `Compartimento ${i + 1}`),
+        count: 1,
+        names: ['Principal'],
       },
       render_style: `${type}_${subType}`,
       description,
@@ -262,52 +240,8 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
             )}
 
             {type === 'deckbox' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-mono text-slate-400 mb-2">Capacidad y Compartimentos</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'deckbox_single', label: 'Simple (1 Comp - 80 cartas)' },
-                      { id: 'deckbox_double', label: 'Doble (2 Comp - 160 cartas)' },
-                      { id: 'deckbox_triple', label: 'Triple / Dados (3 Comp - 240 cartas)' },
-                    ].map((sub) => (
-                      <button
-                        key={sub.id}
-                        type="button"
-                        onClick={() => handleSubTypeChange(sub.id as StorageSubType)}
-                        className={`p-2.5 rounded-lg border text-xs text-center font-mono ${
-                          subType === sub.id
-                            ? 'bg-cyan-950/60 border-cyan-500 text-cyan-300'
-                            : 'bg-slate-950 border-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {sub.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
-                  <label className="block text-xs font-mono text-slate-400">Decks en los Compartimentos</label>
-                  <div className="space-y-2">
-                    {Array.from({ length: compartmentsCount }).map((_, idx) => (
-                      <div key={idx} className="flex items-center space-x-2">
-                        <span className="text-xs font-mono text-slate-500 w-16 shrink-0">Comp. {idx + 1}:</span>
-                        <input
-                          type="text"
-                          placeholder={`ej: Deck ${idx + 1} (Snake-Eye, Bystial, etc.)`}
-                          value={compartmentNames[idx] || ''}
-                          onChange={(e) => {
-                            const updated = [...compartmentNames];
-                            updated[idx] = e.target.value;
-                            setCompartmentNames(updated);
-                          }}
-                          className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-xs focus:border-cyan-500 focus:outline-none"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-900/30 text-xs text-cyan-300 font-mono">
+                ℹ️ Esta Deckbox no tiene divisiones por compartimentos. Puedes asignarle cualquier cantidad de barajas (1, 2, 3, 4+ decks).
               </div>
             )}
 

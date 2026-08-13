@@ -85,9 +85,17 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
   return (
     <div className="w-full bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-xl transition-all duration-300">
       {/* Header / Toggle Button */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-[hsl(215,15%,70%)] hover:text-white cursor-pointer transition-colors"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+          }
+        }}
+        className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-[hsl(215,15%,70%)] hover:text-white cursor-pointer transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-t-xl"
       >
         <div className="flex items-center gap-2">
           <SlidersHorizontal className={`w-4 h-4 text-purple-400 ${hasActiveFilters ? 'animate-pulse text-cyan-400' : ''}`} />
@@ -111,7 +119,7 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           )}
           {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </div>
-      </button>
+      </div>
 
       {/* Filter Body */}
       {isOpen && (
