@@ -165,6 +165,13 @@ export default function DeckBuilder() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   // Ref to track if cursor is still hovering — prevents modal from opening after cursor leaves
   const isHoveringRef = useRef(false);
+  const isPreviewOpenRef = useRef(false);
+
+  const closePreview = useCallback(() => {
+    isHoveringRef.current = false;
+    isPreviewOpenRef.current = false;
+    setIsPreviewOpen(false);
+  }, []);
 
   // Cargar favoritos al montar
   useEffect(() => {
@@ -203,6 +210,7 @@ export default function DeckBuilder() {
         if (!isHoveringRef.current) return;
 
         setIsPreviewOpen(true);
+        isPreviewOpenRef.current = true;
         setIsLoadingPreview(true);
         setHoveredCard(card);
         setModalActionMessage(null);
@@ -212,6 +220,7 @@ export default function DeckBuilder() {
           // Second check: abort if cursor left while fetching
           if (!isHoveringRef.current) {
             setIsPreviewOpen(false);
+            isPreviewOpenRef.current = false;
             setIsLoadingPreview(false);
             return;
           }
@@ -239,7 +248,10 @@ export default function DeckBuilder() {
 
   const handleCardMouseLeave = useCallback(() => {
     // Mark cursor as gone — cancels any in-flight or pending open
-    isHoveringRef.current = false;
+    // BUT only if the preview modal is not open, to avoid immediate cancelation when mouse overlay blocks the card
+    if (!isPreviewOpenRef.current) {
+      isHoveringRef.current = false;
+    }
     setHoverTimer(prev => {
       if (prev) clearTimeout(prev);
       return null;
@@ -2349,7 +2361,7 @@ export default function DeckBuilder() {
         {isPreviewOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
             {/* Backdrop click to close */}
-            <div className="absolute inset-0" onClick={() => { isHoveringRef.current = false; setIsPreviewOpen(false); }} />
+            <div className="absolute inset-0" onClick={closePreview} />
             
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -2359,7 +2371,7 @@ export default function DeckBuilder() {
             >
               {/* Close Button */}
               <button 
-                onClick={() => { isHoveringRef.current = false; setIsPreviewOpen(false); }} 
+                onClick={closePreview} 
                 className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
                 title="Cerrar"
               >
