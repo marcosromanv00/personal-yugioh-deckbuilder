@@ -54,6 +54,8 @@ export interface UserCard {
   id: string;
   card_id: number;
   storage_location_id: string | null; // null = Unsorted Inbox
+  deck_id?: string | null;
+  deck_section?: 'main' | 'extra' | 'side' | null;
   compartment_index: number;
   binder_page?: number;
   binder_slot?: number;
@@ -83,6 +85,9 @@ export interface UserCard {
     archetype?: string;
     image_url?: string;
     image_url_small?: string;
+  };
+  deck_details?: {
+    name: string;
   };
 }
 
@@ -134,6 +139,7 @@ export interface Deck {
   description?: string;
   format?: string;
   storage_location_id?: string | null;
+  is_active?: boolean;
   created_at: string;
   cards?: DeckCardDetail[];
 }

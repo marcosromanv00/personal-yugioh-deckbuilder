@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS yg_decks (
     format VARCHAR(50) NOT NULL, -- 'Master Duel', 'TCG', 'Duel Links'
     skill_name VARCHAR(255), -- Solo para Duel Links (ej: "A Trick up the Sleeve")
     is_public BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true, -- true = Deck Activo (físico), false = Deck Inactivo (receta)
+    storage_location_id UUID REFERENCES yg_storage_locations(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -81,7 +83,7 @@ CREATE TABLE IF NOT EXISTS yg_deck_cards (
     deck_id UUID REFERENCES yg_decks(id) ON DELETE CASCADE,
     card_id INTEGER REFERENCES yg_cards(id) ON DELETE CASCADE,
     count INTEGER NOT NULL CONSTRAINT chk_card_count CHECK (count >= 1 AND count <= 3),
-    section VARCHAR(50) NOT NULL CONSTRAINT chk_deck_section CHECK (section IN ('main', 'extra', 'side', 'skill')),
+    section VARCHAR(50) NOT NULL CONSTRAINT chk_deck_section CHECK (section IN ('main', 'extra', 'side', 'skill', 'extras')),
     PRIMARY KEY (deck_id, card_id, section)
 );
 
@@ -119,6 +121,8 @@ CREATE TABLE IF NOT EXISTS yg_user_cards (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     card_id INTEGER REFERENCES yg_cards(id) ON DELETE CASCADE,
     storage_location_id UUID REFERENCES yg_storage_locations(id) ON DELETE SET NULL, -- NULL = Bandeja Sin Clasificar (Unsorted Inbox)
+    deck_id UUID REFERENCES yg_decks(id) ON DELETE SET NULL, -- Si la carta está asociada a un deck específico
+    deck_section VARCHAR(50) CONSTRAINT chk_user_card_deck_section CHECK (deck_section IN ('main', 'extra', 'side')),
     compartment_index INTEGER DEFAULT 0,
     binder_page INTEGER,
     binder_slot INTEGER,
