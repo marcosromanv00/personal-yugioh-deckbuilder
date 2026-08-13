@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Trash, AlertTriangle, TrendingUp, Sparkles, Loader2, RefreshCw, Save, FolderOpen, LayoutGrid, List, Heart, Printer, X, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
@@ -161,6 +161,8 @@ export default function DeckBuilder() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [modalActionMessage, setModalActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  // Ref to track if cursor is still hovering — prevents modal from opening after cursor leaves
+  const isHoveringRef = useRef(false);
 
   // Cargar favoritos al montar
   useEffect(() => {
@@ -188,54 +190,54 @@ export default function DeckBuilder() {
 
   const handleCardMouseEnter = useCallback((card: { id: number; name: string; type?: string; image_url?: string; [key: string]: any }) => {
     if (isPreviewOpen) return;
-    
-    // Clear any existing timer
+
+    isHoveringRef.current = true;
+
     setHoverTimer(prev => {
       if (prev) clearTimeout(prev);
-      
+
       const timer = setTimeout(async () => {
+        // Abort if cursor left before the 1.5s timer fired
+        if (!isHoveringRef.current) return;
+
         setIsPreviewOpen(true);
         setIsLoadingPreview(true);
         setHoveredCard(card);
         setModalActionMessage(null);
-        
+
         try {
           const res = await fetch(`/api/cards?id=${card.id}`);
+          // Second check: abort if cursor left while fetching
+          if (!isHoveringRef.current) {
+            setIsPreviewOpen(false);
+            setIsLoadingPreview(false);
+            return;
+          }
           if (res.ok) {
             const json = await res.json();
             if (json.data && json.data.length > 0) {
               setPreviewCard(json.data[0]);
             } else {
-              setPreviewCard({
-                type: 'Unknown',
-                image_url: '',
-                ...card
-              } as Card);
+              setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
             }
           } else {
-            setPreviewCard({
-              type: 'Unknown',
-              image_url: '',
-              ...card
-            } as Card);
+            setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
           }
         } catch (err) {
           console.error('Error fetching preview card details:', err);
-          setPreviewCard({
-            type: 'Unknown',
-            image_url: '',
-            ...card
-          } as Card);
+          setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
         } finally {
           setIsLoadingPreview(false);
         }
       }, 1500);
-      
+
       return timer;
     });
   }, [isPreviewOpen]);
 
   const handleCardMouseLeave = useCallback(() => {
+    // Mark cursor as gone — cancels any in-flight or pending open
+    isHoveringRef.current = false;
     setHoverTimer(prev => {
       if (prev) clearTimeout(prev);
       return null;
@@ -2182,7 +2184,7 @@ export default function DeckBuilder() {
         {isPreviewOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
             {/* Backdrop click to close */}
-            <div className="absolute inset-0" onClick={() => setIsPreviewOpen(false)} />
+            <div className="absolute inset-0" onClick={() => { isHoveringRef.current = false; setIsPreviewOpen(false); }} />
             
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -2192,7 +2194,7 @@ export default function DeckBuilder() {
             >
               {/* Close Button */}
               <button 
-                onClick={() => setIsPreviewOpen(false)} 
+                onClick={() => { isHoveringRef.current = false; setIsPreviewOpen(false); }} 
                 className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
                 title="Cerrar"
               >
