@@ -126,7 +126,7 @@ export default function DeckBuilder() {
   const [inferredArchetype, setInferredArchetype] = useState('');
   const [detectedArchetypes, setDetectedArchetypes] = useState<{ name: string; count: number }[]>([]);
   const [activeArchetypeTab, setActiveArchetypeTab] = useState<string>('');
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+
   const [banlistAlerts, setBanlistAlerts] = useState<BanlistAlert[]>([]);
   const [replacements, setReplacements] = useState<Record<number, Replacement[]>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -178,7 +178,49 @@ export default function DeckBuilder() {
     }
   }, [format]);
 
-  const triggerSync = async (silent = false) => {
+  // 2. Analizar el deck en tiempo real con la API
+  const analyzeDeck = useCallback(async (currentCards: DeckCard[], currentFormat: string) => {
+    setIsAnalyzing(true);
+    try {
+      // Filtrar cartas que sean de extras para no afectar análisis principal del meta si no se desea, o mapear normal
+      const res = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cards: currentCards.map(c => ({
+            id: c.id,
+            name: c.name,
+            count: c.count,
+            section: c.section
+          })),
+          format: currentFormat
+        })
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const detected: { name: string; count: number }[] = json.detectedArchetypes || [];
+        setDetectedArchetypes(detected);
+        const primaryArch = json.archetype || (detected.length > 0 ? detected[0].name : 'Híbrido / Staples');
+        setInferredArchetype(primaryArch);
+
+        // Actualizar pestaña activa de arquetipo si la actual no pertenece a los detectados
+        setActiveArchetypeTab(prev => {
+          if (prev && detected.some(d => d.name === prev)) return prev;
+          return detected.length > 0 ? detected[0].name : primaryArch;
+        });
+
+        setBanlistAlerts(json.banlistAlerts || []);
+        setReplacements(json.replacements || {});
+      }
+    } catch (e) {
+      console.error('Error analizando deck:', e);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, []);
+
+  const triggerSync = useCallback(async (silent = false) => {
     setIsSyncing(true);
     try {
       const res = await fetch('/api/sync-meta', {
@@ -207,7 +249,7 @@ export default function DeckBuilder() {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [analyzeDeck, deckCards, format, inferredArchetype, fetchSidebarBreakdown]);
 
   // Desglose de arquetipos (Drill-down)
   const [activeArchetypeBreakdown, setActiveArchetypeBreakdown] = useState<string | null>(null);
@@ -322,48 +364,7 @@ export default function DeckBuilder() {
     return () => clearTimeout(timer);
   }, [searchQuery, searchType, advancedFilters, executeSearch]);
 
-  // 2. Analizar el deck en tiempo real con la API
-  const analyzeDeck = useCallback(async (currentCards: DeckCard[], currentFormat: string) => {
-    setIsAnalyzing(true);
-    try {
-      // Filtrar cartas que sean de extras para no afectar análisis principal del meta si no se desea, o mapear normal
-      const res = await fetch('/api/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cards: currentCards.map(c => ({
-            id: c.id,
-            name: c.name,
-            count: c.count,
-            section: c.section
-          })),
-          format: currentFormat
-        })
-      });
 
-      if (res.ok) {
-        const json = await res.json();
-        const detected: { name: string; count: number }[] = json.detectedArchetypes || [];
-        setDetectedArchetypes(detected);
-        const primaryArch = json.archetype || (detected.length > 0 ? detected[0].name : 'Híbrido / Staples');
-        setInferredArchetype(primaryArch);
-
-        // Actualizar pestaña activa de arquetipo si la actual no pertenece a los detectados
-        setActiveArchetypeTab(prev => {
-          if (prev && detected.some(d => d.name === prev)) return prev;
-          return detected.length > 0 ? detected[0].name : primaryArch;
-        });
-
-        setRecommendations(json.recommendations || []);
-        setBanlistAlerts(json.banlistAlerts || []);
-        setReplacements(json.replacements || {});
-      }
-    } catch (e) {
-      console.error('Error analizando deck:', e);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, []);
 
   // Disparar análisis cuando cambia la lista de cartas o el formato
   useEffect(() => {
@@ -388,10 +389,10 @@ export default function DeckBuilder() {
       }
     };
     handleArchetypeChange();
-  }, [activeArchetypeTab, inferredArchetype, format, syncedArchetypes, fetchSidebarBreakdown]);
+  }, [activeArchetypeTab, inferredArchetype, format, syncedArchetypes, fetchSidebarBreakdown, triggerSync]);
 
   // 3. Lógica para agregar carta al deck
-  const addCardToDeck = (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'extras') => {
+  const addCardToDeck = useCallback((card: Card, targetSection?: 'main' | 'extra' | 'side' | 'extras') => {
     let section: 'main' | 'extra' | 'side' | 'extras' = 'main';
 
     if (targetSection) {
@@ -463,10 +464,10 @@ export default function DeckBuilder() {
         archetype: card.archetype
       }];
     });
-  };
+  }, [format, deckCards]);
 
   // 4. Lógica para quitar carta
-  const removeCardFromDeck = (cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => {
+  const removeCardFromDeck = useCallback((cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => {
     const existing = deckCards.find(c => c.id === cardId && c.section === section);
     if (existing) {
       const historyCard: HistoryItem = {
@@ -491,7 +492,7 @@ export default function DeckBuilder() {
       }
       return prev.filter(c => !(c.id === cardId && c.section === section));
     });
-  };
+  }, [deckCards]);
 
   // Handlers para Drag & Drop de cartas desde paneles laterales hacia las secciones del deck
   const handleDragCardStart = (e: React.DragEvent, cardData: { id: number; name: string; type?: string; image_url?: string; archetype?: string; fromSection?: 'main' | 'extra' | 'side' | 'extras' }) => {
@@ -538,13 +539,14 @@ export default function DeckBuilder() {
   };
 
   // 5. Agregar carta recomendada/staple de forma rápida
-  const addRecommendedCard = async (cardId: number, cardName: string, targetSection?: 'main' | 'extra' | 'side' | 'extras', cardObj?: any) => {
+  const addRecommendedCard = async (cardId: number, cardName: string, targetSection?: 'main' | 'extra' | 'side' | 'extras', cardObj?: Partial<Card & BreakdownCardItem & HistoryItem>) => {
     if (cardObj && cardObj.id) {
       addCardToDeck({
         id: cardObj.id,
-        name: cardObj.name,
+        name: cardObj.name || '',
         type: cardObj.type || 'Monster',
         image_url: cardObj.image_url || cardObj.image_url_small || '',
+        image_url_small: cardObj.image_url_small || cardObj.image_url || '',
         archetype: cardObj.archetype
       }, targetSection);
       return;
@@ -1512,7 +1514,7 @@ export default function DeckBuilder() {
                     <label className="block text-xs font-mono text-slate-400 mb-1.5">Formato del Deck</label>
                     <select
                       value={saveFormat}
-                      onChange={(e) => setSaveFormat(e.target.value as any)}
+                      onChange={(e) => setSaveFormat(e.target.value as 'Master Duel' | 'TCG' | 'Duel Links')}
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-lg text-sm text-slate-250 focus:outline-none focus:border-purple-500"
                     >
                       <option value="Master Duel">Master Duel</option>
