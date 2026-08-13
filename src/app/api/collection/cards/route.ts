@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     let dbQuery = supabase
       .from('yg_user_cards')
-      .select('*, card_details:yg_cards(*)')
+      .select('*, card_details:yg_cards(*), deck_details:yg_decks(name)')
       .order('created_at', { ascending: false });
 
     if (locationId === 'null' || locationId === 'inbox') {
@@ -145,6 +145,8 @@ export async function PUT(req: NextRequest) {
     const { 
       id, 
       storage_location_id, 
+      deck_id,
+      deck_section,
       binder_page, 
       binder_slot, 
       compartment_index,
@@ -174,6 +176,8 @@ export async function PUT(req: NextRequest) {
     const updatePayload: Record<string, string | number | boolean | null | undefined> = {};
 
     if (storage_location_id !== undefined) updatePayload.storage_location_id = storage_location_id;
+    if (deck_id !== undefined) updatePayload.deck_id = deck_id;
+    if (deck_section !== undefined) updatePayload.deck_section = deck_section;
     if (binder_page !== undefined) updatePayload.binder_page = binder_page;
     if (binder_slot !== undefined) updatePayload.binder_slot = binder_slot;
     if (compartment_index !== undefined) updatePayload.compartment_index = compartment_index;
@@ -193,7 +197,7 @@ export async function PUT(req: NextRequest) {
       .from('yg_user_cards')
       .update(updatePayload)
       .eq('id', id)
-      .select('*, card_details:yg_cards(*)')
+      .select('*, card_details:yg_cards(*), deck_details:yg_decks(name)')
       .single();
 
     if (error) {

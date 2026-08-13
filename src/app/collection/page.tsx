@@ -546,6 +546,16 @@ export default function CollectionPage() {
                                 )}
                               </div>
 
+                              {/* Deck Badge if assigned */}
+                              {(uc.deck_details?.name || uc.deck_id) && (
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="text-slate-500 text-[9px]">Deck:</span>
+                                  <span className="font-semibold text-purple-400 text-[9px] truncate max-w-28" title={`${uc.deck_details?.name || 'Deck'} (${uc.deck_section || 'Main'})`}>
+                                    ⚔️ {uc.deck_details?.name || 'Deck'} {uc.deck_section ? `(${uc.deck_section.toUpperCase()})` : ''}
+                                  </span>
+                                </div>
+                              )}
+
                               {/* Status Badge */}
                               <div className="flex items-center justify-between text-[10px]">
                                 <span className="text-slate-500 text-[9px]">Destino:</span>
@@ -591,14 +601,16 @@ export default function CollectionPage() {
 
           {/* SECCIÓN DERECHA: DECKS DRAGGABLE PANEL (Col-span 4) */}
           <div className="lg:col-span-4 bg-[hsl(224,22%,10%)]/75 border border-[hsl(224,15%,16%)] rounded-2xl p-5 space-y-4">
-            <div className="border-b border-[hsl(224,15%,16%)] pb-3">
-              <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4 text-purple-400" />
-                <span>Mis Barajas (Decks)</span>
-              </h2>
-              <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+            <div className="border-b border-[hsl(224,15%,16%)] pb-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-purple-400" />
+                  <span>Mis Barajas</span>
+                </h2>
+              </div>
+              <p className="text-[11px] text-slate-400 flex items-center gap-1">
                 <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
-                Arrastra una baraja y suéltala sobre un Deckbox.
+                Arrastra una baraja activa y suéltala sobre un Deckbox.
               </p>
             </div>
 
@@ -610,18 +622,29 @@ export default function CollectionPage() {
               <div className="space-y-2.5 max-h-130 overflow-y-auto pr-1 scrollbar-thin">
                 {decks.map((deck) => {
                   const storedIn = locations.find(l => l.id === deck.storage_location_id);
+                  const isActive = deck.is_active !== false;
+
                   return (
                     <div
                       key={deck.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, deck.id)}
-                      className="p-3.5 rounded-xl bg-slate-950 border border-slate-850 hover:border-purple-500/50 cursor-grab active:cursor-grabbing hover:bg-slate-950 transition-all flex items-center justify-between gap-3 shadow shadow-black"
+                      className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 shadow shadow-black ${
+                        isActive
+                          ? 'bg-slate-950 border-slate-850 hover:border-purple-500/50 cursor-grab active:cursor-grabbing'
+                          : 'bg-slate-950/50 border-slate-900 opacity-75 hover:opacity-100 hover:border-slate-700 cursor-grab'
+                      }`}
                     >
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <h4 className="font-bold text-xs text-slate-200 truncate">{deck.name}</h4>
                           <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono uppercase">
                             {deck.format}
+                          </span>
+                          <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-mono font-bold uppercase ${
+                            isActive ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-900/40' : 'bg-slate-900 text-slate-500 border border-slate-800'
+                          }`}>
+                            {isActive ? 'Activo' : 'Inactivo (Receta)'}
                           </span>
                         </div>
                         <p className="text-[10px] text-slate-500 mt-1 font-mono">
@@ -629,15 +652,36 @@ export default function CollectionPage() {
                         </p>
                       </div>
 
-                      {storedIn ? (
-                        <span className="text-[9px] font-mono font-bold bg-cyan-950/60 text-cyan-400 border border-cyan-900/30 px-2 py-0.5 rounded-md truncate max-w-24">
-                          📦 {storedIn.name}
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-mono font-bold bg-amber-950/30 text-amber-500 border border-amber-900/10 px-2 py-0.5 rounded-md">
-                          Sin almacenar
-                        </span>
-                      )}
+                      <div className="flex flex-col items-end gap-1">
+                        {storedIn ? (
+                          <span className="text-[9px] font-mono font-bold bg-cyan-950/60 text-cyan-400 border border-cyan-900/30 px-2 py-0.5 rounded-md truncate max-w-24">
+                            📦 {storedIn.name}
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-mono font-bold bg-amber-950/30 text-amber-500 border border-amber-900/10 px-2 py-0.5 rounded-md">
+                            Sin almacenar
+                          </span>
+                        )}
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const newActive = !isActive;
+                            try {
+                              const res = await fetch('/api/decks', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: deck.id, is_active: newActive })
+                              });
+                              if (res.ok) fetchCollectionData();
+                            } catch (err) {
+                              console.error('Error al cambiar estado activo del deck:', err);
+                            }
+                          }}
+                          className="text-[8.5px] font-mono text-slate-400 hover:text-purple-300 underline cursor-pointer"
+                        >
+                          {isActive ? 'Marcar Inactivo' : 'Marcar Activo'}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
