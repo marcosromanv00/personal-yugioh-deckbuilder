@@ -55,6 +55,9 @@ interface DeckCard {
   type: string;
   image_url: string;
   archetype?: string;
+  ban_master_duel?: string;
+  ban_tcg?: string;
+  ban_duel_links?: string;
 }
 
 
@@ -308,6 +311,70 @@ export default function DeckBuilder() {
     } finally {
       setIsActionLoading(false);
     }
+  };
+
+  const getBanlistBadge = (card: { ban_tcg?: string; ban_master_duel?: string; ban_duel_links?: string }) => {
+    const status = 
+      format === 'TCG' ? card.ban_tcg :
+      format === 'Master Duel' ? card.ban_master_duel :
+      card.ban_duel_links;
+
+    if (!status || status === 'Unlimited') return null;
+
+    if (status === 'Forbidden') {
+      return (
+        <div 
+          className="absolute top-1 left-1 bg-black border-[3px] border-red-650 text-red-500 font-sans font-black text-[12px] w-[25px] h-[25px] rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          title="Prohibida (0 copias)"
+        >
+          🚫
+        </div>
+      );
+    }
+
+    if (status === 'Limited') {
+      return (
+        <div 
+          className="absolute top-1 left-1 bg-black border-[3px] border-red-655 text-yellow-400 font-sans font-black text-[12px] w-[25px] h-[25px] rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          title="Limitada (1 copia)"
+        >
+          1
+        </div>
+      );
+    }
+
+    if (status === 'Semi-Limited') {
+      return (
+        <div 
+          className="absolute top-1 left-1 bg-black border-[3px] border-blue-500 text-yellow-405 font-sans font-black text-[12px] w-[25px] h-[25px] rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          title="Semi-limitada (2 copias)"
+        >
+          2
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderCardFanCount = (count: number) => {
+    if (count <= 0) return null;
+    return (
+      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center select-none">
+        <div className="relative w-[26px] h-[18px] flex items-center justify-center">
+          {/* Card 1: Left */}
+          <div className="absolute w-[11px] h-[16px] bg-gradient-to-b from-amber-900 to-amber-950 border border-amber-600 rounded-[1px] shadow-sm transform -rotate-12 -translate-x-1.5 translate-y-0.5 origin-bottom" />
+          {/* Card 3: Right */}
+          <div className="absolute w-[11px] h-[16px] bg-gradient-to-b from-amber-900 to-amber-950 border border-amber-600 rounded-[1px] shadow-sm transform rotate-12 translate-x-1.5 translate-y-0.5 origin-bottom" />
+          {/* Card 2: Center */}
+          <div className="absolute w-[11px] h-[16px] bg-gradient-to-b from-amber-800 to-amber-950 border border-amber-500 rounded-[1px] shadow-md z-10" />
+          {/* Count Text Overlay */}
+          <div className="absolute z-20 bg-black/95 border border-zinc-800 text-white font-mono font-black text-[7px] px-0.5 py-px rounded shadow-lg leading-none">
+            {count}x
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Desglose del arquetipo detectado en barra lateral
@@ -622,7 +689,10 @@ export default function DeckBuilder() {
         section,
         type: card.type,
         image_url: card.image_url,
-        archetype: card.archetype
+        archetype: card.archetype,
+        ban_master_duel: card.ban_master_duel,
+        ban_tcg: card.ban_tcg,
+        ban_duel_links: card.ban_duel_links
       }];
     });
   }, [format, deckCards]);
@@ -823,7 +893,10 @@ export default function DeckBuilder() {
       count: dc.count,
       section: dc.section as 'main' | 'extra' | 'side' | 'extras',
       type: dc.card_details?.type || 'Monster',
-      image_url: dc.card_details?.image_url || dc.card_details?.image_url_small || ''
+      image_url: dc.card_details?.image_url || dc.card_details?.image_url_small || '',
+      ban_master_duel: (dc.card_details as any)?.ban_master_duel,
+      ban_tcg: (dc.card_details as any)?.ban_tcg,
+      ban_duel_links: (dc.card_details as any)?.ban_duel_links
     }));
     setDeckCards(mappedCards);
     setIsLoadModalOpen(false);
@@ -1165,6 +1238,7 @@ export default function DeckBuilder() {
                           className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
                           onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                         />
+                        {getBanlistBadge(card)}
                       </div>
                       <div className="mt-1 transition-all text-center min-w-0">
                         <p className="text-[7.5px] font-semibold text-slate-300 truncate">{card.name}</p>
@@ -1284,9 +1358,8 @@ export default function DeckBuilder() {
                           className="w-full h-full object-contain" 
                           onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                         />
-                        <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
-                          {c.count}x
-                        </div>
+                        {getBanlistBadge(c)}
+                        {renderCardFanCount(c.count)}
                       </div>
                     ))}
                   </div>
@@ -1325,9 +1398,8 @@ export default function DeckBuilder() {
                           className="w-full h-full object-contain" 
                           onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                         />
-                        <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
-                          {c.count}x
-                        </div>
+                        {getBanlistBadge(c)}
+                        {renderCardFanCount(c.count)}
                       </div>
                     ))}
                   </div>
@@ -1366,9 +1438,8 @@ export default function DeckBuilder() {
                           className="w-full h-full object-contain" 
                           onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                         />
-                        <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
-                          {c.count}x
-                        </div>
+                        {getBanlistBadge(c)}
+                        {renderCardFanCount(c.count)}
                       </div>
                     ))}
                   </div>
@@ -1407,9 +1478,8 @@ export default function DeckBuilder() {
                           className="w-full h-full object-contain" 
                           onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                         />
-                        <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
-                          {c.count}x
-                        </div>
+                        {getBanlistBadge(c)}
+                        {renderCardFanCount(c.count)}
                       </div>
                     ))}
                   </div>
