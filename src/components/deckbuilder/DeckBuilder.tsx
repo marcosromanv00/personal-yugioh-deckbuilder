@@ -91,6 +91,7 @@ export default function DeckBuilder() {
   // Formato y Deck
   const [format, setFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('Master Duel');
   const [saveFormat, setSaveFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('Master Duel');
+  const [saveIsActive, setSaveIsActive] = useState<boolean>(true);
   const [deckCards, setDeckCards] = useState<DeckCard[]>([]);
   const [deckName, setDeckName] = useState('Mi Deck Yu-Gi-Oh!');
   const [deckDescription, setDeckDescription] = useState('');
@@ -247,6 +248,12 @@ export default function DeckBuilder() {
     });
   }, [fetchArchetypes]);
 
+  const isExtraDeckCard = (cardType?: string): boolean => {
+    if (!cardType) return false;
+    const t = cardType.toLowerCase();
+    return t.includes('fusion') || t.includes('link') || t.includes('synchro') || t.includes('xyz');
+  };
+
   const initializeDeckFromArchetype = async (archetype: string, cardsInBreakdown: BreakdownCardItem[]) => {
     if (deckCards.length > 0 && !confirm(`¿Estás seguro de que deseas iniciar una nueva baraja de ${archetype}? Esto borrará tus cartas actuales.`)) {
       return;
@@ -255,7 +262,7 @@ export default function DeckBuilder() {
     const cardsToLoad: DeckCard[] = [];
 
     for (const item of cardsInBreakdown) {
-      const isExtra = ['Fusion Monster', 'Link Monster', 'Synchro Monster', 'XYZ Monster', 'Pendulum Effect Fusion Monster'].includes(item.type);
+      const isExtra = isExtraDeckCard(item.type);
       const section = isExtra ? 'extra' : 'main';
 
       cardsToLoad.push({
@@ -390,7 +397,7 @@ export default function DeckBuilder() {
     if (targetSection) {
       section = targetSection;
     } else {
-      const isExtraDeckType = ['Fusion Monster', 'Link Monster', 'Synchro Monster', 'XYZ Monster', 'Pendulum Effect Fusion Monster'].includes(card.type);
+      const isExtraDeckType = isExtraDeckCard(card.type);
       section = isExtraDeckType ? 'extra' : 'main';
     }
 
@@ -486,21 +493,100 @@ export default function DeckBuilder() {
     });
   };
 
+  // Handlers para Drag & Drop de cartas desde paneles laterales hacia las secciones del deck
+  const handleDragCardStart = (e: React.DragEvent, cardData: { id: number; name: string; type?: string; image_url?: string; archetype?: string; fromSection?: 'main' | 'extra' | 'side' | 'extras' }) => {
+    const payload = JSON.stringify({
+      id: cardData.id,
+      name: cardData.name,
+      type: cardData.type || 'Monster',
+      image_url: cardData.image_url || '',
+      archetype: cardData.archetype,
+      fromSection: cardData.fromSection
+    });
+    e.dataTransfer.setData('application/json', payload);
+    e.dataTransfer.setData('text/plain', String(cardData.id));
+  };
+
+  const handleDropCardOnSection = (e: React.DragEvent, targetSection: 'main' | 'extra' | 'side' | 'extras') => {
+    e.preventDefault();
+    const jsonStr = e.dataTransfer.getData('application/json');
+    if (jsonStr) {
+      try {
+        const cardObj = JSON.parse(jsonStr);
+        if (cardObj && cardObj.id) {
+          if (cardObj.fromSection) {
+            if (cardObj.fromSection !== targetSection) {
+              removeCardFromDeck(cardObj.id, cardObj.fromSection);
+              addCardToDeck(cardObj, targetSection);
+            }
+          } else {
+            addCardToDeck(cardObj, targetSection);
+          }
+          return;
+        }
+      } catch (err) {
+        console.error('Error al parsear carta arrastrada:', err);
+      }
+    }
+    const rawId = e.dataTransfer.getData('text/plain');
+    if (rawId) {
+      const cardId = parseInt(rawId);
+      if (!isNaN(cardId)) {
+        addRecommendedCard(cardId, '', targetSection);
+      }
+    }
+  };
+
   // 5. Agregar carta recomendada/staple de forma rápida
-  const addRecommendedCard = async (cardId: number, cardName: string) => {
+  const addRecommendedCard = async (cardId: number, cardName: string, targetSection?: 'main' | 'extra' | 'side' | 'extras', cardObj?: any) => {
+    if (cardObj && cardObj.id) {
+      addCardToDeck({
+        id: cardObj.id,
+        name: cardObj.name,
+        type: cardObj.type || 'Monster',
+        image_url: cardObj.image_url || cardObj.image_url_small || '',
+        archetype: cardObj.archetype
+      }, targetSection);
+      return;
+    }
+
     const foundInSearch = searchResults.find(c => c.id === cardId);
     if (foundInSearch) {
-      addCardToDeck(foundInSearch);
+      addCardToDeck(foundInSearch, targetSection);
+      return;
+    }
+
+    const foundInSidebar = sidebarBreakdownCards.find(c => c.id === cardId);
+    if (foundInSidebar) {
+      addCardToDeck({
+        id: foundInSidebar.id,
+        name: foundInSidebar.name,
+        type: foundInSidebar.type || 'Monster',
+        image_url: foundInSidebar.image_url || foundInSidebar.image_url_small || ''
+      }, targetSection);
+      return;
+    }
+
+    const foundInHistory = cardHistory.find(c => c.id === cardId);
+    if (foundInHistory) {
+      addCardToDeck({
+        id: foundInHistory.id,
+        name: foundInHistory.name,
+        type: foundInHistory.type || 'Monster',
+        image_url: foundInHistory.image_url || '',
+        archetype: foundInHistory.archetype
+      }, targetSection);
       return;
     }
 
     try {
-      const res = await fetch(`/api/cards?q=${encodeURIComponent(cardName)}`);
+      const queryName = cardName || String(cardId);
+      const res = await fetch(`/api/cards?q=${encodeURIComponent(queryName)}`);
       if (res.ok) {
         const json = await res.json();
-        const card = json.data?.find((c: Card) => c.id === cardId);
+        const card = json.data?.find((c: Card) => c.id === cardId) || json.data?.[0];
         if (card) {
-          addCardToDeck(card);
+          addCardToDeck(card, targetSection);
         }
       }
     } catch (e) {
@@ -609,6 +695,7 @@ export default function DeckBuilder() {
         name: deckName,
         description: deckDescription,
         format: saveFormat,
+        is_active: saveIsActive,
         storage_location_id: targetLocationId === 'inbox' ? null : targetLocationId,
         cards: deckCards.map(c => ({
           id: c.id,
@@ -668,6 +755,13 @@ export default function DeckBuilder() {
     }
   };
 
+  const handleClearDeck = () => {
+    if (confirm('¿Estás seguro de que deseas limpiar todo el deck actual? Esta acción no se puede deshacer.')) {
+      setDeckCards([]);
+      setDeckId(null);
+    }
+  };
+
   const handleExcludeExisting = () => {
     const updated = { ...cardsToRegister };
     deckCards.forEach(c => {
@@ -715,6 +809,14 @@ export default function DeckBuilder() {
           >
             <FolderOpen className="w-3.5 h-3.5 text-purple-400" />
             <span>Cargar Deck</span>
+          </button>
+
+          <button
+            onClick={handleClearDeck}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 hover:text-red-400 hover:bg-red-950/10 rounded-xl text-xs font-semibold text-red-500 transition-all cursor-pointer"
+          >
+            <Trash className="w-3.5 h-3.5 text-red-500" />
+            <span>Limpiar Deck</span>
           </button>
           
           <button
@@ -774,8 +876,6 @@ export default function DeckBuilder() {
                 key={f}
                 onClick={() => {
                   setFormat(f);
-                  setDeckCards([]);
-                  setDeckId(null);
                 }}
                 className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${
                   format === f 
@@ -888,7 +988,10 @@ export default function DeckBuilder() {
                   {searchResults.map(card => (
                     <div 
                       key={card.id}
-                      className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden"
+                      draggable
+                      onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
+                      onClick={() => addCardToDeck(card)}
+                      className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-grab active:cursor-grabbing"
                     >
                       <div className="relative flex-1 rounded-md overflow-hidden shadow">
                         <img 
@@ -897,29 +1000,8 @@ export default function DeckBuilder() {
                           className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
                           onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                         />
-                        <div className="absolute inset-0 bg-black/85 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center items-center gap-0.5 p-0.5">
-                          <p className="text-[7px] font-bold text-center text-slate-200 line-clamp-2 px-0.5 mb-0.5">{card.name}</p>
-                          <button
-                            onClick={() => addCardToDeck(card)}
-                            className="w-full py-0.5 bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,64%)]/80 text-white rounded text-[6.5px] font-bold transition-all cursor-pointer"
-                          >
-                            + Main
-                          </button>
-                          <button
-                            onClick={() => addCardToDeck(card, 'side')}
-                            className="w-full py-0.5 bg-zinc-850 hover:bg-zinc-750 text-slate-200 rounded text-[6.5px] font-bold transition-all cursor-pointer"
-                          >
-                            + Side
-                          </button>
-                          <button
-                            onClick={() => addCardToDeck(card, 'extras')}
-                            className="w-full py-0.5 bg-zinc-900 hover:bg-zinc-800 text-slate-350 rounded text-[6.5px] font-bold transition-all cursor-pointer"
-                          >
-                            + Ext
-                          </button>
-                        </div>
                       </div>
-                      <div className="mt-1 group-hover:hidden transition-all text-center min-w-0">
+                      <div className="mt-1 transition-all text-center min-w-0">
                         <p className="text-[7.5px] font-semibold text-slate-300 truncate">{card.name}</p>
                       </div>
                     </div>
@@ -929,7 +1011,10 @@ export default function DeckBuilder() {
                 searchResults.map(card => (
                   <div 
                     key={card.id}
-                    className="flex gap-3 p-2 bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-xl border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group"
+                    draggable
+                    onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
+                    onClick={() => addCardToDeck(card)}
+                    className="flex gap-3 p-2 bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-xl border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group cursor-grab active:cursor-grabbing"
                   >
                     <img 
                       src={card.image_url_small || card.image_url} 
@@ -947,21 +1032,21 @@ export default function DeckBuilder() {
                       {/* ACCIONES DE ADICIÓN */}
                       <div className="flex gap-1.5 mt-1.5">
                         <button
-                          onClick={() => addCardToDeck(card)}
+                          onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
                           className="flex-1 py-1 px-1.5 bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,64%)]/80 text-white rounded-lg text-[9px] font-bold transition-all"
                           title="Añadir al Deck principal o Extra (Auto)"
                         >
                           + Agregar
                         </button>
                         <button
-                          onClick={() => addCardToDeck(card, 'side')}
+                          onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
                           className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all"
                           title="Añadir a Side Deck"
                         >
                           + Side
                         </button>
                         <button
-                          onClick={() => addCardToDeck(card, 'extras')}
+                          onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
                           className="px-1.5 py-1 bg-zinc-850 hover:bg-zinc-700 text-slate-350 rounded-lg text-[9px] font-bold transition-all"
                           title="Añadir a Extras/Sugeridas"
                         >
@@ -1001,21 +1086,27 @@ export default function DeckBuilder() {
             <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-thin">
               
               {/* MAIN DECK */}
-              <div>
+              <div 
+                onDragOver={(e) => e.preventDefault()} 
+                onDrop={(e) => handleDropCardOnSection(e, 'main')}
+                className="p-2 rounded-xl border border-transparent hover:border-[hsl(180,80%,45%)]/30 transition-colors"
+              >
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[hsl(180,80%,45%)] mb-3 flex items-center gap-2">
-                  • Main Deck <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({mainCardsCount} cartas)</span>
+                  • Main Deck <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({mainCardsCount} cartas) - Arrastra aquí</span>
                 </h3>
                 {deckCards.filter(c => c.section === 'main').length === 0 ? (
                   <div className="text-center py-6 bg-[hsl(224,25%,6%)] rounded-xl border border-[hsl(224,15%,16%)] border-dashed text-sm text-zinc-600">
-                    El Main Deck está vacío. Busca y agrega cartas desde el panel izquierdo.
+                    El Main Deck está vacío. Busca y agrega cartas desde el panel izquierdo o arrástralas aquí.
                   </div>
                 ) : (
                   <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
                     {deckCards.filter(c => c.section === 'main').map(c => (
                       <div 
                         key={c.id} 
+                        draggable
+                        onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'main' })}
                         onClick={() => removeCardFromDeck(c.id, 'main')}
-                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-pointer group hover:scale-105 transition-all duration-200"
+                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
                         title={`Haz clic para quitar 1 copia de ${c.name}`}
                       >
                         <img 
@@ -1027,9 +1118,6 @@ export default function DeckBuilder() {
                         <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
                           {c.count}x
                         </div>
-                        <div className="absolute inset-0 bg-red-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="text-[9px] font-bold text-red-300 drop-shadow">Quitar</span>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -1037,9 +1125,13 @@ export default function DeckBuilder() {
               </div>
 
               {/* EXTRA DECK */}
-              <div className="border-t border-[hsl(224,15%,16%)] pt-4">
+              <div 
+                onDragOver={(e) => e.preventDefault()} 
+                onDrop={(e) => handleDropCardOnSection(e, 'extra')}
+                className="border-t border-[hsl(224,15%,16%)] pt-4 p-2 rounded-xl hover:border-purple-500/30 transition-colors"
+              >
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[hsl(263,85%,64%)] mb-3 flex items-center gap-2">
-                  • Extra Deck <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({extraCardsCount} cartas)</span>
+                  • Extra Deck <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({extraCardsCount} cartas) - Arrastra aquí</span>
                 </h3>
                 {deckCards.filter(c => c.section === 'extra').length === 0 ? (
                   <div className="text-center py-4 bg-[hsl(224,25%,6%)] rounded-xl border border-[hsl(224,15%,16%)] border-dashed text-sm text-zinc-650">
@@ -1050,8 +1142,10 @@ export default function DeckBuilder() {
                     {deckCards.filter(c => c.section === 'extra').map(c => (
                       <div 
                         key={c.id} 
+                        draggable
+                        onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'extra' })}
                         onClick={() => removeCardFromDeck(c.id, 'extra')}
-                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-pointer group hover:scale-105 transition-all duration-200"
+                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
                         title={`Haz clic para quitar 1 copia de ${c.name}`}
                       >
                         <img 
@@ -1063,9 +1157,6 @@ export default function DeckBuilder() {
                         <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
                           {c.count}x
                         </div>
-                        <div className="absolute inset-0 bg-red-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="text-[9px] font-bold text-red-300 drop-shadow">Quitar</span>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -1073,9 +1164,13 @@ export default function DeckBuilder() {
               </div>
 
               {/* SIDE DECK */}
-              <div className="border-t border-[hsl(224,15%,16%)] pt-4">
+              <div 
+                onDragOver={(e) => e.preventDefault()} 
+                onDrop={(e) => handleDropCardOnSection(e, 'side')}
+                className="border-t border-[hsl(224,15%,16%)] pt-4 p-2 rounded-xl hover:border-amber-500/30 transition-colors"
+              >
                 <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 mb-3 flex items-center gap-2">
-                  • Side Deck <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({sideCardsCount} cartas)</span>
+                  • Side Deck <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({sideCardsCount} cartas) - Arrastra aquí</span>
                 </h3>
                 {deckCards.filter(c => c.section === 'side').length === 0 ? (
                   <div className="text-center py-4 bg-[hsl(224,25%,6%)] rounded-xl border border-[hsl(224,15%,16%)] border-dashed text-sm text-zinc-650">
@@ -1086,8 +1181,10 @@ export default function DeckBuilder() {
                     {deckCards.filter(c => c.section === 'side').map(c => (
                       <div 
                         key={c.id} 
+                        draggable
+                        onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'side' })}
                         onClick={() => removeCardFromDeck(c.id, 'side')}
-                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-pointer group hover:scale-105 transition-all duration-200"
+                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
                         title={`Haz clic para quitar 1 copia de ${c.name}`}
                       >
                         <img 
@@ -1099,9 +1196,6 @@ export default function DeckBuilder() {
                         <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
                           {c.count}x
                         </div>
-                        <div className="absolute inset-0 bg-red-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="text-[9px] font-bold text-red-300 drop-shadow">Quitar</span>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -1109,9 +1203,13 @@ export default function DeckBuilder() {
               </div>
 
               {/* EXTRAS */}
-              <div className="border-t border-[hsl(224,15%,16%)] pt-4">
+              <div 
+                onDragOver={(e) => e.preventDefault()} 
+                onDrop={(e) => handleDropCardOnSection(e, 'extras')}
+                className="border-t border-[hsl(224,15%,16%)] pt-4 p-2 rounded-xl hover:border-teal-500/30 transition-colors"
+              >
                 <h3 className="text-xs font-bold uppercase tracking-wider text-teal-400 mb-3 flex items-center gap-2">
-                  • Extras / Estrategias Sugeridas <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({extrasCardsCount} cartas)</span>
+                  • Extras / Estrategias Sugeridas <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({extrasCardsCount} cartas) - Arrastra aquí</span>
                 </h3>
                 {deckCards.filter(c => c.section === 'extras').length === 0 ? (
                   <div className="text-center py-4 bg-[hsl(224,25%,6%)] rounded-xl border border-[hsl(224,15%,16%)] border-dashed text-sm text-zinc-650">
@@ -1122,8 +1220,10 @@ export default function DeckBuilder() {
                     {deckCards.filter(c => c.section === 'extras').map(c => (
                       <div 
                         key={c.id} 
+                        draggable
+                        onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'extras' })}
                         onClick={() => removeCardFromDeck(c.id, 'extras')}
-                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-pointer group hover:scale-105 transition-all duration-200"
+                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
                         title={`Haz clic para quitar 1 copia de ${c.name}`}
                       >
                         <img 
@@ -1134,9 +1234,6 @@ export default function DeckBuilder() {
                         />
                         <div className="absolute top-1 right-1 bg-black/80 border border-zinc-850 text-white font-mono font-bold text-[9px] px-1 py-0.5 rounded shadow">
                           {c.count}x
-                        </div>
-                        <div className="absolute inset-0 bg-red-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="text-[9px] font-bold text-red-300 drop-shadow">Quitar</span>
                         </div>
                       </div>
                     ))}
@@ -1239,8 +1336,10 @@ export default function DeckBuilder() {
                         return (
                           <div
                             key={card.id}
-                            onClick={() => addRecommendedCard(card.id, card.name)}
-                            className="relative aspect-[3/4.2] rounded-md overflow-hidden border border-zinc-800 hover:border-purple-500 hover:scale-105 transition-all duration-200 bg-zinc-950 cursor-pointer group"
+                            draggable
+                            onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url })}
+                            onClick={() => addRecommendedCard(card.id, card.name, undefined, card)}
+                            className="relative aspect-[3/4.2] rounded-md overflow-hidden border border-zinc-800 hover:border-purple-500 hover:scale-105 transition-all duration-200 bg-zinc-950 cursor-grab active:cursor-grabbing group"
                             title={hoverText}
                           >
                             <img
@@ -1275,11 +1374,13 @@ export default function DeckBuilder() {
                     {cardHistory.map((item, idx) => (
                       <div
                         key={`${item.id}-${idx}`}
-                        className={`relative aspect-[3/4.2] rounded-md overflow-hidden border bg-zinc-950 cursor-pointer hover:scale-105 transition-all duration-200 group ${
+                        draggable
+                        onDragStart={(e) => handleDragCardStart(e, { id: item.id, name: item.name, type: item.type, image_url: item.image_url, archetype: item.archetype })}
+                        className={`relative aspect-[3/4.2] rounded-md overflow-hidden border bg-zinc-950 cursor-grab active:cursor-grabbing hover:scale-105 transition-all duration-200 group ${
                           item.action === 'added' ? 'border-green-500/40 hover:border-green-400' : 'border-red-500/40 hover:border-red-400'
                         }`}
-                        title={`${item.name} (${item.action === 'added' ? 'Añadida' : 'Quitada'}) - Haz clic para agregar`}
-                        onClick={() => addRecommendedCard(item.id, item.name)}
+                        title={`${item.name} (${item.action === 'added' ? 'Añadida' : 'Quitada'}) - Haz clic o arrastra para agregar`}
+                        onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
                       >
                         <img
                           src={item.image_url}
@@ -1387,7 +1488,7 @@ export default function DeckBuilder() {
               {/* CONTENIDO DEL MODAL */}
               <div className="flex-1 overflow-y-auto py-4 space-y-5 pr-1">
                 {/* CONFIG DECK GENERAL */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-mono text-slate-400 mb-1.5">Nombre de la Baraja</label>
                     <input
@@ -1398,12 +1499,12 @@ export default function DeckBuilder() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1.5">Descripción o Comentarios</label>
+                    <label className="block text-xs font-mono text-slate-400 mb-1.5">Descripción / Comentarios</label>
                     <input
                       type="text"
                       value={deckDescription}
                       onChange={(e) => setDeckDescription(e.target.value)}
-                      placeholder="ej: Receta de TCG regional o MD Season 22..."
+                      placeholder="ej: Receta TCG regional..."
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-slate-250 focus:outline-none focus:border-purple-500"
                     />
                   </div>
@@ -1417,6 +1518,17 @@ export default function DeckBuilder() {
                       <option value="Master Duel">Master Duel</option>
                       <option value="TCG">TCG (Formato Físico)</option>
                       <option value="Duel Links">Duel Links</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-mono text-slate-400 mb-1.5">Estado Físico</label>
+                    <select
+                      value={saveIsActive ? 'active' : 'inactive'}
+                      onChange={(e) => setSaveIsActive(e.target.value === 'active')}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-lg text-sm text-slate-250 focus:outline-none focus:border-purple-500 font-bold text-cyan-400"
+                    >
+                      <option value="active">🟢 Deck Activo (Físicamente armado)</option>
+                      <option value="inactive">⚪ Deck Inactivo (Receta guardada)</option>
                     </select>
                   </div>
                 </div>
@@ -1729,7 +1841,10 @@ export default function DeckBuilder() {
                         {breakdownCards.filter(c => c.is_main_deck).map(item => (
                           <div 
                             key={item.id} 
-                            className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden"
+                            draggable
+                            onDragStart={(e) => handleDragCardStart(e, { id: item.id, name: item.name, type: item.type, image_url: item.image_url_small || item.image_url })}
+                            onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
+                            className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-grab active:cursor-grabbing"
                           >
                             <div className="relative aspect-3/4 rounded-lg overflow-hidden shadow shadow-black/60 mb-2.5">
                               <img 
@@ -1746,7 +1861,7 @@ export default function DeckBuilder() {
                               <p className="text-[9px] text-[hsl(180,80%,45%)] font-bold mt-1 font-mono">{Math.round(item.usage_percent)}% de decks</p>
                               
                               <button
-                                onClick={() => addRecommendedCard(item.id, item.name)}
+                                onClick={(e) => { e.stopPropagation(); addRecommendedCard(item.id, item.name, undefined, item); }}
                                 className="w-full py-1.5 px-3.5 mt-2 bg-zinc-800 hover:bg-[hsl(180,80%,45%)]/20 hover:text-[hsl(180,80%,45%)] text-white rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 border border-zinc-700 hover:border-[hsl(180,80%,45%)]/30 cursor-pointer"
                               >
                                 <Plus className="w-3.5 h-3.5" /> Agregar
@@ -1766,7 +1881,10 @@ export default function DeckBuilder() {
                         {breakdownCards.filter(c => !c.is_main_deck).map(item => (
                           <div 
                             key={item.id} 
-                            className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden"
+                            draggable
+                            onDragStart={(e) => handleDragCardStart(e, { id: item.id, name: item.name, type: item.type, image_url: item.image_url_small || item.image_url })}
+                            onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
+                            className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-grab active:cursor-grabbing"
                           >
                             <div className="relative aspect-3/4 rounded-lg overflow-hidden shadow shadow-black/60 mb-2.5">
                               <img 
@@ -1783,7 +1901,7 @@ export default function DeckBuilder() {
                               <p className="text-[9px] text-[hsl(263,85%,64%)] font-bold mt-1 font-mono">{Math.round(item.usage_percent)}% de decks</p>
                               
                               <button
-                                onClick={() => addRecommendedCard(item.id, item.name)}
+                                onClick={(e) => { e.stopPropagation(); addRecommendedCard(item.id, item.name, undefined, item); }}
                                 className="w-full py-1.5 px-3.5 mt-2 bg-zinc-800 hover:bg-[hsl(263,85%,64%)]/20 hover:text-[hsl(263,85%,64%)] text-white rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 border border-zinc-700 hover:border-[hsl(263,85%,64%)]/30 cursor-pointer"
                               >
                                 <Plus className="w-3.5 h-3.5" /> Agregar
