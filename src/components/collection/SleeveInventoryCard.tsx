@@ -118,7 +118,7 @@ export const AddSleeveCard: React.FC<{ onClick: () => void }> = ({ onClick }) =>
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     onClick={onClick}
-    className="group relative bg-[hsl(224,22%,10%)] border border-dashed border-[hsl(224,15%,22%)] rounded-xl p-4 hover:border-purple-500/60 hover:bg-purple-500/5 transition-all duration-300 min-h-[140px] flex flex-col items-center justify-center gap-2"
+    className="group relative bg-[hsl(224,22%,10%)] border border-dashed border-[hsl(224,15%,22%)] rounded-xl p-4 hover:border-purple-500/60 hover:bg-purple-500/5 transition-all duration-300 min-h-35 flex flex-col items-center justify-center gap-2"
   >
     <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
       <Layers className="w-5 h-5 text-purple-400" />

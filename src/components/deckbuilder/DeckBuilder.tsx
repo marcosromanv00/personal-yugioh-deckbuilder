@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Trash, AlertTriangle, TrendingUp, Sparkles, Loader2, RefreshCw, Save, FolderOpen, LayoutGrid, List, Heart, Printer, X, Trash2, Shield } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
-import { StorageLocation } from '@/types/collection';
+import { StorageLocation, SleeveInventory, DeckSleeve } from '@/types/collection';
 import { CardFilters, FilterState } from './CardFilters';
 
 
@@ -88,6 +88,18 @@ interface HistoryItem {
   timestamp: number;
 }
 
+interface HoverCardBase {
+  id: number;
+  name: string;
+  type?: string;
+  image_url?: string;
+  image_url_small?: string;
+  archetype?: string;
+  action?: 'added' | 'removed';
+  average_copies?: number;
+  usage_percent?: number;
+}
+
 export default function DeckBuilder() {
   // Formato y Deck
   const [format, setFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('Master Duel');
@@ -98,9 +110,71 @@ export default function DeckBuilder() {
   const [deckDescription, setDeckDescription] = useState('');
   const [deckId, setDeckId] = useState<string | null>(null);
 
-  // Panel collapse state
+  // Panel collapse and horizontal resize state
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320);
+  const [rightPanelWidth, setRightPanelWidth] = useState(320);
+
+  const isResizingLeft = useRef(false);
+  const isResizingRight = useRef(false);
+
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  const [searchLimit, setSearchLimit] = useState(45);
+
+  const startResizeLeft = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingLeft.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = leftPanelWidth;
+    document.body.style.cursor = 'col-resize';
+  }, [leftPanelWidth]);
+
+  const startResizeRight = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRight.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = rightPanelWidth;
+    document.body.style.cursor = 'col-resize';
+  }, [rightPanelWidth]);
+
+  useEffect(() => {
+    let animationFrameId: number;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingLeft.current) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = requestAnimationFrame(() => {
+          const deltaX = e.clientX - startXRef.current;
+          const newWidth = Math.max(260, Math.min(550, startWidthRef.current + deltaX));
+          setLeftPanelWidth(newWidth);
+        });
+      } else if (isResizingRight.current) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = requestAnimationFrame(() => {
+          const deltaX = e.clientX - startXRef.current;
+          const newWidth = Math.max(260, Math.min(550, startWidthRef.current - deltaX));
+          setRightPanelWidth(newWidth);
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      isResizingLeft.current = false;
+      isResizingRight.current = false;
+      document.body.style.cursor = 'default';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   // Portal de exploración (Archetype Hub)
   const [activeView, setActiveView] = useState<'builder' | 'breakdowns'>('builder');
@@ -156,7 +230,7 @@ export default function DeckBuilder() {
   const [cardsToRegister, setCardsToRegister] = useState<Record<number, boolean>>({});
 
   // Sleeve assignment states
-  const [availableSleeves, setAvailableSleeves] = useState<any[]>([]);
+  const [availableSleeves, setAvailableSleeves] = useState<SleeveInventory[]>([]);
   const [selectedMainSleeveId, setSelectedMainSleeveId] = useState<string>('');
   const [selectedExtraSleeveId, setSelectedExtraSleeveId] = useState<string>('');
 
@@ -164,11 +238,23 @@ export default function DeckBuilder() {
   const [cardHistory, setCardHistory] = useState<HistoryItem[]>([]);
 
   // Estado y lógica para la vista técnica de carta en Hover
-  const [favoriteCardIds, setFavoriteCardIds] = useState<number[]>([]);
+  const [favoriteCardIds, setFavoriteCardIds] = useState<number[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('yg_favorite_cards');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          console.error('Error parsing favorite cards:', e);
+        }
+      }
+    }
+    return [];
+  });
   const [searchScope, setSearchScope] = useState<'global' | 'collection'>('global');
   const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
-  const [hoveredCard, setHoveredCard] = useState<{ id: number; name: string; type?: string; image_url?: string; [key: string]: any } | null>(null);
-  const [hoverTimer, setHoverTimer] = useState<NodeJS.Timeout | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<HoverCardBase | null>(null);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [previewCard, setPreviewCard] = useState<Card | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -184,20 +270,6 @@ export default function DeckBuilder() {
     setIsPreviewOpen(false);
   }, []);
 
-  // Cargar favoritos al montar
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('yg_favorite_cards');
-      if (stored) {
-        try {
-          setFavoriteCardIds(JSON.parse(stored));
-        } catch (e) {
-          console.error('Error parsing favorite cards:', e);
-        }
-      }
-    }
-  }, []);
-
   const handleToggleFavorite = (cardId: number) => {
     setFavoriteCardIds(prev => {
       const updated = prev.includes(cardId)
@@ -208,33 +280,32 @@ export default function DeckBuilder() {
     });
   };
 
-  const handleCardMouseEnter = useCallback((card: { id: number; name: string; type?: string; image_url?: string; [key: string]: any }) => {
+  const handleCardMouseEnter = useCallback((card: HoverCardBase) => {
     if (isPreviewOpen) return;
 
     isHoveringRef.current = true;
 
-    setHoverTimer(prev => {
-      if (prev) clearTimeout(prev);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
 
-      const timer = setTimeout(async () => {
-        // Abort if cursor left before the 1.5s timer fired
-        if (!isHoveringRef.current) return;
+    hoverTimerRef.current = setTimeout(async () => {
+      // Abort if cursor left before the 1.5s timer fired
+      if (!isHoveringRef.current) return;
 
-        setIsPreviewOpen(true);
-        isPreviewOpenRef.current = true;
-        setIsLoadingPreview(true);
-        setHoveredCard(card);
-        setModalActionMessage(null);
+      setIsPreviewOpen(true);
+      isPreviewOpenRef.current = true;
+      setIsLoadingPreview(true);
+      setHoveredCard(card);
+      setModalActionMessage(null);
 
-        try {
-          const res = await fetch(`/api/cards?id=${card.id}`);
-          // Second check: abort if cursor left while fetching
-          if (!isHoveringRef.current) {
-            setIsPreviewOpen(false);
-            isPreviewOpenRef.current = false;
-            setIsLoadingPreview(false);
-            return;
-          }
+      try {
+        const res = await fetch(`/api/cards?id=${card.id}`);
+        // Second check: abort if cursor left while fetching
+        if (!isHoveringRef.current) {
+          setIsPreviewOpen(false);
+          isPreviewOpenRef.current = false;
+          setIsLoadingPreview(false);
+          return;
+        }
           if (res.ok) {
             const json = await res.json();
             if (json.data && json.data.length > 0) {
@@ -252,9 +323,6 @@ export default function DeckBuilder() {
           setIsLoadingPreview(false);
         }
       }, 1500);
-
-      return timer;
-    });
   }, [isPreviewOpen]);
 
   const handleCardMouseLeave = useCallback(() => {
@@ -263,18 +331,18 @@ export default function DeckBuilder() {
     if (!isPreviewOpenRef.current) {
       isHoveringRef.current = false;
     }
-    setHoverTimer(prev => {
-      if (prev) clearTimeout(prev);
-      return null;
-    });
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
     return () => {
-      setHoverTimer(prev => {
-        if (prev) clearTimeout(prev);
-        return null;
-      });
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -351,7 +419,7 @@ export default function DeckBuilder() {
     if (status === 'Forbidden') {
       return (
         <div 
-          className="absolute top-1 left-1 bg-black border-[3px] border-red-650 text-red-500 font-sans font-black text-[12px] w-[25px] h-[25px] rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          className="absolute top-1 left-1 bg-black border-[3px] border-red-650 text-red-500 font-sans font-black text-[12px] w-6.25 h-6.25 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
           title="Prohibida (0 copias)"
         >
           🚫
@@ -362,7 +430,7 @@ export default function DeckBuilder() {
     if (status === 'Limited') {
       return (
         <div 
-          className="absolute top-1 left-1 bg-black border-[3px] border-red-655 text-yellow-400 font-sans font-black text-[12px] w-[25px] h-[25px] rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          className="absolute top-1 left-1 bg-black border-[3px] border-red-655 text-yellow-400 font-sans font-black text-[12px] w-6.25 h-6.25 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
           title="Limitada (1 copia)"
         >
           1
@@ -373,7 +441,7 @@ export default function DeckBuilder() {
     if (status === 'Semi-Limited') {
       return (
         <div 
-          className="absolute top-1 left-1 bg-black border-[3px] border-blue-500 text-yellow-405 font-sans font-black text-[12px] w-[25px] h-[25px] rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          className="absolute top-1 left-1 bg-black border-[3px] border-blue-500 text-yellow-405 font-sans font-black text-[12px] w-6.25 h-6.25 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
           title="Semi-limitada (2 copias)"
         >
           2
@@ -388,13 +456,13 @@ export default function DeckBuilder() {
     if (count <= 0) return null;
     return (
       <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center select-none">
-        <div className="relative w-[26px] h-[18px] flex items-center justify-center">
+        <div className="relative w-6.5 h-4.5 flex items-center justify-center">
           {/* Card 1: Left */}
-          <div className="absolute w-[11px] h-[16px] bg-gradient-to-b from-amber-900 to-amber-950 border border-amber-600 rounded-[1px] shadow-sm transform -rotate-12 -translate-x-1.5 translate-y-0.5 origin-bottom" />
+          <div className="absolute w-2.75 h-4 bg-linear-to-b from-amber-900 to-amber-950 border border-amber-600 rounded-[1px] shadow-sm transform -rotate-12 -translate-x-1.5 translate-y-0.5 origin-bottom" />
           {/* Card 3: Right */}
-          <div className="absolute w-[11px] h-[16px] bg-gradient-to-b from-amber-900 to-amber-950 border border-amber-600 rounded-[1px] shadow-sm transform rotate-12 translate-x-1.5 translate-y-0.5 origin-bottom" />
+          <div className="absolute w-2.75 h-4 bg-linear-to-b from-amber-900 to-amber-950 border border-amber-600 rounded-[1px] shadow-sm transform rotate-12 translate-x-1.5 translate-y-0.5 origin-bottom" />
           {/* Card 2: Center */}
-          <div className="absolute w-[11px] h-[16px] bg-gradient-to-b from-amber-800 to-amber-950 border border-amber-500 rounded-[1px] shadow-md z-10" />
+          <div className="absolute w-2.75 h-4 bg-linear-to-b from-amber-800 to-amber-950 border border-amber-500 rounded-[1px] shadow-md z-10" />
           {/* Count Text Overlay */}
           <div className="absolute z-20 bg-black/95 border border-zinc-800 text-white font-mono font-black text-[7px] px-0.5 py-px rounded shadow-lg leading-none">
             {count}x
@@ -578,11 +646,11 @@ export default function DeckBuilder() {
   };
 
   // 1. Efectuar búsqueda de cartas
-  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: 'global' | 'collection', favs: boolean) => {
+  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: 'global' | 'collection', favs: boolean, limitVal: number) => {
     setIsSearching(true);
     try {
       if (scope === 'collection') {
-        let url = `/api/collection/cards?limit=100`;
+        let url = `/api/collection/cards?limit=${limitVal}`;
         if (query) url += `&q=${encodeURIComponent(query)}`;
         
         const typeToUse = type !== 'All' ? type : adv.type;
@@ -700,7 +768,7 @@ export default function DeckBuilder() {
           }
         }
 
-        let url = `/api/cards?limit=50`;
+        let url = `/api/cards?limit=${limitVal}`;
         if (query) url += `&q=${encodeURIComponent(query)}`;
         
         const typeToUse = type !== 'All' ? type : adv.type;
@@ -734,15 +802,22 @@ export default function DeckBuilder() {
     }
   }, [favoriteCardIds]);
 
-  // Debounce simple para búsqueda
+  // Debounce de búsqueda con detección y reset de límites asíncrono
+  const prevSearchKeyRef = useRef('');
+
   useEffect(() => {
+    const searchKey = JSON.stringify({ searchQuery, searchType, advancedFilters, searchScope, onlyFavorites });
+    if (prevSearchKeyRef.current !== searchKey) {
+      prevSearchKeyRef.current = searchKey;
+      setSearchLimit(45);
+      return;
+    }
+
     const timer = setTimeout(() => {
-      executeSearch(searchQuery, searchType, advancedFilters, searchScope, onlyFavorites);
+      executeSearch(searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit);
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, executeSearch]);
-
-
+  }, [searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit, executeSearch]);
 
   // Disparar análisis cuando cambia la lista de cartas o el formato (con debounce)
   useEffect(() => {
@@ -1022,9 +1097,9 @@ export default function DeckBuilder() {
         const dsRes = await fetch(`/api/decks/${deckId}/sleeves`);
         if (dsRes.ok) {
           const json = await dsRes.json();
-          const assigned = json.data || [];
-          const mainSleeve = assigned.find((a: any) => a.section_type === 'main_side');
-          const extraSleeve = assigned.find((a: any) => a.section_type === 'extra');
+          const assigned: DeckSleeve[] = json.data || [];
+          const mainSleeve = assigned.find(a => a.section_type === 'main_side');
+          const extraSleeve = assigned.find(a => a.section_type === 'extra');
           setSelectedMainSleeveId(mainSleeve?.sleeve_id || '');
           setSelectedExtraSleeveId(extraSleeve?.sleeve_id || '');
         }
@@ -1068,18 +1143,21 @@ export default function DeckBuilder() {
     } else {
       setFormat('Master Duel');
     }
-    const mappedCards: DeckCard[] = (selected.cards || []).map((dc: import('@/types/collection').DeckCardDetail) => ({
-      id: dc.card_id,
-      name: dc.card_details?.name || 'Carta Desconocida',
-      count: dc.count,
-      proxy_count: dc.proxy_count || 0,
-      section: dc.section as 'main' | 'extra' | 'side' | 'extras',
-      type: dc.card_details?.type || 'Monster',
-      image_url: dc.card_details?.image_url || dc.card_details?.image_url_small || '',
-      ban_master_duel: (dc.card_details as any)?.ban_master_duel,
-      ban_tcg: (dc.card_details as any)?.ban_tcg,
-      ban_duel_links: (dc.card_details as any)?.ban_duel_links
-    }));
+    const mappedCards: DeckCard[] = (selected.cards || []).map((dc: import('@/types/collection').DeckCardDetail) => {
+      const cardDetails = dc.card_details as (Card & typeof dc.card_details);
+      return {
+        id: dc.card_id,
+        name: cardDetails?.name || 'Carta Desconocida',
+        count: dc.count,
+        proxy_count: dc.proxy_count || 0,
+        section: dc.section as 'main' | 'extra' | 'side' | 'extras',
+        type: cardDetails?.type || 'Monster',
+        image_url: cardDetails?.image_url || cardDetails?.image_url_small || '',
+        ban_master_duel: cardDetails?.ban_master_duel,
+        ban_tcg: cardDetails?.ban_tcg,
+        ban_duel_links: cardDetails?.ban_duel_links
+      };
+    });
     setDeckCards(mappedCards);
     setIsLoadModalOpen(false);
   };
@@ -1349,12 +1427,13 @@ export default function DeckBuilder() {
 
       {/* CUERPO PRINCIPAL DEL BUILDER */}
       {activeView === 'builder' ? (
-        <div className="flex-1 flex flex-row gap-6 p-6 sm:p-8 max-w-full w-full overflow-hidden">
+        <div className="flex-1 flex flex-row gap-3 p-6 sm:p-8 max-w-full w-full overflow-hidden">
           
-          {/* COLUMNA 1: BUSCADOR DE CARTAS (colapsable) */}
+          {/* COLUMNA 1: BUSCADOR DE CARTAS (colapsable/ajustable) */}
           <section
-            className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all duration-300 overflow-hidden ${
-              leftPanelOpen ? 'w-80 min-w-[280px] p-4' : 'w-10 min-w-[40px] p-2 items-center'
+            style={leftPanelOpen ? { width: `${leftPanelWidth}px` } : {}}
+            className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${
+              leftPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'
             }`}
           >
             {/* Panel header with collapse toggle */}
@@ -1401,181 +1480,196 @@ export default function DeckBuilder() {
                 </button>
               </div>
             </div>
-            {/* BUSCABLE INPUT Y FAVORITAS */}
-            <div className="flex gap-2 items-center">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder={searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
-                />
-                <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[hsl(215,15%,70%)]" />
-              </div>
-              
-              <button
-                onClick={() => setOnlyFavorites(prev => !prev)}
-                className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                  onlyFavorites
-                    ? 'bg-pink-950/40 text-pink-500 border-pink-500/50 shadow-md shadow-pink-950/20'
-                    : 'bg-[hsl(224,25%,6%)] border-[hsl(224,15%,16%)] text-slate-400 hover:text-pink-400 hover:border-pink-900/30'
-                }`}
-                title={onlyFavorites ? "Mostrar todas las cartas" : "Filtrar por Favoritas"}
-              >
-                <Heart className={`w-4 h-4 ${onlyFavorites ? 'fill-pink-500' : ''}`} />
-              </button>
-            </div>
-
-            {/* TOGGLE ALCANCE (GLOBAL / COLECCIÓN) */}
-            <div className="grid grid-cols-2 gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-xl border border-[hsl(224,15%,16%)] shrink-0">
-              <button
-                onClick={() => setSearchScope('global')}
-                className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
-                  searchScope === 'global'
-                    ? 'bg-zinc-800 text-white shadow-sm'
-                    : 'text-[hsl(215,15%,70%)] hover:text-white'
-                }`}
-              >
-                🌐 Base Global
-              </button>
-              <button
-                onClick={() => setSearchScope('collection')}
-                className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
-                  searchScope === 'collection'
-                    ? 'bg-zinc-800 text-white shadow-sm'
-                    : 'text-[hsl(215,15%,70%)] hover:text-white'
-                }`}
-              >
-                📦 Mi Colección
-              </button>
-            </div>
-
-            {/* FILTROS RAPIDOS */}
-            <div className="flex flex-wrap gap-1.5">
-              {(['All', 'Monster', 'Spell', 'Trap', 'Extra'] as const).map(t => (
-                <button
-                  key={t}
-                  onClick={() => setSearchType(t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    searchType === t
-                      ? 'bg-[hsl(180,80%,45%)]/20 text-[hsl(180,80%,45%)] border border-[hsl(180,80%,45%)]/40'
-                      : 'bg-[hsl(224,25%,6%)] text-[hsl(215,15%,70%)] border border-[hsl(224,15%,16%)] hover:text-white'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {/* FILTROS AVANZADOS */}
-            <CardFilters
-              filters={advancedFilters}
-              onFilterChange={setAdvancedFilters}
-              onReset={() => setAdvancedFilters({
-                type: '',
-                attribute: '',
-                race: '',
-                level: '',
-                atkMin: '',
-                atkMax: '',
-                defMin: '',
-                defMax: '',
-                archetype: ''
-              })}
-            />
-
-            {/* LISTA DE RESULTADOS */}
-            <div className="flex-1 overflow-y-auto max-h-125 lg:max-h-155 pr-1 flex flex-col gap-2 scrollbar-thin">
-              {isSearching ? (
-                <div className="text-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500 mb-1" />
-                  <span className="text-xs font-mono text-slate-500">Buscando...</span>
+            {leftPanelOpen && (
+              <>
+                {/* BUSCABLE INPUT Y FAVORITAS */}
+                <div className="flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder={searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
+                    />
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[hsl(215,15%,70%)]" />
+                  </div>
+                  
+                  <button
+                    onClick={() => setOnlyFavorites(prev => !prev)}
+                    className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                      onlyFavorites
+                        ? 'bg-pink-950/40 text-pink-500 border-pink-500/50 shadow-md shadow-pink-950/20'
+                        : 'bg-[hsl(224,25%,6%)] border-[hsl(224,15%,16%)] text-slate-400 hover:text-pink-400 hover:border-pink-900/30'
+                    }`}
+                    title={onlyFavorites ? "Mostrar todas las cartas" : "Filtrar por Favoritas"}
+                  >
+                    <Heart className={`w-4 h-4 ${onlyFavorites ? 'fill-pink-500' : ''}`} />
+                  </button>
                 </div>
-              ) : searchResults.length === 0 ? (
-                <div className="text-center py-8 text-zinc-600 text-sm">
-                  No se encontraron cartas. Intenta buscando otra palabra.
+
+                {/* TOGGLE ALCANCE (GLOBAL / COLECCIÓN) */}
+                <div className="grid grid-cols-2 gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-xl border border-[hsl(224,15%,16%)] shrink-0">
+                  <button
+                    onClick={() => setSearchScope('global')}
+                    className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+                      searchScope === 'global'
+                        ? 'bg-zinc-800 text-white shadow-sm'
+                        : 'text-[hsl(215,15%,70%)] hover:text-white'
+                    }`}
+                  >
+                    🌐 Base Global
+                  </button>
+                  <button
+                    onClick={() => setSearchScope('collection')}
+                    className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+                      searchScope === 'collection'
+                        ? 'bg-zinc-800 text-white shadow-sm'
+                        : 'text-[hsl(215,15%,70%)] hover:text-white'
+                    }`}
+                  >
+                    📦 Mi Colección
+                  </button>
                 </div>
-              ) : searchViewMode === 'grid' ? (
-                <div className="grid grid-cols-6 gap-x-0.5 gap-y-1.5">
-                  {searchResults.map(card => (
-                    <div 
-                      key={card.id}
-                      draggable
-                      onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
-                      onClick={() => addCardToDeck(card)}
-                      onMouseEnter={() => handleCardMouseEnter(card)}
-                      onMouseLeave={handleCardMouseLeave}
-                      className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-grab active:cursor-grabbing"
+
+                {/* FILTROS RAPIDOS */}
+                <div className="flex flex-wrap gap-1.5">
+                  {(['All', 'Monster', 'Spell', 'Trap', 'Extra'] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setSearchType(t)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        searchType === t
+                          ? 'bg-[hsl(180,80%,45%)]/20 text-[hsl(180,80%,45%)] border border-[hsl(180,80%,45%)]/40'
+                          : 'bg-[hsl(224,25%,6%)] text-[hsl(215,15%,70%)] border border-[hsl(224,15%,16%)] hover:text-white'
+                      }`}
                     >
-                      <div className="relative flex-1 rounded-md overflow-hidden shadow">
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                {/* FILTROS AVANZADOS */}
+                <CardFilters
+                  filters={advancedFilters}
+                  onFilterChange={setAdvancedFilters}
+                  onReset={() => setAdvancedFilters({
+                    type: '',
+                    attribute: '',
+                    race: '',
+                    level: '',
+                    atkMin: '',
+                    atkMax: '',
+                    defMin: '',
+                    defMax: '',
+                    archetype: ''
+                  })}
+                />
+
+                {/* LISTA DE RESULTADOS */}
+                <div className="flex-1 overflow-y-auto max-h-125 lg:max-h-155 pr-1 flex flex-col gap-2 scrollbar-thin">
+                  {isSearching && searchResults.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500 mb-1" />
+                      <span className="text-xs font-mono text-slate-500">Buscando...</span>
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="text-center py-8 text-zinc-600 text-sm">
+                      No se encontraron cartas. Intenta buscando otra palabra.
+                    </div>
+                  ) : searchViewMode === 'grid' ? (
+                    <div className="grid grid-cols-5 gap-x-0.5 gap-y-1.5">
+                      {searchResults.map(card => (
+                        <div 
+                          key={card.id}
+                          draggable
+                          onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
+                          onClick={() => addCardToDeck(card)}
+                          onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
+                          onMouseLeave={handleCardMouseLeave}
+                          className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-grab active:cursor-grabbing"
+                        >
+                          <div className="relative flex-1 rounded-md overflow-hidden shadow">
+                            <img 
+                              src={card.image_url_small || card.image_url} 
+                              alt={card.name} 
+                              className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
+                              onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
+                            />
+                            {getBanlistBadge(card)}
+                          </div>
+                          <div className="mt-1 transition-all text-center min-w-0">
+                            <p className="text-[7.5px] font-semibold text-slate-300 truncate">{card.name}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    searchResults.map(card => (
+                      <div 
+                        key={card.id}
+                        draggable
+                        onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
+                        onClick={() => addCardToDeck(card)}
+                        onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
+                        onMouseLeave={handleCardMouseLeave}
+                        className="flex gap-3 p-2 bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-xl border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group cursor-grab active:cursor-grabbing"
+                      >
                         <img 
                           src={card.image_url_small || card.image_url} 
                           alt={card.name} 
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
-                          onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
+                          className="w-12 h-18 object-contain rounded-md shadow-md shadow-black/40 group-hover:scale-105 transition-transform"
                         />
-                        {getBanlistBadge(card)}
+                        <div className="flex-1 flex flex-col justify-between min-w-0">
+                          <div>
+                            <p className="text-[10.5px] font-semibold text-slate-200 truncate group-hover:text-purple-300 transition-colors">{card.name}</p>
+                            <p className="text-[9px] text-[hsl(215,15%,70%)] truncate">
+                              {card.type} • {card.archetype || 'Genérica'}
+                            </p>
+                          </div>
+                          
+                          {/* ACCIONES DE ADICIÓN */}
+                          <div className="flex gap-1.5 mt-1.5">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
+                              className="flex-1 py-1 px-1.5 bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,64%)]/80 text-white rounded-lg text-[9px] font-bold transition-all"
+                              title="Añadir al Deck principal o Extra (Auto)"
+                            >
+                              + Agregar
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
+                              className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all"
+                              title="Añadir a Side Deck"
+                            >
+                              + Side
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
+                              className="px-1.5 py-1 bg-zinc-850 hover:bg-zinc-700 text-slate-350 rounded-lg text-[9px] font-bold transition-all"
+                              title="Añadir a Extras/Sugeridas"
+                            >
+                              + Ext
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="mt-1 transition-all text-center min-w-0">
-                        <p className="text-[7.5px] font-semibold text-slate-300 truncate">{card.name}</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
+
+                  {/* Paginación / Cargar más */}
+                  {searchResults.length > 0 && searchResults.length >= searchLimit && (
+                    <button
+                      onClick={() => setSearchLimit(prev => prev + 45)}
+                      className="w-full mt-3 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" /> : '▼'}
+                      <span>Cargar más cartas</span>
+                    </button>
+                  )}
                 </div>
-              ) : (
-                searchResults.map(card => (
-                  <div 
-                    key={card.id}
-                    draggable
-                    onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
-                    onClick={() => addCardToDeck(card)}
-                    onMouseEnter={() => handleCardMouseEnter(card)}
-                    onMouseLeave={handleCardMouseLeave}
-                    className="flex gap-3 p-2 bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-xl border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group cursor-grab active:cursor-grabbing"
-                  >
-                    <img 
-                      src={card.image_url_small || card.image_url} 
-                      alt={card.name} 
-                      className="w-12 h-18 object-contain rounded-md shadow-md shadow-black/40 group-hover:scale-105 transition-transform"
-                    />
-                    <div className="flex-1 flex flex-col justify-between min-w-0">
-                      <div>
-                        <p className="text-[10.5px] font-semibold text-slate-200 truncate group-hover:text-purple-300 transition-colors">{card.name}</p>
-                        <p className="text-[9px] text-[hsl(215,15%,70%)] truncate">
-                          {card.type} • {card.archetype || 'Genérica'}
-                        </p>
-                      </div>
-                      
-                      {/* ACCIONES DE ADICIÓN */}
-                      <div className="flex gap-1.5 mt-1.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
-                          className="flex-1 py-1 px-1.5 bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,64%)]/80 text-white rounded-lg text-[9px] font-bold transition-all"
-                          title="Añadir al Deck principal o Extra (Auto)"
-                        >
-                          + Agregar
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
-                          className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all"
-                          title="Añadir a Side Deck"
-                        >
-                          + Side
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
-                          className="px-1.5 py-1 bg-zinc-850 hover:bg-zinc-700 text-slate-350 rounded-lg text-[9px] font-bold transition-all"
-                          title="Añadir a Extras/Sugeridas"
-                        >
-                          + Ext
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+              </>
+            )}
             {/* Collapsed state vertical label */}
             {!leftPanelOpen && (
               <div className="flex-1 flex items-center justify-center">
@@ -1583,6 +1677,15 @@ export default function DeckBuilder() {
               </div>
             )}
           </section>
+
+          {/* Divisor ajustable izquierdo */}
+          {leftPanelOpen && (
+            <div
+              onMouseDown={startResizeLeft}
+              className="w-1 hover:w-1.5 bg-transparent cursor-col-resize self-stretch shrink-0 transition-all"
+              title="Arrastra para cambiar el tamaño"
+            />
+          )}
 
           {/* COLUMNA 2: DECK EN CONSTRUCCION (flex-1, expands) */}
           <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
@@ -1630,7 +1733,7 @@ export default function DeckBuilder() {
                         draggable
                         onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'main' })}
                         onClick={() => removeCardFromDeck(c.id, 'main')}
-                        onMouseEnter={() => handleCardMouseEnter(c)}
+                        onMouseEnter={() => handleCardMouseEnter(c as HoverCardBase)}
                         onMouseLeave={handleCardMouseLeave}
                         className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200 ${
                           c.proxy_count && c.proxy_count > 0
@@ -1679,7 +1782,7 @@ export default function DeckBuilder() {
                         draggable
                         onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'extra' })}
                         onClick={() => removeCardFromDeck(c.id, 'extra')}
-                        onMouseEnter={() => handleCardMouseEnter(c)}
+                        onMouseEnter={() => handleCardMouseEnter(c as HoverCardBase)}
                         onMouseLeave={handleCardMouseLeave}
                         className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200 ${
                           c.proxy_count && c.proxy_count > 0
@@ -1728,7 +1831,7 @@ export default function DeckBuilder() {
                         draggable
                         onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'side' })}
                         onClick={() => removeCardFromDeck(c.id, 'side')}
-                        onMouseEnter={() => handleCardMouseEnter(c)}
+                        onMouseEnter={() => handleCardMouseEnter(c as HoverCardBase)}
                         onMouseLeave={handleCardMouseLeave}
                         className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200 ${
                           c.proxy_count && c.proxy_count > 0
@@ -1777,7 +1880,7 @@ export default function DeckBuilder() {
                         draggable
                         onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: 'extras' })}
                         onClick={() => removeCardFromDeck(c.id, 'extras')}
-                        onMouseEnter={() => handleCardMouseEnter(c)}
+                        onMouseEnter={() => handleCardMouseEnter(c as HoverCardBase)}
                         onMouseLeave={handleCardMouseLeave}
                         className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
                         title={`Haz clic para quitar 1 copia de ${c.name}`}
@@ -1799,10 +1902,20 @@ export default function DeckBuilder() {
             </div>
           </section>
 
-          {/* COLUMNA 3: DIAGNOSTICO Y RECOMENDACIONES (colapsable) */}
+          {/* Divisor ajustable derecho */}
+          {rightPanelOpen && (
+            <div
+              onMouseDown={startResizeRight}
+              className="w-1 hover:w-1.5 bg-transparent cursor-col-resize self-stretch shrink-0 transition-all"
+              title="Arrastra para cambiar el tamaño"
+            />
+          )}
+
+          {/* COLUMNA 3: DIAGNOSTICO Y RECOMENDACIONES (colapsable/ajustable) */}
           <section
-            className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all duration-300 overflow-hidden ${
-              rightPanelOpen ? 'w-80 min-w-[280px] p-4' : 'w-10 min-w-[40px] p-2 items-center'
+            style={rightPanelOpen ? { width: `${rightPanelWidth}px` } : {}}
+            className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${
+              rightPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'
             }`}
           >
             <div className={`border-b border-[hsl(224,15%,16%)] pb-2 mb-2 flex items-center shrink-0 ${rightPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
@@ -1888,7 +2001,7 @@ export default function DeckBuilder() {
                   {sidebarBreakdownCards.length === 0 ? (
                     <p className="text-xs text-zinc-650 text-center py-4">Sin datos de desglose para este arquetipo.</p>
                   ) : (
-                    <div className="grid grid-cols-6 gap-x-0.5 gap-y-1 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
+                    <div className="grid grid-cols-5 gap-x-0.5 gap-y-1 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
                       {sidebarBreakdownCards.map((card) => {
                         const U = card.usage_percent;
                         const A = card.average_copies;
@@ -1914,7 +2027,7 @@ export default function DeckBuilder() {
                             draggable
                             onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url })}
                             onClick={() => addRecommendedCard(card.id, card.name, undefined, card)}
-                            onMouseEnter={() => handleCardMouseEnter(card)}
+                            onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
                             onMouseLeave={handleCardMouseLeave}
                             className="relative aspect-[3/4.2] rounded-md overflow-hidden border border-zinc-800 hover:border-purple-500 hover:scale-105 transition-all duration-200 bg-zinc-950 cursor-grab active:cursor-grabbing group"
                             title={hoverText}
@@ -1947,13 +2060,13 @@ export default function DeckBuilder() {
                 {cardHistory.length === 0 ? (
                   <p className="text-xs text-zinc-650 text-center py-4">Sin acciones recientes.</p>
                 ) : (
-                  <div className="grid grid-cols-6 gap-x-0.5 gap-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                  <div className="grid grid-cols-5 gap-x-0.5 gap-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
                     {cardHistory.map((item, idx) => (
                       <div
                         key={`${item.id}-${idx}`}
                         draggable
                         onDragStart={(e) => handleDragCardStart(e, { id: item.id, name: item.name, type: item.type, image_url: item.image_url, archetype: item.archetype })}
-                        onMouseEnter={() => handleCardMouseEnter(item)}
+                        onMouseEnter={() => handleCardMouseEnter(item as HoverCardBase)}
                         onMouseLeave={handleCardMouseLeave}
                         className={`relative aspect-[3/4.2] rounded-md overflow-hidden border bg-zinc-950 cursor-grab active:cursor-grabbing hover:scale-105 transition-all duration-200 group ${
                           item.action === 'added' ? 'border-green-500/40 hover:border-green-400' : 'border-red-500/40 hover:border-red-400'
@@ -2374,7 +2487,7 @@ export default function DeckBuilder() {
                   activeReplacementsList.map(rep => (
                     <div 
                       key={rep.id} 
-                      onMouseEnter={() => handleCardMouseEnter(rep)}
+                      onMouseEnter={() => handleCardMouseEnter(rep as HoverCardBase)}
                       onMouseLeave={handleCardMouseLeave}
                       className="p-3 bg-slate-950 border border-slate-850 rounded-xl flex gap-3"
                     >
@@ -2469,7 +2582,7 @@ export default function DeckBuilder() {
                             draggable
                             onDragStart={(e) => handleDragCardStart(e, { id: item.id, name: item.name, type: item.type, image_url: item.image_url_small || item.image_url })}
                             onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
-                            onMouseEnter={() => handleCardMouseEnter(item)}
+                            onMouseEnter={() => handleCardMouseEnter(item as HoverCardBase)}
                             onMouseLeave={handleCardMouseLeave}
                             className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-grab active:cursor-grabbing"
                           >
@@ -2511,7 +2624,7 @@ export default function DeckBuilder() {
                             draggable
                             onDragStart={(e) => handleDragCardStart(e, { id: item.id, name: item.name, type: item.type, image_url: item.image_url_small || item.image_url })}
                             onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
-                            onMouseEnter={() => handleCardMouseEnter(item)}
+                            onMouseEnter={() => handleCardMouseEnter(item as HoverCardBase)}
                             onMouseLeave={handleCardMouseLeave}
                             className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-grab active:cursor-grabbing"
                           >
