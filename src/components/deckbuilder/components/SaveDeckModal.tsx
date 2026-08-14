@@ -71,12 +71,14 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-end md:items-center justify-center md:p-4 overflow-y-auto">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl p-6 overflow-hidden flex flex-col max-h-[90vh]"
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+            className="bg-slate-900 border border-slate-800 md:rounded-2xl rounded-t-3xl w-full md:max-w-4xl shadow-2xl p-5 overflow-hidden flex flex-col max-h-[92vh] md:max-h-[90vh]"
+            style={{ paddingBottom: 'calc(1.25rem + var(--sab))' }}
           >
             {/* Modal Header */}
             <div className="flex justify-between items-center pb-4 border-b border-slate-800 shrink-0">

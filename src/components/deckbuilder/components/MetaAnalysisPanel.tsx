@@ -6,6 +6,8 @@ interface MetaAnalysisPanelProps {
   rightPanelOpen: boolean;
   setRightPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
   rightPanelWidth: number;
+  /** When true, renders inside a MobileBottomSheet — hides collapse controls */
+  isMobile?: boolean;
   isAnalyzing: boolean;
   inferredArchetype: string;
   detectedArchetypes: { name: string; count: number }[];
@@ -31,6 +33,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
   rightPanelOpen,
   setRightPanelOpen,
   rightPanelWidth,
+  isMobile = false,
   isAnalyzing,
   inferredArchetype,
   detectedArchetypes,
@@ -48,31 +51,35 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
 }) => {
   return (
     <section
-      style={rightPanelOpen ? { width: `${rightPanelWidth}px` } : {}}
-      className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${
-        rightPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'
+      style={(!isMobile && rightPanelOpen) ? { width: `${rightPanelWidth}px` } : {}}
+      className={`flex flex-col gap-4 ${
+        isMobile
+          ? 'w-full'
+          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${rightPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'}`
       }`}
     >
       {/* Panel Header */}
-      <div className={`border-b border-[hsl(224,15%,16%)] pb-2 mb-2 flex items-center shrink-0 ${rightPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
-        {rightPanelOpen && (
-          <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
-            <TrendingUp className="w-4 h-4 text-[hsl(180,80%,45%)]" /> Análisis del Meta
-          </h2>
-        )}
-        <div className="flex items-center gap-1">
-          {rightPanelOpen && isAnalyzing && <Loader2 className="w-4 h-4 animate-spin text-[hsl(180,80%,45%)]" />}
-          <button
-            onClick={() => setRightPanelOpen(p => !p)}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-            title={rightPanelOpen ? 'Colapsar panel de análisis' : 'Expandir panel de análisis'}
-          >
-            {rightPanelOpen ? <X className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
-          </button>
+      {!isMobile && (
+        <div className={`border-b border-[hsl(224,15%,16%)] pb-2 mb-2 flex items-center shrink-0 ${rightPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
+          {rightPanelOpen && (
+            <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
+              <TrendingUp className="w-4 h-4 text-[hsl(180,80%,45%)]" /> Análisis del Meta
+            </h2>
+          )}
+          <div className="flex items-center gap-1">
+            {rightPanelOpen && isAnalyzing && <Loader2 className="w-4 h-4 animate-spin text-[hsl(180,80%,45%)]" />}
+            <button
+              onClick={() => setRightPanelOpen(p => !p)}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              title={rightPanelOpen ? 'Colapsar panel de análisis' : 'Expandir panel de análisis'}
+            >
+              {rightPanelOpen ? <X className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {!rightPanelOpen ? (
+      {!rightPanelOpen && !isMobile ? (
         // Colapsed vertical text
         <div className="flex-1 flex items-center justify-center">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest" style={{ writingMode: 'vertical-rl' }}>Análisis</span>
@@ -141,7 +148,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
               {sidebarBreakdownCards.length === 0 ? (
                 <p className="text-xs text-zinc-500 text-center py-4">Sin datos de desglose para este arquetipo.</p>
               ) : (
-                <div className="grid grid-cols-5 gap-x-0.5 gap-y-1 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
+                <div className={`grid gap-x-0.5 gap-y-1 max-h-56 overflow-y-auto pr-1 scrollbar-thin ${isMobile ? 'grid-cols-4' : 'grid-cols-5'}`}>
                   {sidebarBreakdownCards.map((card) => {
                     const U = card.usage_percent;
                     const A = card.average_copies;
@@ -201,7 +208,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
             {cardHistory.length === 0 ? (
               <p className="text-xs text-zinc-500 text-center py-4">Sin acciones recientes.</p>
             ) : (
-              <div className="grid grid-cols-5 gap-x-0.5 gap-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+              <div className={`grid gap-x-0.5 gap-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin ${isMobile ? 'grid-cols-4' : 'grid-cols-5'}`}>
                 {cardHistory.map((item, idx) => (
                   <div
                     key={`${item.id}-${idx}`}

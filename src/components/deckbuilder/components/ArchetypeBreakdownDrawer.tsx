@@ -34,16 +34,18 @@ export const ArchetypeBreakdownDrawer: React.FC<ArchetypeBreakdownDrawerProps> =
   return (
     <AnimatePresence>
       {activeArchetypeBreakdown && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end">
-          <div className="absolute inset-0 cursor-pointer" onClick={() => setActiveArchetypeBreakdown(null)} />
-          
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="relative w-full max-w-2xl bg-[hsl(224,22%,10%)] border-l border-[hsl(224,15%,16%)] h-full flex flex-col z-10 shadow-2xl overflow-hidden"
-          >
+        <>
+          {/* ── Desktop: right-side drawer ── */}
+          <div className="hidden md:flex fixed inset-0 bg-black/60 backdrop-blur-sm z-50 justify-end">
+            <div className="absolute inset-0 cursor-pointer" onClick={() => setActiveArchetypeBreakdown(null)} />
+            
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-2xl bg-[hsl(224,22%,10%)] border-l border-[hsl(224,15%,16%)] h-full flex flex-col z-10 shadow-2xl overflow-hidden"
+            >
             {/* Header */}
             <div className="p-6 border-b border-[hsl(224,15%,16%)] bg-[hsl(224,25%,6%)]/40 flex justify-between items-center relative">
               <div className="absolute -top-12 -right-12 w-32 h-32 bg-[hsl(180,80%,45%)]/5 rounded-full blur-2xl pointer-events-none" />
@@ -140,7 +142,7 @@ export const ArchetypeBreakdownDrawer: React.FC<ArchetypeBreakdownDrawerProps> =
                           onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
                           onMouseEnter={() => handleCardMouseEnter(item as HoverCardBase)}
                           onMouseLeave={handleCardMouseLeave}
-                          className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-grab active:cursor-grabbing"
+                          className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 rounded-xl p-3 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-pointer touch-manipulation card-tap"
                         >
                           <div className="relative aspect-3/4 rounded-lg overflow-hidden shadow shadow-black/60 mb-2.5">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -172,7 +174,79 @@ export const ArchetypeBreakdownDrawer: React.FC<ArchetypeBreakdownDrawerProps> =
               )}
             </div>
           </motion.div>
-        </div>
+          </div>
+
+          {/* ── Mobile: bottom sheet ── */}
+          <div className="flex md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 items-end">
+            <div className="absolute inset-0 cursor-pointer" onClick={() => setActiveArchetypeBreakdown(null)} />
+            
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 260, mass: 0.8 }}
+              className="relative w-full h-[90vh] bg-[hsl(224,22%,10%)] border-t border-[hsl(224,15%,16%)] rounded-t-3xl flex flex-col z-10 shadow-2xl overflow-hidden"
+              style={{ paddingBottom: 'var(--sab)' }}
+            >
+              {/* Handle */}
+              <div className="pt-3 px-4 shrink-0">
+                <div className="sheet-handle" />
+              </div>
+
+              {/* Header */}
+              <div className="px-5 pb-4 border-b border-[hsl(224,15%,16%)] flex justify-between items-start shrink-0">
+                <div>
+                  <span className="text-[10px] text-[hsl(180,80%,45%)] font-bold uppercase tracking-widest font-mono">Master Duel Meta Breakdown</span>
+                  <h3 className="font-bold text-xl text-white uppercase tracking-tight mt-0.5">
+                    📊 {activeArchetypeBreakdown}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setActiveArchetypeBreakdown(null)}
+                  className="w-8 h-8 rounded-full bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,18%)] flex items-center justify-center text-slate-400 hover:text-white cursor-pointer touch-manipulation shrink-0 mt-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto scrollbar-thin p-4">
+                {isFetchingBreakdown ? (
+                  <div className="flex flex-col items-center gap-2 py-16">
+                    <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                    <p className="text-xs font-mono text-slate-500">Cargando desglose...</p>
+                  </div>
+                ) : breakdownCards.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {breakdownCards.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
+                        className="bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 rounded-xl p-2 flex flex-col justify-between group transition-all duration-300 relative overflow-hidden cursor-pointer touch-manipulation card-tap"
+                      >
+                        <div className="relative aspect-3/4 rounded-lg overflow-hidden shadow shadow-black/60 mb-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img 
+                            src={item.image_url_small || item.image_url} 
+                            alt={item.name} 
+                            className="w-full h-full object-contain"
+                          />
+                          <div className="absolute top-1 right-1 bg-black/85 border border-zinc-700 text-white font-mono font-bold text-[9px] px-1.5 py-0.5 rounded">
+                            {Math.round(item.average_copies)}x
+                          </div>
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-[9px] truncate text-white">{item.name}</h5>
+                          <p className="text-[8px] text-[hsl(263,85%,64%)] font-bold font-mono">{Math.round(item.usage_percent)}%</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        </>
       )}
     </AnimatePresence>
   );

@@ -42,14 +42,17 @@ export const CardPreviewModal: React.FC<CardPreviewModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end md:items-center justify-center md:p-4">
+          {/* Backdrop close — only on desktop (mobile uses full-screen) */}
+          <div className="absolute inset-0 cursor-pointer hidden md:block" onClick={onClose} />
           
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="relative w-full max-w-2xl bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,20%)] rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row z-10"
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+            className="relative w-full md:max-w-2xl bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,20%)] md:rounded-2xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row z-10 max-h-screen md:max-h-[90vh]"
+            style={{ paddingBottom: 'var(--sab)' }}
           >
             {/* Close Button */}
             <button 

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { RefreshCw, Save, FolderOpen } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { RefreshCw, Save, FolderOpen, MoreVertical, X } from 'lucide-react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Custom Hooks for State & Resizing
 import { usePanelResize } from './hooks/usePanelResize';
@@ -18,11 +19,15 @@ import { LoadDeckModal } from './components/LoadDeckModal';
 import { CardPreviewModal } from './components/CardPreviewModal';
 import { ArchetypeBreakdownDrawer } from './components/ArchetypeBreakdownDrawer';
 import { ReplacementDrawer } from './components/ReplacementDrawer';
+import { MobileNav, type MobileTab } from './components/MobileNav';
+import { MobileBottomSheet } from './components/MobileBottomSheet';
 
 /**
  * DeckBuilder Main Component
  * Renders the Yu-Gi-Oh! Deck Builder view. Connects customized state machine,
  * resizing layout controls, long-hover tooltip details preloading, and modular subsections.
+ * On mobile: single-column layout with bottom navigation and bottom sheets.
+ * On desktop: 3-column resizable panel layout (unchanged).
  */
 export default function DeckBuilder() {
   // 1. Centralized deck building state machine
@@ -47,11 +52,23 @@ export default function DeckBuilder() {
     triggerSync,
   } = state;
 
-  // 2. Panel resize handlers
+  // 2. Panel resize handlers (desktop only)
   const resize = usePanelResize();
 
   // 3. Hover preview trigger manager
   const preview = useCardHoverPreview();
+
+  // 4. Mobile navigation state
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>('deck');
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+
+  const handleMobileTabChange = (tab: MobileTab) => {
+    if (tab === 'more') {
+      setMobileMoreOpen(true);
+    } else {
+      setActiveMobileTab(tab);
+    }
+  };
 
   // Drag and drop helper payload mapping
   const handleDragCardStart = (
@@ -270,259 +287,551 @@ export default function DeckBuilder() {
     }
   };
 
+  // ── Shared card props helpers ──────────────────────────────────────────────
+  const sharedDeckSectionProps = {
+    format: state.format,
+    deckCards: state.deckCards,
+    removeCardFromDeck: state.removeCardFromDeck,
+    handleDragCardStart,
+    handleDropCardOnSection,
+    handleCardMouseEnter: preview.handleCardMouseEnter,
+    handleCardMouseLeave: preview.handleCardMouseLeave,
+    openPreviewForCard: preview.openPreviewForCard,
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-[hsl(224,25%,6%)] text-[hsl(210,40%,98%)] font-sans antialiased">
-      {/* HEADER */}
-      <header className="border-b border-[hsl(224,15%,16%)] bg-[hsl(224,22%,10%)]/90 backdrop-blur-md sticky top-0 z-40 py-4 px-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] flex items-center justify-center font-bold text-xl shadow-lg shadow-[hsl(263,85%,64%)]/20">
-            YG
+
+      {/* ══════════════════════════════════════════════════════════════
+          HEADER — Responsive: compact on mobile, full on desktop
+      ══════════════════════════════════════════════════════════════ */}
+      <header className="border-b border-[hsl(224,15%,16%)] bg-[hsl(224,22%,10%)]/90 backdrop-blur-md sticky top-0 z-40 pt-safe">
+        {/* ── Mobile + Tablet Header (compact) ── */}
+        <div className="flex lg:hidden items-center justify-between gap-3 px-4 py-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-linear-to-tr from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] flex items-center justify-center font-bold text-base shadow-lg shadow-[hsl(263,85%,64%)]/20">
+              YG
+            </div>
+            <div className="min-w-0">
+              <input
+                value={state.deckName}
+                onChange={(e) => state.setDeckName(e.target.value)}
+                className="text-sm font-bold bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] focus:outline-none transition-colors w-full max-w-40 text-slate-100 truncate"
+              />
+              <p className="text-[10px] text-[hsl(215,15%,55%)] truncate">Constructor Inteligente</p>
+            </div>
           </div>
-          <div>
-            <input
-              value={state.deckName}
-              onChange={(e) => state.setDeckName(e.target.value)}
-              className="text-lg font-bold bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] focus:outline-none transition-colors max-w-xs text-slate-100"
-            />
-            <p className="text-xs text-[hsl(215,15%,70%)]">Constructor de Decks Inteligente</p>
+
+          {/* Mobile: format pill compact + save button */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-0.5 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
+              {(['MD', 'TCG', 'DL'] as const).map((short, idx) => {
+                const full = (['Master Duel', 'TCG', 'Duel Links'] as const)[idx];
+                return (
+                  <button
+                    key={full}
+                    onClick={() => state.setFormat(full)}
+                    className={`px-2 py-1 rounded-md font-bold text-[10px] transition-all duration-300 cursor-pointer touch-manipulation ${
+                      state.format === full
+                        ? 'bg-[hsl(263,85%,64%)] text-white shadow-sm'
+                        : 'text-[hsl(215,15%,60%)] hover:text-white'
+                    }`}
+                  >
+                    {short}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={state.handleOpenSaveModal}
+              className="flex items-center gap-1 px-3 py-2 bg-[hsl(263,85%,64%)] text-white hover:bg-[hsl(263,85%,58%)] rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer touch-manipulation"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Guardar</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={state.handleOpenLoadModal}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-purple-400 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-          >
-            <FolderOpen className="w-3.5 h-3.5 text-purple-400" />
-            <span>Cargar Deck</span>
-          </button>
-
-          <button
-            onClick={state.handleClearDeck}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 hover:text-red-400 hover:bg-red-950/10 rounded-xl text-xs font-semibold text-red-500 transition-all cursor-pointer"
-          >
-            <Save className="w-3.5 h-3.5 text-red-500" />
-            <span>Limpiar Deck</span>
-          </button>
-
-          <button
-            onClick={state.handleOpenSaveModal}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(263,85%,64%)] text-white hover:bg-[hsl(263,85%,58%)] rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>Guardar Deck</span>
-          </button>
-        </div>
-
-        <div className="flex gap-2 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
+        {/* ── Mobile bottom header tabs ── */}
+        <div className="flex lg:hidden gap-1 px-4 pb-2 border-t border-[hsl(224,15%,14%)] pt-2">
           <button
             onClick={() => state.setActiveView('builder')}
-            className={`px-4 py-2 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer touch-manipulation ${
               state.activeView === 'builder'
                 ? 'bg-zinc-800 text-white font-semibold'
-                : 'text-[hsl(215,15%,70%)] hover:text-white'
+                : 'text-[hsl(215,15%,60%)] hover:text-white'
             }`}
           >
             🛠️ Constructor
           </button>
           <button
             onClick={() => state.setActiveView('breakdowns')}
-            className={`px-4 py-2 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer touch-manipulation ${
               state.activeView === 'breakdowns'
                 ? 'bg-zinc-800 text-white font-semibold'
-                : 'text-[hsl(215,15%,70%)] hover:text-white'
+                : 'text-[hsl(215,15%,60%)] hover:text-white'
             }`}
           >
-            📊 Breakdowns Meta
+            📊 Meta
           </button>
           <Link
             href="/collection"
-            className="px-4 py-2 rounded-lg font-medium text-xs text-[hsl(215,15%,70%)] hover:text-white transition-all duration-300 cursor-pointer flex items-center gap-1"
+            className="px-3 py-1.5 rounded-lg font-medium text-xs text-[hsl(215,15%,60%)] hover:text-white transition-all duration-300 cursor-pointer flex items-center gap-1 touch-manipulation"
           >
-            📦 Mi Colección
+            📦 Colección
           </Link>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            onClick={() => state.triggerSync()}
-            disabled={state.isSyncing}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[hsl(180,80%,45%)] ${state.isSyncing ? 'animate-spin' : ''}`} />
-            {state.isSyncing ? 'Sincronizando...' : 'Sincronizar Meta'}
-          </button>
+        {/* ── Desktop Header (full row) ── */}
+        <div className="hidden lg:flex py-4 px-6 flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] flex items-center justify-center font-bold text-xl shadow-lg shadow-[hsl(263,85%,64%)]/20">
+              YG
+            </div>
+            <div>
+              <input
+                value={state.deckName}
+                onChange={(e) => state.setDeckName(e.target.value)}
+                className="text-lg font-bold bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] focus:outline-none transition-colors max-w-xs text-slate-100"
+              />
+              <p className="text-xs text-[hsl(215,15%,70%)]">Constructor de Decks Inteligente</p>
+            </div>
+          </div>
 
-          <div className="flex items-center gap-2 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
-            {(['Master Duel', 'TCG', 'Duel Links'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => state.setFormat(f)}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${
-                  state.format === f
-                    ? 'bg-[hsl(263,85%,64%)] text-white shadow-md'
-                    : 'text-[hsl(215,15%,70%)] hover:text-white hover:bg-[hsl(224,22%,10%)]'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={state.handleOpenLoadModal}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-purple-400 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-purple-400" />
+              <span>Cargar Deck</span>
+            </button>
+
+            <button
+              onClick={state.handleClearDeck}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 hover:text-red-400 hover:bg-red-950/10 rounded-xl text-xs font-semibold text-red-500 transition-all cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5 text-red-500" />
+              <span>Limpiar Deck</span>
+            </button>
+
+            <button
+              onClick={state.handleOpenSaveModal}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(263,85%,64%)] text-white hover:bg-[hsl(263,85%,58%)] rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Guardar Deck</span>
+            </button>
+          </div>
+
+          <div className="flex gap-2 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
+            <button
+              onClick={() => state.setActiveView('builder')}
+              className={`px-4 py-2 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer ${
+                state.activeView === 'builder'
+                  ? 'bg-zinc-800 text-white font-semibold'
+                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+              }`}
+            >
+              🛠️ Constructor
+            </button>
+            <button
+              onClick={() => state.setActiveView('breakdowns')}
+              className={`px-4 py-2 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer ${
+                state.activeView === 'breakdowns'
+                  ? 'bg-zinc-800 text-white font-semibold'
+                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+              }`}
+            >
+              📊 Breakdowns Meta
+            </button>
+            <Link
+              href="/collection"
+              className="px-4 py-2 rounded-lg font-medium text-xs text-[hsl(215,15%,70%)] hover:text-white transition-all duration-300 cursor-pointer flex items-center gap-1"
+            >
+              📦 Mi Colección
+            </Link>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              onClick={() => state.triggerSync()}
+              disabled={state.isSyncing}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[hsl(180,80%,45%)] ${state.isSyncing ? 'animate-spin' : ''}`} />
+              {state.isSyncing ? 'Sincronizando...' : 'Sincronizar Meta'}
+            </button>
+
+            <div className="flex items-center gap-2 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
+              {(['Master Duel', 'TCG', 'Duel Links'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => state.setFormat(f)}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${
+                    state.format === f
+                      ? 'bg-[hsl(263,85%,64%)] text-white shadow-md'
+                      : 'text-[hsl(215,15%,70%)] hover:text-white hover:bg-[hsl(224,22%,10%)]'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* CORE WORKSPACE */}
+      {/* ══════════════════════════════════════════════════════════════
+          CORE WORKSPACE — Responsive layout
+      ══════════════════════════════════════════════════════════════ */}
       {state.activeView === 'builder' ? (
-        <div className="flex-1 flex flex-row gap-3 p-6 sm:p-8 max-w-full w-full overflow-hidden">
-          {/* SEARCH PANEL */}
-          <SearchPanel
-            leftPanelOpen={resize.leftPanelOpen}
-            setLeftPanelOpen={resize.setLeftPanelOpen}
-            leftPanelWidth={resize.leftPanelWidth}
-            searchQuery={state.searchQuery}
-            setSearchQuery={state.setSearchQuery}
-            searchScope={state.searchScope}
-            setSearchScope={state.setSearchScope}
-            onlyFavorites={state.onlyFavorites}
-            setOnlyFavorites={state.setOnlyFavorites}
-            searchType={state.searchType}
-            setSearchType={state.setSearchType}
-            advancedFilters={state.advancedFilters}
-            setAdvancedFilters={state.setAdvancedFilters}
-            searchResults={state.searchResults}
-            isSearching={state.isSearching}
-            searchViewMode={state.searchViewMode}
-            setSearchViewMode={state.setSearchViewMode}
-            searchLimit={state.searchLimit}
-            setSearchLimit={state.setSearchLimit}
-            format={state.format}
-            addCardToDeck={state.addCardToDeck}
-            handleDragCardStart={handleDragCardStart}
-            handleCardMouseEnter={preview.handleCardMouseEnter}
-            handleCardMouseLeave={preview.handleCardMouseLeave}
-          />
-
-          {resize.leftPanelOpen && (
-            <div
-              onMouseDown={resize.startResizeLeft}
-              className="w-1 hover:w-1.5 bg-transparent cursor-col-resize self-stretch shrink-0 transition-all"
+        <>
+          {/* ── DESKTOP (lg+): 3-column resizable panel layout ── */}
+          <div className="hidden lg:flex flex-1 flex-row gap-3 p-6 sm:p-8 max-w-full w-full overflow-hidden">
+            {/* SEARCH PANEL */}
+            <SearchPanel
+              leftPanelOpen={resize.leftPanelOpen}
+              setLeftPanelOpen={resize.setLeftPanelOpen}
+              leftPanelWidth={resize.leftPanelWidth}
+              isMobile={false}
+              searchQuery={state.searchQuery}
+              setSearchQuery={state.setSearchQuery}
+              searchScope={state.searchScope}
+              setSearchScope={state.setSearchScope}
+              onlyFavorites={state.onlyFavorites}
+              setOnlyFavorites={state.setOnlyFavorites}
+              searchType={state.searchType}
+              setSearchType={state.setSearchType}
+              advancedFilters={state.advancedFilters}
+              setAdvancedFilters={state.setAdvancedFilters}
+              searchResults={state.searchResults}
+              isSearching={state.isSearching}
+              searchViewMode={state.searchViewMode}
+              setSearchViewMode={state.setSearchViewMode}
+              searchLimit={state.searchLimit}
+              setSearchLimit={state.setSearchLimit}
+              format={state.format}
+              addCardToDeck={state.addCardToDeck}
+              handleDragCardStart={handleDragCardStart}
+              handleCardMouseEnter={preview.handleCardMouseEnter}
+              handleCardMouseLeave={preview.handleCardMouseLeave}
             />
-          )}
 
-          {/* MAIN DECKBOARD SECTIONS CONTAINER */}
-          <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
-              <h2 className="font-bold text-lg flex items-center gap-2">📋 Lista de Cartas</h2>
-              <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                <span className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
-                  Main: <b className="font-mono text-white">{mainCardsCount}</b>/{state.format === 'Duel Links' ? '30' : '60'}
-                </span>
-                <span className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
-                  Extra: <b className="font-mono text-white">{extraCardsCount}</b>/{state.format === 'Duel Links' ? '8' : '15'}
-                </span>
-                <span className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
-                  Side: <b className="font-mono text-white">{sideCardsCount}</b>/15
-                </span>
-                <span className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
-                  Extras: <b className="font-mono text-white">{extrasCardsCount}</b>/30
-                </span>
+            {resize.leftPanelOpen && (
+              <div
+                onMouseDown={resize.startResizeLeft}
+                className="w-1 hover:w-1.5 bg-transparent cursor-col-resize self-stretch shrink-0 transition-all"
+              />
+            )}
+
+            {/* MAIN DECKBOARD */}
+            <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
+              <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
+                <h2 className="font-bold text-lg flex items-center gap-2">📋 Lista de Cartas</h2>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                  {[
+                    { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
+                    { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
+                    { label: 'Side', count: sideCardsCount, max: 15 },
+                    { label: 'Extras', count: extrasCardsCount, max: 30 },
+                  ].map(({ label, count, max }) => (
+                    <span key={label} className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
+                      {label}: <b className="font-mono text-white">{count}</b>/{max}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-thin">
+                <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} {...sharedDeckSectionProps} />
+                <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} {...sharedDeckSectionProps} />
+                <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} {...sharedDeckSectionProps} />
+                <DeckSection title="Extras / Estrategias Sugeridas" section="extras" cardsCount={extrasCardsCount} maxSize={30} {...sharedDeckSectionProps} />
+              </div>
+            </section>
+
+            {resize.rightPanelOpen && (
+              <div
+                onMouseDown={resize.startResizeRight}
+                className="w-1 hover:w-1.5 bg-transparent cursor-col-resize self-stretch shrink-0 transition-all"
+              />
+            )}
+
+            {/* META ANALYSIS */}
+            <MetaAnalysisPanel
+              rightPanelOpen={resize.rightPanelOpen}
+              setRightPanelOpen={resize.setRightPanelOpen}
+              rightPanelWidth={resize.rightPanelWidth}
+              isMobile={false}
+              isAnalyzing={state.isAnalyzing}
+              inferredArchetype={state.inferredArchetype}
+              detectedArchetypes={state.detectedArchetypes}
+              activeArchetypeTab={state.activeArchetypeTab}
+              setActiveArchetypeTab={state.setActiveArchetypeTab}
+              banlistAlerts={state.banlistAlerts}
+              sidebarBreakdownCards={state.sidebarBreakdownCards}
+              isFetchingSidebarBreakdown={state.isFetchingSidebarBreakdown}
+              fetchSidebarBreakdown={state.fetchSidebarBreakdown}
+              cardHistory={state.cardHistory}
+              handleDragCardStart={handleDragCardStart}
+              handleCardMouseEnter={preview.handleCardMouseEnter}
+              handleCardMouseLeave={preview.handleCardMouseLeave}
+              addRecommendedCard={state.addRecommendedCard}
+            />
+          </div>
+
+          {/* ── TABLET (md–lg): 2-column layout — Search + Deck, Meta as icon drawer ── */}
+          <div className="hidden md:flex lg:hidden flex-1 flex-row gap-3 p-4 max-w-full w-full overflow-hidden">
+            {/* Search Panel — fixed width on tablet */}
+            <div className="w-72 shrink-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl overflow-hidden">
+              <div className="p-4 border-b border-[hsl(224,15%,16%)] flex items-center justify-between shrink-0">
+                <h2 className="font-bold text-sm uppercase tracking-wider">🔍 Buscar</h2>
+              </div>
+              <div className="p-4 pt-0 flex-1 overflow-hidden">
+                <SearchPanel
+                  leftPanelOpen={true}
+                  setLeftPanelOpen={() => {}}
+                  leftPanelWidth={0}
+                  isMobile={true}
+                  searchQuery={state.searchQuery}
+                  setSearchQuery={state.setSearchQuery}
+                  searchScope={state.searchScope}
+                  setSearchScope={state.setSearchScope}
+                  onlyFavorites={state.onlyFavorites}
+                  setOnlyFavorites={state.setOnlyFavorites}
+                  searchType={state.searchType}
+                  setSearchType={state.setSearchType}
+                  advancedFilters={state.advancedFilters}
+                  setAdvancedFilters={state.setAdvancedFilters}
+                  searchResults={state.searchResults}
+                  isSearching={state.isSearching}
+                  searchViewMode={state.searchViewMode}
+                  setSearchViewMode={state.setSearchViewMode}
+                  searchLimit={state.searchLimit}
+                  setSearchLimit={state.setSearchLimit}
+                  format={state.format}
+                  addCardToDeck={state.addCardToDeck}
+                  handleDragCardStart={handleDragCardStart}
+                  handleCardMouseEnter={preview.handleCardMouseEnter}
+                  handleCardMouseLeave={preview.handleCardMouseLeave}
+                />
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-thin">
-              <DeckSection
-                title="Main Deck"
-                section="main"
-                deckCards={state.deckCards}
-                cardsCount={mainCardsCount}
-                maxSize={state.format === 'Duel Links' ? 30 : 60}
-                format={state.format}
-                removeCardFromDeck={state.removeCardFromDeck}
-                handleDragCardStart={handleDragCardStart}
-                handleDropCardOnSection={handleDropCardOnSection}
-                handleCardMouseEnter={preview.handleCardMouseEnter}
-                handleCardMouseLeave={preview.handleCardMouseLeave}
-              />
+            {/* Deck + Meta column */}
+            <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-hidden">
+              {/* Deck board */}
+              <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-4 overflow-hidden">
+                <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
+                  <h2 className="font-bold text-base flex items-center gap-2">📋 Lista de Cartas</h2>
+                  <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
+                    {[
+                      { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
+                      { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
+                      { label: 'Side', count: sideCardsCount, max: 15 },
+                    ].map(({ label, count, max }) => (
+                      <span key={label} className="flex items-center gap-1 bg-[hsl(224,25%,6%)] py-0.5 px-2 rounded-lg border border-[hsl(224,15%,16%)]">
+                        {label}: <b className="font-mono text-white">{count}</b>/{max}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col gap-5 overflow-y-auto pr-2 scrollbar-thin">
+                  <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} {...sharedDeckSectionProps} />
+                  <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} {...sharedDeckSectionProps} />
+                  <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} {...sharedDeckSectionProps} />
+                  <DeckSection title="Extras / Estrategias" section="extras" cardsCount={extrasCardsCount} maxSize={30} {...sharedDeckSectionProps} />
+                </div>
+              </section>
 
-              <DeckSection
-                title="Extra Deck"
-                section="extra"
-                deckCards={state.deckCards}
-                cardsCount={extraCardsCount}
-                maxSize={state.format === 'Duel Links' ? 8 : 15}
-                format={state.format}
-                removeCardFromDeck={state.removeCardFromDeck}
-                handleDragCardStart={handleDragCardStart}
-                handleDropCardOnSection={handleDropCardOnSection}
-                handleCardMouseEnter={preview.handleCardMouseEnter}
-                handleCardMouseLeave={preview.handleCardMouseLeave}
-              />
-
-              <DeckSection
-                title="Side Deck"
-                section="side"
-                deckCards={state.deckCards}
-                cardsCount={sideCardsCount}
-                maxSize={15}
-                format={state.format}
-                removeCardFromDeck={state.removeCardFromDeck}
-                handleDragCardStart={handleDragCardStart}
-                handleDropCardOnSection={handleDropCardOnSection}
-                handleCardMouseEnter={preview.handleCardMouseEnter}
-                handleCardMouseLeave={preview.handleCardMouseLeave}
-              />
-
-              <DeckSection
-                title="Extras / Estrategias Sugeridas"
-                section="extras"
-                deckCards={state.deckCards}
-                cardsCount={extrasCardsCount}
-                maxSize={30}
-                format={state.format}
-                removeCardFromDeck={state.removeCardFromDeck}
-                handleDragCardStart={handleDragCardStart}
-                handleDropCardOnSection={handleDropCardOnSection}
-                handleCardMouseEnter={preview.handleCardMouseEnter}
-                handleCardMouseLeave={preview.handleCardMouseLeave}
-              />
+              {/* Meta panel — collapsed to icon strip on tablet */}
+              <div className="shrink-0">
+                <MetaAnalysisPanel
+                  rightPanelOpen={resize.rightPanelOpen}
+                  setRightPanelOpen={resize.setRightPanelOpen}
+                  rightPanelWidth={resize.rightPanelWidth}
+                  isMobile={false}
+                  isAnalyzing={state.isAnalyzing}
+                  inferredArchetype={state.inferredArchetype}
+                  detectedArchetypes={state.detectedArchetypes}
+                  activeArchetypeTab={state.activeArchetypeTab}
+                  setActiveArchetypeTab={state.setActiveArchetypeTab}
+                  banlistAlerts={state.banlistAlerts}
+                  sidebarBreakdownCards={state.sidebarBreakdownCards}
+                  isFetchingSidebarBreakdown={state.isFetchingSidebarBreakdown}
+                  fetchSidebarBreakdown={state.fetchSidebarBreakdown}
+                  cardHistory={state.cardHistory}
+                  handleDragCardStart={handleDragCardStart}
+                  handleCardMouseEnter={preview.handleCardMouseEnter}
+                  handleCardMouseLeave={preview.handleCardMouseLeave}
+                  addRecommendedCard={state.addRecommendedCard}
+                />
+              </div>
             </div>
-          </section>
+          </div>
 
-          {resize.rightPanelOpen && (
-            <div
-              onMouseDown={resize.startResizeRight}
-              className="w-1 hover:w-1.5 bg-transparent cursor-col-resize self-stretch shrink-0 transition-all"
-            />
-          )}
+          {/* ── MOBILE (< md): Single-column layout with bottom nav ── */}
+          <div className="flex md:hidden flex-col flex-1 pb-16">
+            {/* Deck view (always rendered, shown/hidden by tab) */}
+            <AnimatePresence mode="wait">
+              {activeMobileTab === 'deck' && (
+                <motion.section
+                  key="mobile-deck"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.18 }}
+                  className="flex-1 flex flex-col gap-3 p-4"
+                >
+                  {/* Deck stats bar */}
+                  <div className="flex gap-1.5 text-xs font-semibold overflow-x-auto scrollbar-thin pb-1">
+                    {[
+                      { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
+                      { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
+                      { label: 'Side', count: sideCardsCount, max: 15 },
+                      { label: 'Extras', count: extrasCardsCount, max: 30 },
+                    ].map(({ label, count, max }) => (
+                      <span key={label} className="shrink-0 flex items-center gap-1 bg-[hsl(224,22%,10%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
+                        {label}: <b className="font-mono text-white">{count}</b>/{max}
+                      </span>
+                    ))}
+                  </div>
 
-          {/* META ANALYSIS */}
-          <MetaAnalysisPanel
-            rightPanelOpen={resize.rightPanelOpen}
-            setRightPanelOpen={resize.setRightPanelOpen}
-            rightPanelWidth={resize.rightPanelWidth}
-            isAnalyzing={state.isAnalyzing}
-            inferredArchetype={state.inferredArchetype}
-            detectedArchetypes={state.detectedArchetypes}
-            activeArchetypeTab={state.activeArchetypeTab}
-            setActiveArchetypeTab={state.setActiveArchetypeTab}
-            banlistAlerts={state.banlistAlerts}
-            sidebarBreakdownCards={state.sidebarBreakdownCards}
-            isFetchingSidebarBreakdown={state.isFetchingSidebarBreakdown}
-            fetchSidebarBreakdown={state.fetchSidebarBreakdown}
-            cardHistory={state.cardHistory}
-            handleDragCardStart={handleDragCardStart}
-            handleCardMouseEnter={preview.handleCardMouseEnter}
-            handleCardMouseLeave={preview.handleCardMouseLeave}
-            addRecommendedCard={state.addRecommendedCard}
-          />
-        </div>
+                  <div className="flex flex-col gap-5 overflow-y-auto scrollbar-thin">
+                    <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} {...sharedDeckSectionProps} />
+                    <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} {...sharedDeckSectionProps} />
+                    <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} {...sharedDeckSectionProps} />
+                    <DeckSection title="Extras / Estrategias Sugeridas" section="extras" cardsCount={extrasCardsCount} maxSize={30} {...sharedDeckSectionProps} />
+                  </div>
+                </motion.section>
+              )}
+            </AnimatePresence>
+
+            {/* Search bottom sheet */}
+            <MobileBottomSheet
+              isOpen={activeMobileTab === 'search'}
+              onClose={() => setActiveMobileTab('deck')}
+              title="🔍 Buscar Cartas"
+              heightClass="h-[88vh]"
+            >
+              <div className="p-4">
+                <SearchPanel
+                  leftPanelOpen={true}
+                  setLeftPanelOpen={() => setActiveMobileTab('deck')}
+                  leftPanelWidth={0}
+                  isMobile={true}
+                  searchQuery={state.searchQuery}
+                  setSearchQuery={state.setSearchQuery}
+                  searchScope={state.searchScope}
+                  setSearchScope={state.setSearchScope}
+                  onlyFavorites={state.onlyFavorites}
+                  setOnlyFavorites={state.setOnlyFavorites}
+                  searchType={state.searchType}
+                  setSearchType={state.setSearchType}
+                  advancedFilters={state.advancedFilters}
+                  setAdvancedFilters={state.setAdvancedFilters}
+                  searchResults={state.searchResults}
+                  isSearching={state.isSearching}
+                  searchViewMode={state.searchViewMode}
+                  setSearchViewMode={state.setSearchViewMode}
+                  searchLimit={state.searchLimit}
+                  setSearchLimit={state.setSearchLimit}
+                  format={state.format}
+                  addCardToDeck={state.addCardToDeck}
+                  handleDragCardStart={handleDragCardStart}
+                  handleCardMouseEnter={preview.handleCardMouseEnter}
+                  handleCardMouseLeave={preview.handleCardMouseLeave}
+                />
+              </div>
+            </MobileBottomSheet>
+
+            {/* Meta Analysis bottom sheet */}
+            <MobileBottomSheet
+              isOpen={activeMobileTab === 'meta'}
+              onClose={() => setActiveMobileTab('deck')}
+              title="📊 Análisis del Meta"
+              heightClass="h-[85vh]"
+            >
+              <div className="p-4">
+                <MetaAnalysisPanel
+                  rightPanelOpen={true}
+                  setRightPanelOpen={() => setActiveMobileTab('deck')}
+                  rightPanelWidth={0}
+                  isMobile={true}
+                  isAnalyzing={state.isAnalyzing}
+                  inferredArchetype={state.inferredArchetype}
+                  detectedArchetypes={state.detectedArchetypes}
+                  activeArchetypeTab={state.activeArchetypeTab}
+                  setActiveArchetypeTab={state.setActiveArchetypeTab}
+                  banlistAlerts={state.banlistAlerts}
+                  sidebarBreakdownCards={state.sidebarBreakdownCards}
+                  isFetchingSidebarBreakdown={state.isFetchingSidebarBreakdown}
+                  fetchSidebarBreakdown={state.fetchSidebarBreakdown}
+                  cardHistory={state.cardHistory}
+                  handleDragCardStart={handleDragCardStart}
+                  handleCardMouseEnter={preview.handleCardMouseEnter}
+                  handleCardMouseLeave={preview.handleCardMouseLeave}
+                  addRecommendedCard={state.addRecommendedCard}
+                />
+              </div>
+            </MobileBottomSheet>
+
+            {/* More options bottom sheet */}
+            <MobileBottomSheet
+              isOpen={mobileMoreOpen}
+              onClose={() => setMobileMoreOpen(false)}
+              title="⚙️ Opciones"
+              heightClass="h-[60vh]"
+            >
+              <div className="p-5 flex flex-col gap-4">
+                {/* Sync button */}
+                <button
+                  onClick={() => { state.triggerSync(); setMobileMoreOpen(false); }}
+                  disabled={state.isSyncing}
+                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-xl text-sm font-semibold text-[hsl(215,15%,80%)] transition-all cursor-pointer disabled:opacity-50 touch-manipulation"
+                >
+                  <RefreshCw className={`w-4 h-4 text-[hsl(180,80%,45%)] ${state.isSyncing ? 'animate-spin' : ''}`} />
+                  {state.isSyncing ? 'Sincronizando...' : 'Sincronizar Meta'}
+                </button>
+
+                {/* Load deck */}
+                <button
+                  onClick={() => { state.handleOpenLoadModal(); setMobileMoreOpen(false); }}
+                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-purple-400 rounded-xl text-sm font-semibold text-[hsl(215,15%,80%)] transition-all cursor-pointer touch-manipulation"
+                >
+                  <FolderOpen className="w-4 h-4 text-purple-400" />
+                  Cargar Deck
+                </button>
+
+                {/* Clear deck */}
+                <button
+                  onClick={() => { state.handleClearDeck(); setMobileMoreOpen(false); }}
+                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 rounded-xl text-sm font-semibold text-red-400 transition-all cursor-pointer touch-manipulation"
+                >
+                  <X className="w-4 h-4 text-red-400" />
+                  Limpiar Deck
+                </button>
+
+                {/* Collection link */}
+                <Link
+                  href="/collection"
+                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-xl text-sm font-semibold text-[hsl(215,15%,80%)] transition-all touch-manipulation"
+                >
+                  <span>📦</span> Mi Colección
+                </Link>
+              </div>
+            </MobileBottomSheet>
+          </div>
+        </>
       ) : (
         /* ARCHETYPES BREAKDOWNS LIST VIEW */
-        <div className="flex-1 p-6 sm:p-8 max-w-full w-full">
+        <div className="flex-1 p-4 sm:p-8 max-w-full w-full pb-20 md:pb-8">
           <div className="space-y-6">
-            <div className="flex justify-between items-center border-b border-[hsl(224,15%,16%)] pb-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-[hsl(224,15%,16%)] pb-4">
               <div>
-                <h2 className="font-bold text-2xl text-slate-100 flex items-center gap-2">📊 Breakdowns Competitivos</h2>
+                <h2 className="font-bold text-xl sm:text-2xl text-slate-100 flex items-center gap-2">📊 Breakdowns Competitivos</h2>
                 <p className="text-xs text-[hsl(215,15%,70%)] mt-1">
                   Explora arquetipos de Master Duel Meta y carga sus recetas populares en un solo clic.
                 </p>
@@ -532,7 +841,7 @@ export default function DeckBuilder() {
                 placeholder="Filtrar arquetipos..."
                 value={state.archetypeSearchQuery}
                 onChange={(e) => state.setArchetypeSearchQuery(e.target.value)}
-                className="pl-3 pr-10 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none max-w-xs w-full"
+                className="pl-3 pr-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none w-full sm:max-w-xs"
               />
             </div>
 
@@ -542,14 +851,14 @@ export default function DeckBuilder() {
                 <p className="text-xs font-mono text-slate-500">Cargando arquetipos del meta...</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                 {state.archetypesList
                   .filter((a) => a.name.toLowerCase().includes(state.archetypeSearchQuery.toLowerCase()))
                   .map((arch) => (
                     <div
                       key={arch.name}
                       onClick={() => state.openArchetypeBreakdown(arch.name)}
-                      className="cursor-pointer p-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-2xl flex flex-col justify-between group transition-all duration-300 shadow-md"
+                      className="cursor-pointer p-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-2xl flex flex-col justify-between group transition-all duration-300 shadow-md touch-manipulation"
                     >
                       <div>
                         <div className="flex justify-between items-start">
@@ -572,6 +881,15 @@ export default function DeckBuilder() {
             )}
           </div>
         </div>
+      )}
+
+      {/* ── Mobile Bottom Navigation ── */}
+      {state.activeView === 'builder' && (
+        <MobileNav
+          activeTab={activeMobileTab}
+          onTabChange={handleMobileTabChange}
+          mainCardsCount={mainCardsCount}
+        />
       )}
 
       {/* SAVE DECK MODAL */}

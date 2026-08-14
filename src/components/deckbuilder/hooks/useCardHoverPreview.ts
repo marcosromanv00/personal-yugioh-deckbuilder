@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, HoverCardBase } from '../types';
 
 /**
- * Hook para manejar la lógica de previsualización técnica por hover largo (1.5 segundos)
- * de las cartas de Yu-Gi-Oh!
+ * Hook para manejar la lógica de previsualización técnica de cartas.
+ * - Desktop: hover largo (1.5 segundos) sobre una carta.
+ * - Mobile/Tablet: long press → openPreviewForCard (disparo inmediato, sin delay).
  */
 export function useCardHoverPreview() {
   const [hoveredCard, setHoveredCard] = useState<HoverCardBase | null>(null);
@@ -23,6 +24,38 @@ export function useCardHoverPreview() {
     setIsPreviewOpen(false);
   }, []);
 
+  /**
+   * Fetches and opens the card preview.
+   * Shared by both desktop (hover) and mobile (long press) paths.
+   */
+  const _fetchAndOpenPreview = useCallback(async (card: HoverCardBase) => {
+    setIsPreviewOpen(true);
+    isPreviewOpenRef.current = true;
+    setIsLoadingPreview(true);
+    setHoveredCard(card);
+    setModalActionMessage(null);
+
+    try {
+      const res = await fetch(`/api/cards?id=${card.id}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && json.data.length > 0) {
+          setPreviewCard(json.data[0]);
+        } else {
+          setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
+        }
+      } else {
+        setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
+      }
+    } catch (err) {
+      console.error('Error fetching preview card details:', err);
+      setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  }, []);
+
+  /** Desktop: hover 1.5s trigger */
   const handleCardMouseEnter = useCallback((card: HoverCardBase) => {
     if (isPreviewOpenRef.current) return;
 
@@ -32,39 +65,9 @@ export function useCardHoverPreview() {
 
     hoverTimerRef.current = setTimeout(async () => {
       if (!isHoveringRef.current) return;
-
-      setIsPreviewOpen(true);
-      isPreviewOpenRef.current = true;
-      setIsLoadingPreview(true);
-      setHoveredCard(card);
-      setModalActionMessage(null);
-
-      try {
-        const res = await fetch(`/api/cards?id=${card.id}`);
-        if (!isHoveringRef.current) {
-          setIsPreviewOpen(false);
-          isPreviewOpenRef.current = false;
-          setIsLoadingPreview(false);
-          return;
-        }
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data && json.data.length > 0) {
-            setPreviewCard(json.data[0]);
-          } else {
-            setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
-          }
-        } else {
-          setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
-        }
-      } catch (err) {
-        console.error('Error fetching preview card details:', err);
-        setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
-      } finally {
-        setIsLoadingPreview(false);
-      }
+      await _fetchAndOpenPreview(card);
     }, 1500);
-  }, []);
+  }, [_fetchAndOpenPreview]);
 
   const handleCardMouseLeave = useCallback(() => {
     if (!isPreviewOpenRef.current) {
@@ -75,6 +78,15 @@ export function useCardHoverPreview() {
       hoverTimerRef.current = null;
     }
   }, []);
+
+  /**
+   * Mobile/Tablet: immediate trigger (no delay).
+   * Call this from useLongPress onLongPress callback.
+   */
+  const openPreviewForCard = useCallback(async (card: HoverCardBase) => {
+    if (isPreviewOpenRef.current) return;
+    await _fetchAndOpenPreview(card);
+  }, [_fetchAndOpenPreview]);
 
   useEffect(() => {
     return () => {
@@ -99,5 +111,6 @@ export function useCardHoverPreview() {
     closePreview,
     handleCardMouseEnter,
     handleCardMouseLeave,
+    openPreviewForCard,
   };
 }

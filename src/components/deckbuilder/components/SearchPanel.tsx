@@ -7,6 +7,8 @@ interface SearchPanelProps {
   leftPanelOpen: boolean;
   setLeftPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
   leftPanelWidth: number;
+  /** When true, renders inside a MobileBottomSheet — hides collapse controls */
+  isMobile?: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   searchScope: 'global' | 'collection';
@@ -34,6 +36,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   leftPanelOpen,
   setLeftPanelOpen,
   leftPanelWidth,
+  isMobile = false,
   searchQuery,
   setSearchQuery,
   searchScope,
@@ -102,53 +105,89 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
   return (
     <section
-      style={leftPanelOpen ? { width: `${leftPanelWidth}px` } : {}}
-      className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${
-        leftPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'
+      style={(!isMobile && leftPanelOpen) ? { width: `${leftPanelWidth}px` } : {}}
+      className={`flex flex-col gap-4 ${
+        isMobile
+          ? 'w-full'
+          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${leftPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'}`
       }`}
     >
-      <div className={`border-b border-[hsl(224,15%,16%)] pb-2.5 flex items-center ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
-        {leftPanelOpen && (
-          <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
-            🔍 Buscar Cartas
-          </h2>
-        )}
-        <div className="flex items-center gap-1">
+      {/* Panel header — hidden on mobile (title is in MobileBottomSheet) */}
+      {!isMobile && (
+        <div className={`border-b border-[hsl(224,15%,16%)] pb-2.5 flex items-center ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
           {leftPanelOpen && (
-            <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
-              <button
-                onClick={() => setSearchViewMode('grid')}
-                className={`p-1 rounded transition-colors cursor-pointer ${
-                  searchViewMode === 'grid'
-                    ? 'bg-zinc-800 text-white font-semibold'
-                    : 'text-[hsl(215,15%,70%)] hover:text-white'
-                }`}
-                title="Vista Cuadrícula"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setSearchViewMode('list')}
-                className={`p-1 rounded transition-colors cursor-pointer ${
-                  searchViewMode === 'list'
-                    ? 'bg-zinc-800 text-white font-semibold'
-                    : 'text-[hsl(215,15%,70%)] hover:text-white'
-                }`}
-                title="Vista Lista"
-              >
-                <List className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
+              🔍 Buscar Cartas
+            </h2>
           )}
-          <button
-            onClick={() => setLeftPanelOpen(p => !p)}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-            title={leftPanelOpen ? 'Colapsar panel de búsqueda' : 'Expandir panel de búsqueda'}
-          >
-            {leftPanelOpen ? <X className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
-          </button>
+          <div className="flex items-center gap-1">
+            {leftPanelOpen && (
+              <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
+                <button
+                  onClick={() => setSearchViewMode('grid')}
+                  className={`p-1 rounded transition-colors cursor-pointer ${
+                    searchViewMode === 'grid'
+                      ? 'bg-zinc-800 text-white font-semibold'
+                      : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  }`}
+                  title="Vista Cuadrícula"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setSearchViewMode('list')}
+                  className={`p-1 rounded transition-colors cursor-pointer ${
+                    searchViewMode === 'list'
+                      ? 'bg-zinc-800 text-white font-semibold'
+                      : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  }`}
+                  title="Vista Lista"
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setLeftPanelOpen(p => !p)}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              title={leftPanelOpen ? 'Colapsar panel de búsqueda' : 'Expandir panel de búsqueda'}
+            >
+              {leftPanelOpen ? <X className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Mobile: inline view/sort controls */}
+      {isMobile && (
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
+            <button
+              onClick={() => setSearchViewMode('grid')}
+              className={`p-1.5 rounded transition-colors cursor-pointer touch-manipulation ${
+                searchViewMode === 'grid'
+                  ? 'bg-zinc-800 text-white'
+                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+              }`}
+              title="Vista Cuadrícula"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setSearchViewMode('list')}
+              className={`p-1.5 rounded transition-colors cursor-pointer touch-manipulation ${
+                searchViewMode === 'list'
+                  ? 'bg-zinc-800 text-white'
+                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+              }`}
+              title="Vista Lista"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <span className="text-[10px] text-slate-500">{searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}</span>
+        </div>
+      )}
       {leftPanelOpen ? (
         <>
           <div className="flex gap-2 items-center">
@@ -231,7 +270,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             })}
           />
 
-          <div className="flex-1 overflow-y-auto max-h-125 lg:max-h-155 pr-1 flex flex-col gap-2 scrollbar-thin">
+          <div className={`flex-1 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin ${isMobile ? 'max-h-none' : 'max-h-125 lg:max-h-155'}`}>
             {isSearching && searchResults.length === 0 ? (
               <div className="text-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500 mb-1" />
@@ -242,16 +281,16 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                 No se encontraron cartas. Intenta buscando otra palabra.
               </div>
             ) : searchViewMode === 'grid' ? (
-              <div className="grid grid-cols-5 gap-x-0.5 gap-y-1.5">
+              <div className={`grid gap-x-1 gap-y-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-5'}`}>
                 {searchResults.map(card => (
                   <div 
                     key={card.id}
-                    draggable
-                    onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
+                    draggable={!isMobile}
+                    onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype }) : undefined}
                     onClick={() => addCardToDeck(card)}
-                    onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
-                    onMouseLeave={handleCardMouseLeave}
-                    className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-grab active:cursor-grabbing"
+                    onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
+                    onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
+                    className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation"
                   >
                     <div className="relative flex-1 rounded-md overflow-hidden shadow">
                       {/* eslint-disable-next-line @next/next/no-img-element */}

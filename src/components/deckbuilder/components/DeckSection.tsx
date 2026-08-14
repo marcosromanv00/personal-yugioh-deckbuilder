@@ -1,5 +1,6 @@
 import React from 'react';
 import { DeckCard, HoverCardBase } from '../types';
+import { TouchableCard } from './TouchableCard';
 
 interface DeckSectionProps {
   title: string;
@@ -13,6 +14,7 @@ interface DeckSectionProps {
   handleDropCardOnSection: (e: React.DragEvent, targetSection: 'main' | 'extra' | 'side' | 'extras') => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
+  openPreviewForCard: (card: HoverCardBase) => void;
 }
 
 export const DeckSection: React.FC<DeckSectionProps> = ({
@@ -27,6 +29,7 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
   handleDropCardOnSection,
   handleCardMouseEnter,
   handleCardMouseLeave,
+  openPreviewForCard,
 }) => {
   const sectionCards = deckCards.filter(c => c.section === section);
 
@@ -136,24 +139,26 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
       </h3>
       {sectionCards.length === 0 ? (
         <div className="text-center py-6 bg-[hsl(224,25%,6%)] rounded-xl border border-[hsl(224,15%,16%)] border-dashed text-sm text-zinc-600">
-          Esta sección está vacía. Busca y agrega cartas desde el panel izquierdo o arrástralas aquí.
+          Sección vacía. Toca una carta para agregarla.
         </div>
       ) : (
-        <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
+        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
           {sectionCards.map(c => (
-            <div
+            <TouchableCard
               key={c.id}
-              draggable
-              onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: section })}
-              onClick={() => removeCardFromDeck(c.id, section)}
-              onMouseEnter={() => handleCardMouseEnter(c as HoverCardBase)}
+              card={c as HoverCardBase}
+              onTap={() => removeCardFromDeck(c.id, section)}
+              onOpenPreview={openPreviewForCard}
+              onMouseEnter={handleCardMouseEnter}
               onMouseLeave={handleCardMouseLeave}
-              className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200 ${
+              draggable={true}
+              onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: section })}
+              showInfoButton={true}
+              className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border touch-manipulation card-tap group hover:scale-105 transition-all duration-200 ${
                 c.proxy_count && c.proxy_count > 0
                   ? 'border-red-500/70 shadow-md shadow-red-500/20 hover:border-red-400'
                   : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
               }`}
-              title={`Haz clic para quitar 1 copia de ${c.name}${c.proxy_count ? ` | ${c.proxy_count} proxies` : ''}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -169,7 +174,7 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
                   P{c.proxy_count > 1 ? c.proxy_count : ''}
                 </span>
               )}
-            </div>
+            </TouchableCard>
           ))}
         </div>
       )}

@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
+/* ─── Design Tokens ──────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  /* Safe area insets (iOS notch/home bar) */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
 }
 
 @theme inline {
@@ -12,15 +18,66 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ─── Base ───────────────────────────────────────────────────── */
+html,
 body {
+  height: 100%;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  /* Prevent content jump on mobile scroll */
+  overscroll-behavior: none;
+}
+
+/* ─── Safe Area Utilities ────────────────────────────────────── */
+.pb-safe {
+  padding-bottom: var(--sab);
+}
+.pt-safe {
+  padding-top: var(--sat);
+}
+/* Bottom nav height accounting for safe area */
+.mb-nav {
+  margin-bottom: calc(4rem + var(--sab));
+}
+
+/* ─── Scrollbar Utilities ────────────────────────────────────── */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(224 15% 22%) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: hsl(224 15% 22%);
+  border-radius: 9999px;
+}
+
+/* ─── Touch Utilities ────────────────────────────────────────── */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── Bottom Sheet ───────────────────────────────────────────── */
+.sheet-handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  background: hsl(224 15% 30%);
+  border-radius: 9999px;
+  margin: 0 auto 0.75rem;
+  flex-shrink: 0;
+}
+
+/* ─── Mobile card tap feedback ───────────────────────────────── */
+@media (max-width: 767px) {
+  .card-tap:active {
+    transform: scale(0.94);
+    transition: transform 0.1s ease;
+  }
 }
