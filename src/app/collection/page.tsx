@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { StorageLocation, UserCard, StorageLocationFormData, Deck } from '@/types/collection';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory } from '@/types/collection';
 import { StorageContainerCard, AddContainerCard } from '@/components/collection/StorageContainerCard';
 import { StorageFormModal } from '@/components/collection/StorageFormModal';
 import { GamifiedInventoryModal } from '@/components/collection/GamifiedInventoryModal';
@@ -9,6 +9,8 @@ import { YdkUploadModal } from '@/components/collection/YdkUploadModal';
 import { SmartOrganizeModal } from '@/components/collection/SmartOrganizeModal';
 import { SleevingAdvisorModal } from '@/components/collection/SleevingAdvisorModal';
 import { ManualCardAdderModal } from '@/components/collection/ManualCardAdderModal';
+import { SleeveInventoryCard, AddSleeveCard } from '@/components/collection/SleeveInventoryCard';
+import { SleeveInventoryFormModal } from '@/components/collection/SleeveInventoryFormModal';
 import Link from 'next/link';
 import { 
   Box, 
@@ -22,7 +24,9 @@ import {
   HelpCircle,
   Search,
   Trash,
-  Heart
+  Heart,
+  MapPin,
+  ChevronDown
 } from 'lucide-react';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
 
@@ -33,7 +37,7 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
 
   // Colección completa y Filtros
-  const [activeTab, setActiveTab] = useState<'containers' | 'complete' | 'favorites'>('containers');
+  const [activeTab, setActiveTab] = useState<'containers' | 'complete' | 'favorites' | 'sleeves'>('containers');
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
   const [allCollectionFilters, setAllCollectionFilters] = useState<FilterState>({
@@ -50,6 +54,9 @@ export default function CollectionPage() {
     status: ''
   });
   const [allSearchQuery, setAllSearchQuery] = useState('');
+  // Location + Deck filter
+  const [locationFilter, setLocationFilter] = useState<string>(''); // '' = all, 'inbox' = unclassified, 'in_deck' = any deck, locationId = specific container
+  const [deckFilter, setDeckFilter] = useState<string>(''); // deck UUID when locationFilter = 'in_deck'
 
   // Modales
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -60,6 +67,12 @@ export default function CollectionPage() {
   const [isYdkOpen, setIsYdkOpen] = useState(false);
   const [isOrganizeOpen, setIsOrganizeOpen] = useState(false);
   const [isSleevesOpen, setIsSleevesOpen] = useState(false);
+
+  // Sleeves inventory state
+  const [sleeves, setSleeves] = useState<SleeveInventory[]>([]);
+  const [loadingSleeves, setLoadingSleeves] = useState(false);
+  const [isSleeveFormOpen, setIsSleeveFormOpen] = useState(false);
+  const [editingSleeve, setEditingSleeve] = useState<SleeveInventory | null>(null);
 
   const fetchCollectionData = async () => {
     setLoading(true);
@@ -91,7 +104,7 @@ export default function CollectionPage() {
     }
   };
 
-  const fetchAllCards = async (query: string, filters: FilterState, favoritesOnly = false) => {
+  const fetchAllCards = useCallback(async (query: string, filters: FilterState, favoritesOnly = false, locFilter = '', deckId = '') => {
     setLoadingAllCards(true);
     try {
       const url = '/api/collection/cards?';
@@ -109,6 +122,15 @@ export default function CollectionPage() {
       if (filters.rarity) params.append('rarity', filters.rarity);
       if (filters.status) params.append('status', filters.status);
       if (favoritesOnly) params.append('favorites', 'true');
+      // Location filter
+      if (locFilter === 'inbox') {
+        params.append('location_id', 'inbox');
+      } else if (locFilter === 'in_deck') {
+        params.append('location_id', 'in_deck');
+        if (deckId) params.append('deck_id', deckId);
+      } else if (locFilter) {
+        params.append('location_id', locFilter);
+      }
 
       const res = await fetch(url + params.toString());
       if (res.ok) {
@@ -120,16 +142,34 @@ export default function CollectionPage() {
     } finally {
       setLoadingAllCards(false);
     }
-  };
+  }, []);
+
+  const fetchSleeves = useCallback(async () => {
+    setLoadingSleeves(true);
+    try {
+      const res = await fetch('/api/collection/sleeve-inventory');
+      if (res.ok) {
+        const json = await res.json();
+        setSleeves(json.data || []);
+      }
+    } catch (err) {
+      console.error('Error al cargar fundas:', err);
+    } finally {
+      setLoadingSleeves(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'complete' || activeTab === 'favorites') {
       const timer = setTimeout(() => {
-        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [activeTab, allSearchQuery, allCollectionFilters]);
+    if (activeTab === 'sleeves') {
+      fetchSleeves();
+    }
+  }, [activeTab, allSearchQuery, allCollectionFilters, locationFilter, deckFilter, fetchAllCards, fetchSleeves]);
 
   const handleDeleteCard = async (userCardId: string) => {
     if (!confirm('¿Estás seguro de que deseas eliminar esta carta de tu colección?')) return;
@@ -138,7 +178,7 @@ export default function CollectionPage() {
         method: 'DELETE'
       });
       if (res.ok) {
-        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
         fetchCollectionData();
       }
     } catch (err) {
@@ -154,7 +194,7 @@ export default function CollectionPage() {
         body: JSON.stringify({ id: userCardId, status_flag: newStatus })
       });
       if (res.ok) {
-        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
       }
     } catch (err) {
       console.error('Error al cambiar estado de carta:', err);
@@ -169,7 +209,7 @@ export default function CollectionPage() {
         body: JSON.stringify({ id: uc.id, is_favorite: !uc.is_favorite })
       });
       if (res.ok) {
-        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
       }
     } catch (err) {
       console.error('Error al cambiar favorito:', err);
@@ -181,6 +221,21 @@ export default function CollectionPage() {
       fetchCollectionData();
     });
   }, []);
+
+  const handleDeleteSleeve = async (sleeve: SleeveInventory) => {
+    if (!confirm(`¿Eliminar la funda "${sleeve.name}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      const res = await fetch(`/api/collection/sleeve-inventory?id=${sleeve.id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json.error || 'No se pudo eliminar la funda.');
+        return;
+      }
+      fetchSleeves();
+    } catch (err) {
+      console.error('Error al eliminar funda:', err);
+    }
+  };
   const handleNewContainerClick = () => {
     setEditingLocation(null);
     setIsFormOpen(true);
@@ -441,12 +496,24 @@ export default function CollectionPage() {
                   <Heart className={`w-4 h-4 ${activeTab === 'favorites' ? 'fill-pink-500 text-pink-500' : ''}`} />
                   <span>Favoritas</span>
                 </button>
+                <button
+                  onClick={() => setActiveTab('sleeves')}
+                  className={`font-bold text-sm uppercase tracking-wider flex items-center gap-2 pb-2 border-b-2 transition-all cursor-pointer ${
+                    activeTab === 'sleeves' 
+                      ? 'border-cyan-400 text-cyan-300' 
+                      : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Mis Fundas ({sleeves.length})</span>
+                </button>
               </div>
               
               <button
                 onClick={() => {
                   fetchCollectionData();
-                  if (activeTab === 'complete' || activeTab === 'favorites') fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites');
+                  if (activeTab === 'complete' || activeTab === 'favorites') fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
+                  if (activeTab === 'sleeves') fetchSleeves();
                 }}
                 className="p-1.5 rounded-lg bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] text-[hsl(215,15%,70%)] hover:text-white hover:border-zinc-700 transition-all cursor-pointer"
                 title="Refrescar todo"
@@ -501,6 +568,57 @@ export default function CollectionPage() {
                   />
                   <Search className="w-3.5 h-3.5 absolute left-3 top-3.5 text-[hsl(215,15%,70%)]" />
                 </div>
+
+                {/* Location + Deck filter */}
+                {activeTab === 'complete' && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Ubicación:</span>
+                    </div>
+                    <div className="relative">
+                      <select
+                        value={locationFilter}
+                        onChange={(e) => {
+                          setLocationFilter(e.target.value);
+                          setDeckFilter('');
+                        }}
+                        className="pl-3 pr-7 py-1.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 text-xs text-slate-200 rounded-lg focus:outline-none focus:border-purple-500 appearance-none cursor-pointer"
+                      >
+                        <option value="">Todas las ubicaciones</option>
+                        <option value="inbox">📥 Sin Clasificar (Inbox)</option>
+                        <option value="in_deck">⚔️ En Deck</option>
+                        {locations.map(l => (
+                          <option key={l.id} value={l.id}>📦 {l.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2 top-2.5 pointer-events-none" />
+                    </div>
+                    {locationFilter === 'in_deck' && (
+                      <div className="relative">
+                        <select
+                          value={deckFilter}
+                          onChange={(e) => setDeckFilter(e.target.value)}
+                          className="pl-3 pr-7 py-1.5 bg-[hsl(224,25%,6%)] border border-purple-500/40 text-xs text-purple-200 rounded-lg focus:outline-none appearance-none cursor-pointer"
+                        >
+                          <option value="">Todos los decks</option>
+                          {decks.map(d => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2 top-2.5 pointer-events-none" />
+                      </div>
+                    )}
+                    {locationFilter && (
+                      <button
+                        onClick={() => { setLocationFilter(''); setDeckFilter(''); }}
+                        className="text-[10px] text-slate-500 hover:text-white underline"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <CardFilters
                   filters={allCollectionFilters}
@@ -796,6 +914,13 @@ export default function CollectionPage() {
         onClose={() => setIsManualCardOpen(false)}
         locations={locations}
         onSuccess={fetchCollectionData}
+      />
+
+      <SleeveInventoryFormModal
+        isOpen={isSleeveFormOpen}
+        onClose={() => { setIsSleeveFormOpen(false); setEditingSleeve(null); }}
+        onSuccess={fetchSleeves}
+        editingSleeve={editingSleeve}
       />
     </div>
   );

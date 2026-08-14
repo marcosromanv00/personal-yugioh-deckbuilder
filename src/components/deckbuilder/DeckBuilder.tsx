@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Plus, Trash, AlertTriangle, TrendingUp, Sparkles, Loader2, RefreshCw, Save, FolderOpen, LayoutGrid, List, Heart, Printer, X, Trash2 } from 'lucide-react';
+import { Search, Plus, Trash, AlertTriangle, TrendingUp, Sparkles, Loader2, RefreshCw, Save, FolderOpen, LayoutGrid, List, Heart, Printer, X, Trash2, Shield } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { StorageLocation } from '@/types/collection';
@@ -51,6 +51,7 @@ interface DeckCard {
   id: number;
   name: string;
   count: number;
+  proxy_count?: number;
   section: 'main' | 'extra' | 'side' | 'extras';
   type: string;
   image_url: string;
@@ -96,6 +97,10 @@ export default function DeckBuilder() {
   const [deckName, setDeckName] = useState('Mi Deck Yu-Gi-Oh!');
   const [deckDescription, setDeckDescription] = useState('');
   const [deckId, setDeckId] = useState<string | null>(null);
+
+  // Panel collapse state
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
   // Portal de exploración (Archetype Hub)
   const [activeView, setActiveView] = useState<'builder' | 'breakdowns'>('builder');
@@ -145,9 +150,15 @@ export default function DeckBuilder() {
   const [loadingDecks, setLoadingDecks] = useState(false);
   const [locations, setLocations] = useState<StorageLocation[]>([]);
   const [userInventoryCounts, setUserInventoryCounts] = useState<Record<number, number>>({});
+  const [userProxyCounts, setUserProxyCounts] = useState<Record<number, number>>({});
   const [targetLocationId, setTargetLocationId] = useState<string>('inbox');
   const [registerToInventory, setRegisterToInventory] = useState(false);
   const [cardsToRegister, setCardsToRegister] = useState<Record<number, boolean>>({});
+
+  // Sleeve assignment states
+  const [availableSleeves, setAvailableSleeves] = useState<any[]>([]);
+  const [selectedMainSleeveId, setSelectedMainSleeveId] = useState<string>('');
+  const [selectedExtraSleeveId, setSelectedExtraSleeveId] = useState<string>('');
 
   // Historial de cartas
   const [cardHistory, setCardHistory] = useState<HistoryItem[]>([]);
@@ -989,11 +1000,39 @@ export default function DeckBuilder() {
       if (invRes.ok) {
         const json = await invRes.json();
         const counts: Record<number, number> = {};
+        const proxies: Record<number, number> = {};
         (json.data || []).forEach((uc: import('@/types/collection').UserCard) => {
           counts[uc.card_id] = (counts[uc.card_id] || 0) + (uc.quantity || 1);
+          if (uc.is_proxy) {
+            proxies[uc.card_id] = (proxies[uc.card_id] || 0) + (uc.quantity || 1);
+          }
         });
         setUserInventoryCounts(counts);
+        setUserProxyCounts(proxies);
       }
+      // Cargar fundas disponibles
+      const sleevesRes = await fetch('/api/collection/sleeve-inventory');
+      if (sleevesRes.ok) {
+        const json = await sleevesRes.json();
+        setAvailableSleeves(json.data || []);
+      }
+
+      // Cargar fundas asignadas al deck (si existe)
+      if (deckId) {
+        const dsRes = await fetch(`/api/decks/${deckId}/sleeves`);
+        if (dsRes.ok) {
+          const json = await dsRes.json();
+          const assigned = json.data || [];
+          const mainSleeve = assigned.find((a: any) => a.section_type === 'main_side');
+          const extraSleeve = assigned.find((a: any) => a.section_type === 'extra');
+          setSelectedMainSleeveId(mainSleeve?.sleeve_id || '');
+          setSelectedExtraSleeveId(extraSleeve?.sleeve_id || '');
+        }
+      } else {
+        setSelectedMainSleeveId('');
+        setSelectedExtraSleeveId('');
+      }
+
     } catch (e) {
       console.error('Error cargando decks o inventario:', e);
     } finally {
@@ -1001,8 +1040,8 @@ export default function DeckBuilder() {
     }
   };
 
-  const handleOpenSaveModal = () => {
-    fetchDecksAndLocations();
+  const handleOpenSaveModal = async () => {
+    await fetchDecksAndLocations();
     // Reiniciar selecciones de importación de cartas
     const initialReg: Record<number, boolean> = {};
     deckCards.forEach(c => {
@@ -1033,6 +1072,7 @@ export default function DeckBuilder() {
       id: dc.card_id,
       name: dc.card_details?.name || 'Carta Desconocida',
       count: dc.count,
+      proxy_count: dc.proxy_count || 0,
       section: dc.section as 'main' | 'extra' | 'side' | 'extras',
       type: dc.card_details?.type || 'Monster',
       image_url: dc.card_details?.image_url || dc.card_details?.image_url_small || '',
@@ -1079,6 +1119,7 @@ export default function DeckBuilder() {
           id: c.id,
           name: c.name,
           count: c.count,
+          proxy_count: c.proxy_count || 0,
           section: c.section,
           type: c.type,
           image_url: c.image_url
@@ -1098,9 +1139,47 @@ export default function DeckBuilder() {
 
       if (res.ok) {
         const json = await res.json();
+        const savedDeckId = finalDeckId || json.data?.id;
+
         if (method === 'POST' && json.data?.id) {
           setDeckId(json.data.id);
         }
+
+        // Persistir fundas asignadas
+        if (savedDeckId) {
+          try {
+            if (selectedMainSleeveId) {
+              const msRes = await fetch(`/api/decks/${savedDeckId}/sleeves`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sleeve_id: selectedMainSleeveId, section_type: 'main_side' })
+              });
+              if (!msRes.ok) {
+                const err = await msRes.json();
+                console.warn('Advertencia al asignar funda de Main Deck:', err.error);
+              }
+            } else {
+              await fetch(`/api/decks/${savedDeckId}/sleeves?section_type=main_side`, { method: 'DELETE' });
+            }
+
+            if (selectedExtraSleeveId) {
+              const esRes = await fetch(`/api/decks/${savedDeckId}/sleeves`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sleeve_id: selectedExtraSleeveId, section_type: 'extra' })
+              });
+              if (!esRes.ok) {
+                const err = await esRes.json();
+                console.warn('Advertencia al asignar funda de Extra Deck:', err.error);
+              }
+            } else {
+              await fetch(`/api/decks/${savedDeckId}/sleeves?section_type=extra`, { method: 'DELETE' });
+            }
+          } catch (sleeveErr) {
+            console.error('Error al guardar asociación de fundas:', sleeveErr);
+          }
+        }
+
         alert(method === 'PUT' ? '¡Deck sobrescrito exitosamente!' : '¡Copia nueva guardada exitosamente!');
         setIsSaveModalOpen(false);
       } else {
@@ -1270,36 +1349,55 @@ export default function DeckBuilder() {
 
       {/* CUERPO PRINCIPAL DEL BUILDER */}
       {activeView === 'builder' ? (
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 sm:p-8 max-w-full w-full overflow-hidden">
+        <div className="flex-1 flex flex-row gap-6 p-6 sm:p-8 max-w-full w-full overflow-hidden">
           
-          {/* COLUMNA 1: BUSCADOR DE CARTAS (Lg: 4 cols) */}
-          <section className="lg:col-span-4 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-4">
-            <div className="border-b border-[hsl(224,15%,16%)] pb-2.5 flex items-center justify-between">
-              <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                🔍 Buscar Cartas
-              </h2>
-              <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
+          {/* COLUMNA 1: BUSCADOR DE CARTAS (colapsable) */}
+          <section
+            className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all duration-300 overflow-hidden ${
+              leftPanelOpen ? 'w-80 min-w-[280px] p-4' : 'w-10 min-w-[40px] p-2 items-center'
+            }`}
+          >
+            {/* Panel header with collapse toggle */}
+            <div className={`border-b border-[hsl(224,15%,16%)] pb-2.5 flex items-center ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
+              {leftPanelOpen && (
+                <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
+                  🔍 Buscar Cartas
+                </h2>
+              )}
+              {/* Collapse button + view toggle */}
+              <div className="flex items-center gap-1">
+                {leftPanelOpen && (
+                  <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
+                    <button
+                      onClick={() => setSearchViewMode('grid')}
+                      className={`p-1 rounded transition-colors cursor-pointer ${
+                        searchViewMode === 'grid'
+                          ? 'bg-zinc-800 text-white font-semibold'
+                          : 'text-[hsl(215,15%,70%)] hover:text-white'
+                      }`}
+                      title="Vista Cuadrícula"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setSearchViewMode('list')}
+                      className={`p-1 rounded transition-colors cursor-pointer ${
+                        searchViewMode === 'list'
+                          ? 'bg-zinc-800 text-white font-semibold'
+                          : 'text-[hsl(215,15%,70%)] hover:text-white'
+                      }`}
+                      title="Vista Lista"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <button
-                  onClick={() => setSearchViewMode('grid')}
-                  className={`p-1 rounded transition-colors cursor-pointer ${
-                    searchViewMode === 'grid'
-                      ? 'bg-zinc-800 text-white font-semibold'
-                      : 'text-[hsl(215,15%,70%)] hover:text-white'
-                  }`}
-                  title="Vista Cuadrícula"
+                  onClick={() => setLeftPanelOpen(p => !p)}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title={leftPanelOpen ? 'Colapsar panel de búsqueda' : 'Expandir panel de búsqueda'}
                 >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setSearchViewMode('list')}
-                  className={`p-1 rounded transition-colors cursor-pointer ${
-                    searchViewMode === 'list'
-                      ? 'bg-zinc-800 text-white font-semibold'
-                      : 'text-[hsl(215,15%,70%)] hover:text-white'
-                  }`}
-                  title="Vista Lista"
-                >
-                  <List className="w-3.5 h-3.5" />
+                  {leftPanelOpen ? <X className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
@@ -1478,10 +1576,16 @@ export default function DeckBuilder() {
                 ))
               )}
             </div>
+            {/* Collapsed state vertical label */}
+            {!leftPanelOpen && (
+              <div className="flex-1 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest" style={{ writingMode: 'vertical-rl' }}>Búsqueda</span>
+              </div>
+            )}
           </section>
 
-          {/* COLUMNA 2: DECK EN CONSTRUCCION (Lg: 5 cols) */}
-          <section className="lg:col-span-5 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
+          {/* COLUMNA 2: DECK EN CONSTRUCCION (flex-1, expands) */}
+          <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
             <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
               <h2 className="font-bold text-lg flex items-center gap-2">
                 📋 Lista de Cartas
@@ -1528,8 +1632,12 @@ export default function DeckBuilder() {
                         onClick={() => removeCardFromDeck(c.id, 'main')}
                         onMouseEnter={() => handleCardMouseEnter(c)}
                         onMouseLeave={handleCardMouseLeave}
-                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
-                        title={`Haz clic para quitar 1 copia de ${c.name}`}
+                        className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200 ${
+                          c.proxy_count && c.proxy_count > 0
+                            ? 'border-red-500/70 shadow-md shadow-red-500/20 hover:border-red-400'
+                            : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
+                        }`}
+                        title={`Haz clic para quitar 1 copia de ${c.name}${c.proxy_count ? ` | ${c.proxy_count} proxies` : ''}`}
                       >
                         <img 
                           src={c.image_url} 
@@ -1539,6 +1647,11 @@ export default function DeckBuilder() {
                         />
                         {getBanlistBadge(c)}
                         {renderCardFanCount(c.count)}
+                        {c.proxy_count && c.proxy_count > 0 && (
+                          <span className="absolute top-0.5 left-0.5 bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded leading-none uppercase shadow">
+                            P{c.proxy_count > 1 ? c.proxy_count : ''}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1568,8 +1681,12 @@ export default function DeckBuilder() {
                         onClick={() => removeCardFromDeck(c.id, 'extra')}
                         onMouseEnter={() => handleCardMouseEnter(c)}
                         onMouseLeave={handleCardMouseLeave}
-                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
-                        title={`Haz clic para quitar 1 copia de ${c.name}`}
+                        className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200 ${
+                          c.proxy_count && c.proxy_count > 0
+                            ? 'border-red-500/70 shadow-md shadow-red-500/20 hover:border-red-400'
+                            : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
+                        }`}
+                        title={`Haz clic para quitar 1 copia de ${c.name}${c.proxy_count ? ` | ${c.proxy_count} proxies` : ''}`}
                       >
                         <img 
                           src={c.image_url} 
@@ -1579,6 +1696,11 @@ export default function DeckBuilder() {
                         />
                         {getBanlistBadge(c)}
                         {renderCardFanCount(c.count)}
+                        {c.proxy_count && c.proxy_count > 0 && (
+                          <span className="absolute top-0.5 left-0.5 bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded leading-none uppercase shadow">
+                            P{c.proxy_count > 1 ? c.proxy_count : ''}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1608,8 +1730,12 @@ export default function DeckBuilder() {
                         onClick={() => removeCardFromDeck(c.id, 'side')}
                         onMouseEnter={() => handleCardMouseEnter(c)}
                         onMouseLeave={handleCardMouseLeave}
-                        className="relative aspect-[3/4.2] rounded-lg overflow-hidden border border-[hsl(224,15%,16%)] hover:border-red-500/50 cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200"
-                        title={`Haz clic para quitar 1 copia de ${c.name}`}
+                        className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border cursor-grab active:cursor-grabbing group hover:scale-105 transition-all duration-200 ${
+                          c.proxy_count && c.proxy_count > 0
+                            ? 'border-red-500/70 shadow-md shadow-red-500/20 hover:border-red-400'
+                            : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
+                        }`}
+                        title={`Haz clic para quitar 1 copia de ${c.name}${c.proxy_count ? ` | ${c.proxy_count} proxies` : ''}`}
                       >
                         <img 
                           src={c.image_url} 
@@ -1619,6 +1745,11 @@ export default function DeckBuilder() {
                         />
                         {getBanlistBadge(c)}
                         {renderCardFanCount(c.count)}
+                        {c.proxy_count && c.proxy_count > 0 && (
+                          <span className="absolute top-0.5 left-0.5 bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded leading-none uppercase shadow">
+                            P{c.proxy_count > 1 ? c.proxy_count : ''}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1668,15 +1799,35 @@ export default function DeckBuilder() {
             </div>
           </section>
 
-          {/* COLUMNA 3: DIAGNOSTICO Y RECOMENDACIONES (Lg: 3 cols) */}
-          <section className="lg:col-span-3 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-4 overflow-hidden">
-            <div className="border-b border-[hsl(224,15%,16%)] pb-2 mb-2 flex items-center justify-between shrink-0">
-              <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[hsl(180,80%,45%)]" /> Análisis del Meta
-              </h2>
-              {isAnalyzing && <Loader2 className="w-4 h-4 animate-spin text-[hsl(180,80%,45%)]" />}
+          {/* COLUMNA 3: DIAGNOSTICO Y RECOMENDACIONES (colapsable) */}
+          <section
+            className={`flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all duration-300 overflow-hidden ${
+              rightPanelOpen ? 'w-80 min-w-[280px] p-4' : 'w-10 min-w-[40px] p-2 items-center'
+            }`}
+          >
+            <div className={`border-b border-[hsl(224,15%,16%)] pb-2 mb-2 flex items-center shrink-0 ${rightPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
+              {rightPanelOpen && (
+                <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
+                  <TrendingUp className="w-4 h-4 text-[hsl(180,80%,45%)]" /> Análisis del Meta
+                </h2>
+              )}
+              <div className="flex items-center gap-1">
+                {rightPanelOpen && isAnalyzing && <Loader2 className="w-4 h-4 animate-spin text-[hsl(180,80%,45%)]" />}
+                <button
+                  onClick={() => setRightPanelOpen(p => !p)}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title={rightPanelOpen ? 'Colapsar panel de análisis' : 'Expandir panel de análisis'}
+                >
+                  {rightPanelOpen ? <X className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
-
+            {!rightPanelOpen && (
+              <div className="flex-1 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest" style={{ writingMode: 'vertical-rl' }}>Análisis</span>
+              </div>
+            )}
+            {rightPanelOpen && (
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
               <div>
                 <span className="text-[10px] text-slate-500 font-mono block mb-1.5">Arquetipos Principales Detectados:</span>
@@ -1828,6 +1979,7 @@ export default function DeckBuilder() {
                 )}
               </div>
             </div>
+            )}
           </section>
         </div>
       ) : (
@@ -1958,6 +2110,46 @@ export default function DeckBuilder() {
                       <option value="active">🟢 Deck Activo (Físicamente armado)</option>
                       <option value="inactive">⚪ Deck Inactivo (Receta guardada)</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* CONFIGURACIÓN DE FUNDAS (SLEEVES) */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-850 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                    <Shield className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-semibold text-slate-200">Asignación de Fundas (Sleeves)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-mono text-slate-400 mb-1.5">Fundas Main / Side Deck</label>
+                      <select
+                        value={selectedMainSleeveId}
+                        onChange={(e) => setSelectedMainSleeveId(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-350 focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="">-- Sin Funda --</option>
+                        {availableSleeves.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.brand} - {s.name} ({s.color_pattern}) - Disp: {s.quantity_available}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-mono text-slate-400 mb-1.5">Fundas Extra Deck</label>
+                      <select
+                        value={selectedExtraSleeveId}
+                        onChange={(e) => setSelectedExtraSleeveId(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-350 focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="">-- Sin Funda --</option>
+                        {availableSleeves.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.brand} - {s.name} ({s.color_pattern}) - Disp: {s.quantity_available}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -2524,6 +2716,23 @@ export default function DeckBuilder() {
                             <p className="text-xs text-slate-300 font-semibold">{previewCard.race}</p>
                           </div>
                         )}
+
+                        {/* Ratios de Copias y Proxies del Inventario */}
+                        <div className="col-span-2 border-t border-slate-850/60 pt-2 space-y-1">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Mi Inventario</p>
+                          <div className="flex gap-4 text-xs font-semibold">
+                            <div className="flex items-center gap-1">
+                              <span className="text-slate-400 font-normal">Originales:</span>
+                              <span className="text-emerald-400">
+                                {Math.max(0, (userInventoryCounts[previewCard.id] || 0) - (userProxyCounts[previewCard.id] || 0))}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-slate-400 font-normal">Proxies:</span>
+                              <span className="text-red-400">{userProxyCounts[previewCard.id] || 0}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
 

@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
         cards:yg_deck_cards (
           card_id,
           count,
+          proxy_count,
           section,
           card_details:yg_cards (
             name,
@@ -168,6 +169,7 @@ export async function POST(req: NextRequest) {
         deck_id: deck.id,
         card_id: c.id,
         count: c.count,
+        proxy_count: c.proxy_count || 0,
         section: c.section
       }));
 
@@ -340,6 +342,7 @@ export async function PUT(req: NextRequest) {
           deck_id: id,
           card_id: c.id,
           count: c.count,
+          proxy_count: c.proxy_count || 0,
           section: c.section
         }));
 
