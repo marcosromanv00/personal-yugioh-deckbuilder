@@ -130,8 +130,52 @@ export interface WishlistItem {
 export interface DeckCardDetail {
   card_id: number;
   count: number;
+  proxy_count?: number;
   section: string;
   card_details?: UserCard['card_details'];
+}
+
+// --- Sleeve Inventory ---
+
+export type SleeveSizeType = 'standard' | 'mini-japanese' | 'european';
+export type SleeveInventoryCondition = 'new' | 'good' | 'worn';
+export type DeckSleeveSection = 'main_side' | 'extra';
+
+export interface SleeveInventory {
+  id: string;
+  name: string;
+  brand: string;
+  color_pattern: string;
+  color_hex: string;
+  size_type: SleeveSizeType;
+  condition: SleeveInventoryCondition;
+  quantity_total: number;
+  /** Computed: quantity_total minus all yg_deck_sleeves.quantity_used for this sleeve */
+  quantity_available?: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeckSleeve {
+  id: string;
+  deck_id: string;
+  sleeve_id: string;
+  section_type: DeckSleeveSection;
+  quantity_used: number;
+  created_at: string;
+  sleeve_details?: SleeveInventory;
+}
+
+export interface SleeveInventoryFormData {
+  name: string;
+  brand: string;
+  color_pattern: string;
+  color_hex: string;
+  size_type: SleeveSizeType;
+  condition: SleeveInventoryCondition;
+  quantity_total: number;
+  notes?: string;
 }
 
 export interface Deck {

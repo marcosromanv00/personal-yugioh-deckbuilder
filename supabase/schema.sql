@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS yg_deck_cards (
     deck_id UUID REFERENCES yg_decks(id) ON DELETE CASCADE,
     card_id INTEGER REFERENCES yg_cards(id) ON DELETE CASCADE,
     count INTEGER NOT NULL CONSTRAINT chk_card_count CHECK (count >= 1 AND count <= 3),
+    proxy_count INTEGER DEFAULT 0 CONSTRAINT chk_proxy_count CHECK (proxy_count >= 0 AND proxy_count <= 3),
     section VARCHAR(50) NOT NULL CONSTRAINT chk_deck_section CHECK (section IN ('main', 'extra', 'side', 'skill', 'extras')),
     PRIMARY KEY (deck_id, card_id, section)
 );
@@ -181,3 +182,34 @@ CREATE INDEX IF NOT EXISTS idx_yg_user_cards_location ON yg_user_cards (storage_
 CREATE INDEX IF NOT EXISTS idx_yg_user_cards_card ON yg_user_cards (card_id);
 CREATE INDEX IF NOT EXISTS idx_yg_user_cards_status ON yg_user_cards (status_flag);
 
+-- 13. yg_sleeves: Inventario físico de fundas del usuario
+CREATE TABLE IF NOT EXISTS yg_sleeves (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    brand VARCHAR(100) NOT NULL DEFAULT 'Dragon Shield',
+    color_pattern VARCHAR(150) NOT NULL DEFAULT 'Matte Black',
+    color_hex VARCHAR(7) DEFAULT '#1a1a2e',
+    size_type VARCHAR(50) NOT NULL DEFAULT 'standard' CONSTRAINT chk_sleeve_size CHECK (size_type IN ('standard', 'mini-japanese', 'european')),
+    condition VARCHAR(50) NOT NULL DEFAULT 'new' CONSTRAINT chk_sleeve_inv_condition CHECK (condition IN ('new', 'good', 'worn')),
+    quantity_total INTEGER NOT NULL DEFAULT 0 CONSTRAINT chk_sleeve_qty CHECK (quantity_total >= 0),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_yg_sleeves_brand ON yg_sleeves (brand);
+CREATE INDEX IF NOT EXISTS idx_yg_sleeves_condition ON yg_sleeves (condition);
+
+-- 14. yg_deck_sleeves: Relación entre decks y fundas asignadas
+CREATE TABLE IF NOT EXISTS yg_deck_sleeves (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deck_id UUID NOT NULL REFERENCES yg_decks(id) ON DELETE CASCADE,
+    sleeve_id UUID NOT NULL REFERENCES yg_sleeves(id) ON DELETE RESTRICT,
+    section_type VARCHAR(20) NOT NULL CONSTRAINT chk_deck_sleeve_section CHECK (section_type IN ('main_side', 'extra')),
+    quantity_used INTEGER NOT NULL DEFAULT 0 CONSTRAINT chk_deck_sleeve_qty CHECK (quantity_used >= 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (deck_id, section_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_yg_deck_sleeves_deck ON yg_deck_sleeves (deck_id);
+CREATE INDEX IF NOT EXISTS idx_yg_deck_sleeves_sleeve ON yg_deck_sleeves (sleeve_id);
