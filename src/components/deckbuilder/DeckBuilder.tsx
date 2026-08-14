@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useEffect } from 'react';
@@ -20,9 +19,6 @@ import { CardPreviewModal } from './components/CardPreviewModal';
 import { ArchetypeBreakdownDrawer } from './components/ArchetypeBreakdownDrawer';
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 
-// Types
-import { HoverCardBase } from './types';
-
 /**
  * DeckBuilder Main Component
  * Renders the Yu-Gi-Oh! Deck Builder view. Connects customized state machine,
@@ -31,6 +27,25 @@ import { HoverCardBase } from './types';
 export default function DeckBuilder() {
   // 1. Centralized deck building state machine
   const state = useDeckBuilderState();
+  const {
+    searchQuery,
+    searchType,
+    advancedFilters,
+    searchScope,
+    onlyFavorites,
+    searchLimit,
+    executeSearch,
+    setSearchLimit,
+    deckCards,
+    format,
+    analyzeDeck,
+    activeArchetypeTab,
+    inferredArchetype,
+    fetchSidebarBreakdown,
+    syncedArchetypes,
+    setSyncedArchetypes,
+    triggerSync,
+  } = state;
 
   // 2. Panel resize handlers
   const resize = usePanelResize();
@@ -95,78 +110,74 @@ export default function DeckBuilder() {
     }
   };
 
-  // Debounced search trigger logic
-  const prevSearchKeyRef = React.useRef('');
-
+  // Reset limit when search parameters change
   useEffect(() => {
-    const searchKey = JSON.stringify({
-      searchQuery: state.searchQuery,
-      searchType: state.searchType,
-      advancedFilters: state.advancedFilters,
-      searchScope: state.searchScope,
-      onlyFavorites: state.onlyFavorites,
-    });
-    if (prevSearchKeyRef.current !== searchKey) {
-      prevSearchKeyRef.current = searchKey;
-      state.setSearchLimit(45);
-      return;
-    }
+    setSearchLimit(45);
+  }, [
+    searchQuery,
+    searchType,
+    advancedFilters,
+    searchScope,
+    onlyFavorites,
+    setSearchLimit
+  ]);
 
+  // Debounced search trigger logic
+  useEffect(() => {
     const timer = setTimeout(() => {
-      state.executeSearch(
-        state.searchQuery,
-        state.searchType,
-        state.advancedFilters,
-        state.searchScope,
-        state.onlyFavorites,
-        state.searchLimit
+      executeSearch(
+        searchQuery,
+        searchType,
+        advancedFilters,
+        searchScope,
+        onlyFavorites,
+        searchLimit
       );
     }, 400);
     return () => clearTimeout(timer);
   }, [
-    state.searchQuery,
-    state.searchType,
-    state.advancedFilters,
-    state.searchScope,
-    state.onlyFavorites,
-    state.searchLimit,
-    state.executeSearch,
-    state.setSearchLimit
+    searchQuery,
+    searchType,
+    advancedFilters,
+    searchScope,
+    onlyFavorites,
+    searchLimit,
+    executeSearch
   ]);
 
   // Real-time deck metadata/ratios analyzer trigger
   useEffect(() => {
     const timer = setTimeout(() => {
-      state.analyzeDeck(state.deckCards, state.format);
+      analyzeDeck(deckCards, format);
     }, 300);
     return () => clearTimeout(timer);
-  }, [state.deckCards, state.format, state.analyzeDeck]);
+  }, [deckCards, format, analyzeDeck]);
 
   // Sync side-bar breakdown when archetype focus updates
   useEffect(() => {
     const handleArchetypeChange = async () => {
-      const archToUse = state.activeArchetypeTab || state.inferredArchetype;
+      const archToUse = activeArchetypeTab || inferredArchetype;
       if (!archToUse || archToUse === 'Híbrido / Staples') {
-        state.fetchSidebarBreakdown('');
+        fetchSidebarBreakdown('');
         return;
       }
 
-      if (!state.syncedArchetypes.includes(archToUse)) {
-        state.setSyncedArchetypes((prev) => [...prev, archToUse]);
-        await state.triggerSync(true);
+      if (!syncedArchetypes.includes(archToUse)) {
+        setSyncedArchetypes((prev) => [...prev, archToUse]);
+        await triggerSync(true);
       } else {
-        state.fetchSidebarBreakdown(archToUse);
+        fetchSidebarBreakdown(archToUse);
       }
     };
     handleArchetypeChange();
   }, [
-    state.activeArchetypeTab,
-    state.inferredArchetype,
-    state.format,
-    state.syncedArchetypes,
-    state.fetchSidebarBreakdown,
-    state.triggerSync,
-    state.setSyncedArchetypes
+    activeArchetypeTab,
+    inferredArchetype,
+    format,
+    syncedArchetypes,
+    fetchSidebarBreakdown,
+    triggerSync,
+    setSyncedArchetypes
   ]);
 
   // Card count limits/ratios calculators
