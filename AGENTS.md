@@ -64,3 +64,27 @@ Todas las tablas del sistema utilizarán el prefijo `yg_` para diferenciar los d
 - `npm run build`: Valida y compila la aplicación para producción.
 - `npm run lint`: Ejecuta el linter de Next.js.
 - `npx tsx scripts/scrape_mdm.ts`: Ejecuta el script local de scraping e inserta/actualiza datos en Supabase.
+
+## 5. Reglas Invariantes de Desarrollo (Estrictas)
+
+Para mantener el proyecto pulido para su venta, queda terminantemente prohibido violar las siguientes directrices:
+
+1. **Prohibición del tipo `any`**:
+   - Define siempre interfaces explícitas. Si el dato es dinámico o desconocido, usa `unknown` junto con guardas de tipo, o tipos genéricos (`Record<string, unknown>`).
+
+2. **Sincronización Limpia de Estado (React)**:
+   - **NO** actualices estados usando `useState` dentro de `useEffect` para reaccionar a cambios de otros estados locales.
+   - **SÍ**: Calcula valores derivados al vuelo durante la fase de renderizado:
+     ```typescript
+     // BIEN:
+     const activeCards = cards.filter(c => c.active);
+     ```
+   - **SÍ**: Actualiza múltiples estados relacionados directamente dentro de las funciones controladoras de eventos (`onClick`, `onChange`, etc.).
+
+3. **Tailwind CSS v4 Estricto y Canónico**:
+   - **NO** uses brackets arbitrarios para medidas que tienen equivalencia en la escala estándar de Tailwind (1 unidad = 4px).
+     - *Ejemplos incorrectos:* `min-h-[280px]`, `max-h-[320px]`, `max-w-[200px]`, `min-h-[100px]`, `max-h-[160px]`.
+     - *Ejemplos correctos:* `min-h-70`, `max-h-80`, `max-w-50`, `min-h-25`, `max-h-40`.
+   - **NO** uses directivas o gradientes obsoletos en v4:
+     - Cambia `bg-gradient-to-*` por `bg-linear-to-*`.
+
