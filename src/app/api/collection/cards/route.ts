@@ -7,9 +7,11 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const locationId = searchParams.get('location_id');
+    const deckIdFilter = searchParams.get('deck_id');
     const statusFlag = searchParams.get('status');
     const sleeveType = searchParams.get('sleeve');
     const query = searchParams.get('q');
+    const isProxyFilter = searchParams.get('is_proxy');
 
     const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -35,9 +37,21 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (locationId === 'null' || locationId === 'inbox') {
-      dbQuery = dbQuery.is('storage_location_id', null);
+      dbQuery = dbQuery.is('storage_location_id', null).is('deck_id', null);
+    } else if (locationId === 'in_deck') {
+      dbQuery = dbQuery.not('deck_id', 'is', null);
     } else if (locationId) {
       dbQuery = dbQuery.eq('storage_location_id', locationId);
+    }
+
+    if (deckIdFilter) {
+      dbQuery = dbQuery.eq('deck_id', deckIdFilter);
+    }
+
+    if (isProxyFilter === 'true') {
+      dbQuery = dbQuery.eq('is_proxy', true);
+    } else if (isProxyFilter === 'false') {
+      dbQuery = dbQuery.eq('is_proxy', false);
     }
 
     if (statusFlag) {

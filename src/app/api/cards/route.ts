@@ -85,15 +85,23 @@ export async function GET(req: NextRequest) {
           dbQuery = dbQuery.lte('def', parseInt(defMax));
         }
         if (type) {
-          // Filtros rápidos de tipo
+          // Tipos de extra deck para exclusión en filtro Monster (Main)
+          const EXTRA_DECK_TYPES = [
+            'Fusion Monster', 'Link Monster', 'Synchro Monster', 'XYZ Monster',
+            'Pendulum Effect Fusion Monster', 'Synchro Pendulum Effect Monster',
+            'XYZ Pendulum Effect Monster'
+          ];
           if (type === 'Monster') {
-            dbQuery = dbQuery.ilike('type', '%Monster%');
+            // Main Deck Monsters: include 'Monster' but exclude all extra deck types
+            dbQuery = dbQuery
+              .ilike('type', '%Monster%')
+              .not('type', 'in', `(${EXTRA_DECK_TYPES.map(t => `"${t}"`).join(',')})`);
           } else if (type === 'Spell') {
             dbQuery = dbQuery.eq('type', 'Spell Card');
           } else if (type === 'Trap') {
             dbQuery = dbQuery.eq('type', 'Trap Card');
           } else if (type === 'Extra') {
-            dbQuery = dbQuery.in('type', ['Fusion Monster', 'Link Monster', 'Synchro Monster', 'XYZ Monster', 'Pendulum Effect Fusion Monster']);
+            dbQuery = dbQuery.in('type', EXTRA_DECK_TYPES);
           } else {
             dbQuery = dbQuery.ilike('type', `%${type}%`);
           }
