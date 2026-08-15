@@ -11,8 +11,10 @@ interface SearchPanelProps {
   isMobile?: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  searchScope: 'global' | 'collection';
-  setSearchScope: (scope: 'global' | 'collection') => void;
+  searchScope: 'global' | 'collection' | 'staged';
+  setSearchScope: (scope: 'global' | 'collection' | 'staged') => void;
+  showStagedTab?: boolean;
+  stagedCardsCount?: number;
   onlyFavorites: boolean;
   setOnlyFavorites: React.Dispatch<React.SetStateAction<boolean>>;
   searchType: 'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra';
@@ -32,6 +34,142 @@ interface SearchPanelProps {
   handleCardMouseLeave: () => void;
 }
 
+interface SearchResultsListProps {
+  searchResults: Card[];
+  isSearching: boolean;
+  searchViewMode: 'grid' | 'list';
+  isMobile: boolean;
+  getBanlistBadge: (card: Card) => React.ReactNode;
+  addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
+  handleDragCardStart: (e: React.DragEvent, cardData: any) => void;
+  handleCardMouseEnter: (card: HoverCardBase) => void;
+  handleCardMouseLeave: () => void;
+}
+
+const SearchResultsList = React.memo(({
+  searchResults,
+  isSearching,
+  searchViewMode,
+  isMobile,
+  getBanlistBadge,
+  addCardToDeck,
+  handleDragCardStart,
+  handleCardMouseEnter,
+  handleCardMouseLeave
+}: SearchResultsListProps) => {
+  if (isSearching && searchResults.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500 mb-1" />
+        <span className="text-xs font-mono text-slate-500">Buscando...</span>
+      </div>
+    );
+  }
+
+  if (searchResults.length === 0) {
+    return (
+      <div className="text-center py-8 text-zinc-650 text-sm">
+        No se encontraron cartas. Intenta buscando otra palabra.
+      </div>
+    );
+  }
+
+  if (searchViewMode === 'grid') {
+    return (
+      <div className={`grid gap-x-1 gap-y-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-5'}`}>
+        {searchResults.map(card => (
+          <div 
+            key={card.id}
+            draggable={!isMobile}
+            onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype }) : undefined}
+            onClick={() => addCardToDeck(card)}
+            onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
+            onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
+            className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation"
+          >
+            <div className="relative flex-1 rounded-md overflow-hidden shadow">
+              <img 
+                src={card.image_url_small || card.image_url} 
+                alt={card.name} 
+                className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
+                onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
+              />
+              {getBanlistBadge(card)}
+            </div>
+            <div className="mt-1 transition-all text-center min-w-0">
+              <p className="text-[7.5px] font-semibold text-slate-300 truncate">{card.name}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {searchResults.map(card => (
+        <div 
+          key={card.id}
+          draggable
+          onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
+          onClick={() => addCardToDeck(card)}
+          onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
+          onMouseLeave={handleCardMouseLeave}
+          className="flex gap-3 p-2 bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-xl border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group cursor-grab active:cursor-grabbing"
+        >
+          <img 
+            src={card.image_url_small || card.image_url} 
+            alt={card.name} 
+            className="w-12 h-18 object-contain rounded-md shadow-md shadow-black/40 group-hover:scale-105 transition-transform"
+            onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
+          />
+          <div className="flex-1 flex flex-col justify-between min-w-0">
+            <div>
+              <p className="text-[10.5px] font-semibold text-slate-200 truncate group-hover:text-purple-300 transition-colors">{card.name}</p>
+              <p className="text-[9px] text-[hsl(215,15%,70%)] truncate">
+                {card.type} • {card.archetype || 'Genérica'}
+              </p>
+            </div>
+            
+            <div className="flex gap-1.5 mt-1.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
+                className="flex-1 py-1 px-1.5 bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,64%)]/80 text-white rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                title="Añadir al Deck principal o Extra (Auto)"
+              >
+                + Agregar
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
+                className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                title="Añadir a Side Deck"
+              >
+                + Side
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
+                className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                title="Añadir a Extra Deck"
+              >
+                + Extra
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}, (prev, next) => {
+  return (
+    prev.isSearching === next.isSearching &&
+    prev.searchViewMode === next.searchViewMode &&
+    prev.isMobile === next.isMobile &&
+    prev.searchResults === next.searchResults
+  );
+});
+
+SearchResultsList.displayName = 'SearchResultsList';
+
 export const SearchPanel: React.FC<SearchPanelProps> = ({
   leftPanelOpen,
   setLeftPanelOpen,
@@ -41,6 +179,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   setSearchQuery,
   searchScope,
   setSearchScope,
+  showStagedTab = false,
+  stagedCardsCount = 0,
   onlyFavorites,
   setOnlyFavorites,
   searchType,
@@ -59,6 +199,21 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   handleCardMouseEnter,
   handleCardMouseLeave,
 }) => {
+  const [localQuery, setLocalQuery] = React.useState(searchQuery);
+
+  React.useEffect(() => {
+    setLocalQuery(searchQuery);
+  }, [searchQuery]);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localQuery !== searchQuery) {
+        setSearchQuery(localQuery);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [localQuery, searchQuery, setSearchQuery]);
+
   const getBanlistBadge = (card: Card) => {
     const status =
       format === 'TCG' ? card.ban_tcg :
@@ -194,9 +349,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             <div className="relative flex-1">
               <input
                 type="text"
-                placeholder={searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={searchScope === 'staged' ? "Buscar pendientes..." : searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
+                value={localQuery}
+                onChange={(e) => setLocalQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
               />
               <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[hsl(215,15%,70%)]" />
@@ -215,7 +370,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-xl border border-[hsl(224,15%,16%)] shrink-0">
+          <div className={`grid ${showStagedTab ? 'grid-cols-3' : 'grid-cols-2'} gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-xl border border-[hsl(224,15%,16%)] shrink-0`}>
             <button
               onClick={() => setSearchScope('global')}
               className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
@@ -236,6 +391,18 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             >
               📦 Mi Colección
             </button>
+            {showStagedTab && (
+              <button
+                onClick={() => setSearchScope('staged')}
+                className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+                  searchScope === 'staged'
+                    ? 'bg-purple-650 text-white shadow-sm shadow-purple-900/35 border border-purple-500/20'
+                    : 'text-[hsl(215,15%,70%)] hover:text-white'
+                }`}
+              >
+                📥 Pendientes ({stagedCardsCount})
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1.5">
@@ -271,96 +438,17 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           />
 
           <div className={`flex-1 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin ${isMobile ? 'max-h-none' : 'max-h-125 lg:max-h-155'}`}>
-            {isSearching && searchResults.length === 0 ? (
-              <div className="text-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500 mb-1" />
-                <span className="text-xs font-mono text-slate-500">Buscando...</span>
-              </div>
-            ) : searchResults.length === 0 ? (
-              <div className="text-center py-8 text-zinc-600 text-sm">
-                No se encontraron cartas. Intenta buscando otra palabra.
-              </div>
-            ) : searchViewMode === 'grid' ? (
-              <div className={`grid gap-x-1 gap-y-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-5'}`}>
-                {searchResults.map(card => (
-                  <div 
-                    key={card.id}
-                    draggable={!isMobile}
-                    onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype }) : undefined}
-                    onClick={() => addCardToDeck(card)}
-                    onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
-                    onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
-                    className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation"
-                  >
-                    <div className="relative flex-1 rounded-md overflow-hidden shadow">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={card.image_url_small || card.image_url} 
-                        alt={card.name} 
-                        className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
-                        onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
-                      />
-                      {getBanlistBadge(card)}
-                    </div>
-                    <div className="mt-1 transition-all text-center min-w-0">
-                      <p className="text-[7.5px] font-semibold text-slate-300 truncate">{card.name}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              searchResults.map(card => (
-                <div 
-                  key={card.id}
-                  draggable
-                  onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
-                  onClick={() => addCardToDeck(card)}
-                  onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
-                  onMouseLeave={handleCardMouseLeave}
-                  className="flex gap-3 p-2 bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-xl border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group cursor-grab active:cursor-grabbing"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img 
-                    src={card.image_url_small || card.image_url} 
-                    alt={card.name} 
-                    className="w-12 h-18 object-contain rounded-md shadow-md shadow-black/40 group-hover:scale-105 transition-transform"
-                    onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
-                  />
-                  <div className="flex-1 flex flex-col justify-between min-w-0">
-                    <div>
-                      <p className="text-[10.5px] font-semibold text-slate-200 truncate group-hover:text-purple-300 transition-colors">{card.name}</p>
-                      <p className="text-[9px] text-[hsl(215,15%,70%)] truncate">
-                        {card.type} • {card.archetype || 'Genérica'}
-                      </p>
-                    </div>
-                    
-                    <div className="flex gap-1.5 mt-1.5">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
-                        className="flex-1 py-1 px-1.5 bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,64%)]/80 text-white rounded-lg text-[9px] font-bold transition-all cursor-pointer"
-                        title="Añadir al Deck principal o Extra (Auto)"
-                      >
-                        + Agregar
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
-                        className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
-                        title="Añadir a Side Deck"
-                      >
-                        + Side
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
-                        className="px-1.5 py-1 bg-zinc-900 hover:bg-zinc-700 text-slate-350 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
-                        title="Añadir a Extras/Sugeridas"
-                      >
-                        + Ext
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+            <SearchResultsList
+              searchResults={searchResults}
+              isSearching={isSearching}
+              searchViewMode={searchViewMode}
+              isMobile={isMobile}
+              getBanlistBadge={getBanlistBadge}
+              addCardToDeck={addCardToDeck}
+              handleDragCardStart={handleDragCardStart}
+              handleCardMouseEnter={handleCardMouseEnter}
+              handleCardMouseLeave={handleCardMouseLeave}
+            />
 
             {searchResults.length > 0 && searchResults.length >= searchLimit && (
               <button

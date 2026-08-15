@@ -88,7 +88,7 @@ export function useDeckBuilderState() {
     }
     return [];
   });
-  const [searchScope, setSearchScope] = useState<'global' | 'collection'>('global');
+  const [searchScope, setSearchScope] = useState<'global' | 'collection' | 'staged'>('global');
   const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
 
   const handleToggleFavorite = (cardId: number) => {
@@ -242,6 +242,7 @@ export function useDeckBuilderState() {
     fetchArchetypes();
   }, [fetchArchetypes]);
 
+
   const initializeDeckFromArchetype = async (archetype: string, cardsInBreakdown: BreakdownCardItem[]) => {
     if (deckCards.length > 0 && !confirm(`¿Estás seguro de que deseas iniciar una nueva baraja de ${archetype}? Esto borrará tus cartas actuales.`)) {
       return;
@@ -271,7 +272,7 @@ export function useDeckBuilderState() {
     setActiveArchetypeBreakdown(null);
   };
 
-  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: 'global' | 'collection', favs: boolean, limitVal: number) => {
+  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: 'global' | 'collection' | 'staged', favs: boolean, limitVal: number) => {
     setIsSearching(true);
     try {
       if (scope === 'collection') {
@@ -487,7 +488,12 @@ export function useDeckBuilderState() {
         archetype: card.archetype,
         ban_master_duel: card.ban_master_duel,
         ban_tcg: card.ban_tcg,
-        ban_duel_links: card.ban_duel_links
+        ban_duel_links: card.ban_duel_links,
+        atk: card.atk,
+        def: card.def,
+        level: card.level,
+        race: card.race,
+        attribute: card.attribute
       }];
     });
   }, [format, deckCards]);
@@ -648,7 +654,7 @@ export function useDeckBuilderState() {
     setIsLoadModalOpen(true);
   };
 
-  const handleLoadDeck = (selected: Deck) => {
+  const handleLoadDeck = useCallback((selected: Deck) => {
     setDeckId(selected.id);
     setDeckName(selected.name);
     setDeckDescription(selected.description || '');
@@ -670,12 +676,17 @@ export function useDeckBuilderState() {
         image_url: cardDetails?.image_url || cardDetails?.image_url_small || '',
         ban_master_duel: cardDetails?.ban_master_duel,
         ban_tcg: cardDetails?.ban_tcg,
-        ban_duel_links: cardDetails?.ban_duel_links
+        ban_duel_links: cardDetails?.ban_duel_links,
+        atk: cardDetails?.atk,
+        def: cardDetails?.def,
+        level: cardDetails?.level,
+        race: cardDetails?.race,
+        attribute: cardDetails?.attribute
       };
     });
     setDeckCards(mappedCards);
     setIsLoadModalOpen(false);
-  };
+  }, []);
 
   const handleSaveDeck = async () => {
     if (!deckName.trim()) {
@@ -821,6 +832,27 @@ export function useDeckBuilderState() {
     });
     setCardsToRegister(updated);
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const loadDeckId = params.get('loadDeckId');
+      if (loadDeckId) {
+        fetch('/api/decks')
+          .then(res => res.json())
+          .then(json => {
+            const selected = (json.data || []).find((d: any) => d.id === loadDeckId);
+            if (selected) {
+              handleLoadDeck(selected);
+              // Clean up the URL search params so it doesn't trigger again
+              const newUrl = window.location.pathname;
+              window.history.replaceState({}, '', newUrl);
+            }
+          })
+          .catch(err => console.error('Error loading deck from query param:', err));
+      }
+    }
+  }, [handleLoadDeck]);
 
   return {
     format,

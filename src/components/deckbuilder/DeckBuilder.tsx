@@ -21,6 +21,7 @@ import { ArchetypeBreakdownDrawer } from './components/ArchetypeBreakdownDrawer'
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { MobileNav, type MobileTab } from './components/MobileNav';
 import { MobileBottomSheet } from './components/MobileBottomSheet';
+import { DeckCard } from './types';
 
 /**
  * DeckBuilder Main Component
@@ -51,6 +52,55 @@ export default function DeckBuilder() {
     setSyncedArchetypes,
     triggerSync,
   } = state;
+
+  const [sortBy, setSortBy] = useState<string>('default');
+
+  const getSortedCards = (cards: DeckCard[]) => {
+    const sorted = [...cards];
+    if (sortBy === 'name') {
+      return sorted.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    if (sortBy === 'type') {
+      const getOrder = (typeStr: string) => {
+        const t = typeStr.toLowerCase();
+        if (t.includes('monster')) return 1;
+        if (t.includes('spell')) return 2;
+        if (t.includes('trap')) return 3;
+        return 4;
+      };
+      return sorted.sort((a, b) => {
+        const orderA = getOrder(a.type);
+        const orderB = getOrder(b.type);
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    if (sortBy === 'level') {
+      return sorted.sort((a, b) => {
+        const lvlA = a.level ?? 0;
+        const lvlB = b.level ?? 0;
+        if (lvlA !== lvlB) return lvlB - lvlA;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    if (sortBy === 'atk') {
+      return sorted.sort((a, b) => {
+        const atkA = a.atk ?? -1;
+        const atkB = b.atk ?? -1;
+        if (atkA !== atkB) return atkB - atkA;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    if (sortBy === 'def') {
+      return sorted.sort((a, b) => {
+        const defA = a.def ?? -1;
+        const defB = b.def ?? -1;
+        if (defA !== defB) return defB - defA;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    return sorted;
+  };
 
   // 2. Panel resize handlers (desktop only)
   const resize = usePanelResize();
@@ -290,7 +340,7 @@ export default function DeckBuilder() {
   // ── Shared card props helpers ──────────────────────────────────────────────
   const sharedDeckSectionProps = {
     format: state.format,
-    deckCards: state.deckCards,
+    deckCards: getSortedCards(state.deckCards),
     removeCardFromDeck: state.removeCardFromDeck,
     handleDragCardStart,
     handleDropCardOnSection,
@@ -529,7 +579,24 @@ export default function DeckBuilder() {
             {/* MAIN DECKBOARD */}
             <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
               <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
-                <h2 className="font-bold text-lg flex items-center gap-2">📋 Lista de Cartas</h2>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <h2 className="font-bold text-lg flex items-center gap-2">📋 Lista de Cartas</h2>
+                  <div className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg px-2.5 py-1 text-xs">
+                    <span className="text-slate-400">Ordenar por:</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="bg-transparent border-none text-slate-200 outline-none cursor-pointer focus:ring-0 text-xs font-semibold"
+                    >
+                      <option value="default" className="bg-[hsl(224,22%,10%)] text-slate-200">Predeterminado</option>
+                      <option value="name" className="bg-[hsl(224,22%,10%)] text-slate-200">Nombre (A-Z)</option>
+                      <option value="type" className="bg-[hsl(224,22%,10%)] text-slate-200">Tipo (Monstruo, Magia, Trampa)</option>
+                      <option value="level" className="bg-[hsl(224,22%,10%)] text-slate-200">Nivel/Rango</option>
+                      <option value="atk" className="bg-[hsl(224,22%,10%)] text-slate-200">ATK</option>
+                      <option value="def" className="bg-[hsl(224,22%,10%)] text-slate-200">DEF</option>
+                    </select>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-2 text-xs font-semibold">
                   {[
                     { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
@@ -624,9 +691,26 @@ export default function DeckBuilder() {
             <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-hidden">
               {/* Deck board */}
               <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-4 overflow-hidden">
-                <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 gap-2 shrink-0">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="font-bold text-base flex items-center gap-2">📋 Lista de Cartas</h2>
-                  <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
+                  <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg px-2 py-0.5 text-[10px]">
+                    <span className="text-slate-400">Ordenar:</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="bg-transparent border-none text-slate-200 outline-none cursor-pointer focus:ring-0 text-[10px] font-semibold py-0"
+                    >
+                      <option value="default" className="bg-[hsl(224,22%,10%)] text-slate-200">Por defecto</option>
+                      <option value="name" className="bg-[hsl(224,22%,10%)] text-slate-200">Nombre (A-Z)</option>
+                      <option value="type" className="bg-[hsl(224,22%,10%)] text-slate-200">Tipo (Monstruo, Magia, Trampa)</option>
+                      <option value="level" className="bg-[hsl(224,22%,10%)] text-slate-200">Nivel/Rango</option>
+                      <option value="atk" className="bg-[hsl(224,22%,10%)] text-slate-200">ATK</option>
+                      <option value="def" className="bg-[hsl(224,22%,10%)] text-slate-200">DEF</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
                     {[
                       { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
                       { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },

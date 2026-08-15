@@ -48,6 +48,11 @@ export interface DeckCard {
   ban_master_duel?: string;
   ban_tcg?: string;
   ban_duel_links?: string;
+  atk?: number | null;
+  def?: number | null;
+  level?: number | null;
+  race?: string | null;
+  attribute?: string | null;
 }
 
 export interface BanlistAlert {
