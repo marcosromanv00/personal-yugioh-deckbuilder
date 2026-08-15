@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory } from '@/types/collection';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 
@@ -8,6 +9,7 @@ import { FilterState } from '@/components/deckbuilder/CardFilters';
  * de cartas, fundas, decks y contenedores, realizando peticiones a la base de datos a través de la API.
  */
 export function useCollectionState() {
+  const router = useRouter();
   const [locations, setLocations] = useState<StorageLocation[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [inboxCards, setInboxCards] = useState<UserCard[]>([]);
@@ -45,6 +47,10 @@ export function useCollectionState() {
   const [isYdkOpen, setIsYdkOpen] = useState(false);
   const [isOrganizeOpen, setIsOrganizeOpen] = useState(false);
   const [isSleevesOpen, setIsSleevesOpen] = useState(false);
+
+  // Estados para Constructor de Binders como Modal
+  const [isBinderBuilderOpen, setIsBinderBuilderOpen] = useState(false);
+  const [selectedBinderId, setSelectedBinderId] = useState<string | null>(null);
 
   // Fundas (Sleeves)
   const [sleeves, setSleeves] = useState<SleeveInventory[]>([]);
@@ -290,8 +296,19 @@ export function useCollectionState() {
   };
 
   const handleOpenContainer = (loc: StorageLocation) => {
-    setSelectedLocation(loc);
-    setIsInventoryOpen(true);
+    if (loc.type === 'binder') {
+      setSelectedBinderId(loc.id);
+      setIsBinderBuilderOpen(true);
+    } else {
+      setSelectedLocation(loc);
+      setIsInventoryOpen(true);
+    }
+  };
+
+  const handleCloseBinderBuilder = () => {
+    setIsBinderBuilderOpen(false);
+    setSelectedBinderId(null);
+    fetchCollectionData();
   };
 
   // Drag and Drop reubicar baraja
@@ -377,6 +394,11 @@ export function useCollectionState() {
     handleDeleteStorage,
     handleCopyStorage,
     handleOpenContainer,
-    handleDropDeck
+    handleDropDeck,
+    isBinderBuilderOpen,
+    setIsBinderBuilderOpen,
+    selectedBinderId,
+    setSelectedBinderId,
+    handleCloseBinderBuilder
   };
 }

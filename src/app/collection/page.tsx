@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { 
   Box, 
@@ -30,6 +30,9 @@ import { SmartOrganizeModal } from '@/components/collection/SmartOrganizeModal';
 import { SleevingAdvisorModal } from '@/components/collection/SleevingAdvisorModal';
 import { ManualCardAdderModal } from '@/components/collection/ManualCardAdderModal';
 import { SleeveInventoryFormModal } from '@/components/collection/SleeveInventoryFormModal';
+import { DeckDetailsModal } from '@/components/collection/DeckDetailsModal';
+import { BinderBuilderModal } from '@/components/collection/components/BinderBuilderModal';
+import { Deck } from '@/types/collection';
 
 /**
  * CollectionPage Component
@@ -38,6 +41,8 @@ import { SleeveInventoryFormModal } from '@/components/collection/SleeveInventor
  */
 export default function CollectionPage() {
   const state = useCollectionState();
+  const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
+  const [isDeckDetailsOpen, setIsDeckDetailsOpen] = useState(false);
 
   const handleDragStart = (e: React.DragEvent, deckId: string) => {
     e.dataTransfer.setData('text/plain', deckId);
@@ -237,6 +242,10 @@ export default function CollectionPage() {
             locations={state.locations}
             setDecks={state.setDecks}
             handleDragStart={handleDragStart}
+            onDeckClick={(deck) => {
+              setSelectedDeck(deck);
+              setIsDeckDetailsOpen(true);
+            }}
           />
 
         </div>
@@ -257,6 +266,8 @@ export default function CollectionPage() {
         location={state.selectedLocation}
         isOpen={state.isInventoryOpen}
         onClose={() => state.setIsInventoryOpen(false)}
+        decks={state.decks}
+        onRefreshData={state.fetchCollectionData}
       />
 
       <YdkUploadModal
@@ -291,6 +302,23 @@ export default function CollectionPage() {
         }}
         onSuccess={state.fetchSleeves}
         editingSleeve={state.editingSleeve}
+      />
+
+      <DeckDetailsModal
+        deck={selectedDeck}
+        isOpen={isDeckDetailsOpen}
+        onClose={() => {
+          setIsDeckDetailsOpen(false);
+          setSelectedDeck(null);
+        }}
+        locations={state.locations}
+        onSuccess={state.fetchCollectionData}
+      />
+
+      <BinderBuilderModal
+        isOpen={state.isBinderBuilderOpen}
+        binderId={state.selectedBinderId}
+        onClose={state.handleCloseBinderBuilder}
       />
     </div>
   );

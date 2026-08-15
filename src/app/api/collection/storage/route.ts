@@ -39,9 +39,12 @@ if (!globalForStorage.mockStorageLocations) {
   ];
 }
 
-// GET: Obtener todos los contenedores de almacenamiento con conteo de ocupación
-export async function GET() {
+// GET: Obtener todos los contenedores de almacenamiento con conteo de ocupación (o uno específico por id)
+export async function GET(req: NextRequest) {
   try {
+    const searchParams = req.nextUrl.searchParams;
+    const id = searchParams.get('id');
+
     const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && 
                                  process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://placeholder.supabase.co' &&
                                  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -49,11 +52,21 @@ export async function GET() {
     let locations = [];
     if (!isSupabaseConfigured) {
       locations = globalForStorage.mockStorageLocations || [];
+      if (id) {
+        locations = locations.filter((loc: any) => loc.id === id);
+      }
     } else {
-      const { data, error } = await supabase
+      let query = supabase
         .from('yg_storage_locations')
-        .select('*')
-        .order('name', { ascending: true });
+        .select('*');
+      
+      if (id) {
+        query = query.eq('id', id);
+      } else {
+        query = query.order('name', { ascending: true });
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         throw error;
@@ -64,10 +77,16 @@ export async function GET() {
     // Obtener la cantidad de cartas guardadas en cada contenedor
     let cardCounts: any[] = [];
     if (isSupabaseConfigured) {
-      const { data: counts, error: countError } = await supabase
+      let countQuery = supabase
         .from('yg_user_cards')
         .select('storage_location_id, quantity')
         .not('storage_location_id', 'is', null);
+      
+      if (id) {
+        countQuery = countQuery.eq('storage_location_id', id);
+      }
+
+      const { data: counts, error: countError } = await countQuery;
 
       if (countError) {
         console.warn('Error al calcular ocupación:', countError);
@@ -88,6 +107,10 @@ export async function GET() {
       ...loc,
       occupied_cards: countsMap[loc.id] || 0,
     }));
+
+    if (id) {
+      return NextResponse.json({ data: locationsWithCounts[0] || null });
+    }
 
     return NextResponse.json({ data: locationsWithCounts });
   } catch (error: unknown) {
