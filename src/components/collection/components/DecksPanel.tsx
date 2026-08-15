@@ -7,6 +7,7 @@ interface DecksPanelProps {
   locations: StorageLocation[];
   setDecks: React.Dispatch<React.SetStateAction<Deck[]>>;
   handleDragStart: (e: React.DragEvent, deckId: string) => void;
+  onDeckClick: (deck: Deck) => void;
 }
 
 /**
@@ -19,6 +20,7 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
   locations,
   setDecks,
   handleDragStart,
+  onDeckClick,
 }) => {
   return (
     <div className="lg:col-span-4 bg-[hsl(224,22%,10%)]/75 border border-[hsl(224,15%,16%)] rounded-2xl p-5 space-y-4">
@@ -31,7 +33,7 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
         </div>
         <p className="text-[11px] text-slate-400 flex items-center gap-1">
           <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
-          Arrastra una baraja activa y suéltala sobre un Deckbox.
+          Arrastra una baraja activa y suéltala sobre un Deckbox o haz clic para ver detalle.
         </p>
       </div>
 
@@ -50,10 +52,11 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
                 key={deck.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, deck.id)}
-                className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 shadow shadow-black ${
+                onClick={() => onDeckClick(deck)}
+                className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 shadow shadow-black hover:border-purple-500/50 cursor-pointer ${
                   isActive
-                    ? 'bg-slate-950 border-slate-850 hover:border-purple-500/50 cursor-grab active:cursor-grabbing'
-                    : 'bg-slate-950/50 border-slate-900 opacity-75 hover:opacity-100 hover:border-slate-700 cursor-grab'
+                    ? 'bg-slate-950 border-slate-850'
+                    : 'bg-slate-950/50 border-slate-900 opacity-75 hover:opacity-100'
                 }`}
               >
                 <div className="min-w-0">

@@ -313,12 +313,15 @@ export async function PUT(req: NextRequest) {
         for (const dc of currentDeckCards) {
           if (['main', 'extra', 'side'].includes(dc.section)) {
             // Actualizar cartas físicas del inventario que no tengan ubicación o que estén asociadas a este deck
+            // y desvincularlas de cualquier binder previa (limpiando página y ranura).
             await supabase
               .from('yg_user_cards')
               .update({
                 storage_location_id: storage_location_id,
                 deck_id: id,
-                deck_section: dc.section
+                deck_section: dc.section,
+                binder_page: null,
+                binder_slot: null
               })
               .eq('card_id', dc.card_id)
               .or(`storage_location_id.is.null,deck_id.eq.${id}`);
