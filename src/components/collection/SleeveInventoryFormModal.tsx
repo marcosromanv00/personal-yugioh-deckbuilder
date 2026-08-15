@@ -8,7 +8,7 @@ import { SleeveInventory, SleeveInventoryFormData, SleeveSizeType, SleeveInvento
 interface SleeveInventoryFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (sleeve?: SleeveInventory) => void;
   editingSleeve?: SleeveInventory | null;
 }
 
@@ -101,7 +101,7 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Error al guardar');
-      onSuccess();
+      onSuccess(json.data);
       onClose();
     } catch (err) {
       setError((err as Error).message);

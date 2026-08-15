@@ -18,6 +18,7 @@ interface TouchableCardProps {
   children: React.ReactNode;
   /** Extra info button visible permanently on mobile/tablet */
   showInfoButton?: boolean;
+  style?: React.CSSProperties;
 }
 
 /**
@@ -40,6 +41,7 @@ export const TouchableCard: React.FC<TouchableCardProps> = ({
   className = '',
   children,
   showInfoButton = false,
+  style,
 }) => {
   const longPress = useLongPress({
     delay: 600,
@@ -50,6 +52,7 @@ export const TouchableCard: React.FC<TouchableCardProps> = ({
   return (
     <div
       className={`relative ${className}`}
+      style={style}
       /* ── Desktop interactions ── */
       onMouseEnter={onMouseEnter ? () => onMouseEnter(card) : undefined}
       onMouseLeave={onMouseLeave}

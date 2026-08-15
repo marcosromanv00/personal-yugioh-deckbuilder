@@ -2,9 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Edit3, Shield, Layers } from 'lucide-react';
-import { Deck, StorageLocation, SleeveInventory } from '@/types/collection';
+import { X, Check, Edit3, Shield, Layers, AlertCircle } from 'lucide-react';
+import { Deck, StorageLocation, SleeveInventory, UserCard } from '@/types/collection';
 import { useRouter } from 'next/navigation';
+import { SleeveInventoryFormModal } from './SleeveInventoryFormModal';
+
+
 
 interface DeckDetailsModalProps {
   deck: Deck | null;
@@ -39,6 +42,39 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   const [loadingSleeves, setLoadingSleeves] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  const [isNewSleeveModalOpen, setIsNewSleeveModalOpen] = useState(false);
+  const [targetSleeveSection, setTargetSleeveSection] = useState<'main_side' | 'extra' | null>(null);
+
+  const [userCards, setUserCards] = useState<UserCard[]>([]);
+  const [mainSleeveMode, setMainSleeveMode] = useState<'take' | 'add'>('take');
+  const [mainSleeveAddedQty, setMainSleeveAddedQty] = useState<number>(60);
+  const [extraSleeveMode, setExtraSleeveMode] = useState<'take' | 'add'>('take');
+  const [extraSleeveAddedQty, setExtraSleeveAddedQty] = useState<number>(60);
+
+
+  const handleNewSleeveSuccess = async (newSleeve?: SleeveInventory) => {
+    try {
+      const sleevesRes = await fetch('/api/collection/sleeve-inventory');
+      if (sleevesRes.ok) {
+        const json = await sleevesRes.json();
+        const updatedSleeves = json.data || [];
+        setAvailableSleeves(updatedSleeves);
+        
+        if (newSleeve && targetSleeveSection) {
+          if (targetSleeveSection === 'main_side') {
+            setMainSleeveId(newSleeve.id);
+          } else if (targetSleeveSection === 'extra') {
+            setExtraSleeveId(newSleeve.id);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error al actualizar inventario de fundas:', e);
+    }
+    setTargetSleeveSection(null);
+  };
+
 
   // Fetch current deck sleeves on open
   useEffect(() => {
@@ -74,6 +110,12 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
             const json = await sleevesRes.json();
             setAvailableSleeves(json.data || []);
           }
+
+          const cardsRes = await fetch(`/api/collection/cards?deck_id=${deck.id}`);
+          if (cardsRes.ok) {
+            const json = await cardsRes.json();
+            setUserCards(json.data || []);
+          }
         } catch (err) {
           console.error('Error al cargar fundas asignadas al deck:', err);
         } finally {
@@ -86,6 +128,154 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   }, [isOpen, deck]);
 
   if (!isOpen || !deck) return null;
+
+  const getSleevingStats = (section: 'main_side' | 'extra') => {
+    const targetSections = section === 'main_side' ? ['main', 'side'] : ['extra'];
+    
+    const N_total = deck.cards?.reduce((sum: number, c: any) => {
+      return targetSections.includes(c.section) ? sum + (c.count || 0) : sum;
+    }, 0) || 0;
+    
+    const N_sleeved_registered = userCards
+      ?.filter(uc => targetSections.includes(uc.deck_section || '') && uc.sleeve_type && uc.sleeve_type !== 'none')
+      .reduce((sum, uc) => sum + (uc.quantity || 0), 0) || 0;
+      
+    const N_unsleeved = Math.max(0, N_total - N_sleeved_registered);
+    
+    return { N_total, N_unsleeved };
+  };
+
+  const getSleeveStockStatus = (sleeveId: string, section: 'main_side' | 'extra') => {
+    const sleeve = availableSleeves.find(s => s.id === sleeveId);
+    if (!sleeve) return { N_needed: 0, available: 0, hasConflict: false };
+    
+    const { N_total } = getSleevingStats(section);
+    const targetSections = section === 'main_side' ? ['main', 'side'] : ['extra'];
+    
+    const N_already_sleeved_with_S = userCards
+      ?.filter(uc => 
+        targetSections.includes(uc.deck_section || '') && 
+        uc.sleeve_type && 
+        uc.sleeve_type !== 'none' &&
+        uc.sleeve_brand?.toLowerCase() === sleeve.brand?.toLowerCase() &&
+        uc.sleeve_color?.toLowerCase() === sleeve.color_pattern?.toLowerCase()
+      )
+      .reduce((sum, uc) => sum + (uc.quantity || 0), 0) || 0;
+      
+    const N_needed = Math.max(0, N_total - N_already_sleeved_with_S);
+    const available = sleeve.quantity_available || 0;
+    const hasConflict = N_needed > available;
+    
+    return { N_needed, available, hasConflict };
+  };
+
+  const renderSleeveConflictPanel = (
+    sleeveId: string,
+    section: 'main_side' | 'extra',
+    mode: 'take' | 'add',
+    setMode: (m: 'take' | 'add') => void,
+    addedQty: number,
+    setAddedQty: (q: number) => void
+  ) => {
+    if (!sleeveId) return null;
+    
+    const status = getSleeveStockStatus(sleeveId, section);
+    const minRequired = status.N_needed - status.available;
+
+    return (
+      <div className="mt-3 p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3.5">
+        {/* Info label */}
+        <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 pb-2 border-b border-slate-900">
+          <span>Cartas en sección: <b>{getSleevingStats(section).N_total}</b></span>
+          <span>•</span>
+          <span>Necesarias: <b>{status.N_needed}</b></span>
+          <span>•</span>
+          <span>Disponibles en colección: <b>{status.available}</b></span>
+        </div>
+
+        {/* Radio group */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2.5 cursor-pointer group">
+            <input
+              type="radio"
+              name={`conflict-mode-${section}`}
+              checked={mode === 'take'}
+              onChange={() => setMode('take')}
+              className="text-purple-500 focus:ring-purple-500 bg-slate-900 border-slate-700"
+            />
+            <span className="text-[11px] font-mono text-slate-350 group-hover:text-white transition-colors">
+              Tomar fundas existentes de la colección
+            </span>
+          </label>
+
+          <label className="flex items-center gap-2.5 cursor-pointer group">
+            <input
+              type="radio"
+              name={`conflict-mode-${section}`}
+              checked={mode === 'add'}
+              onChange={() => setMode('add')}
+              className="text-purple-500 focus:ring-purple-500 bg-slate-900 border-slate-700"
+            />
+            <span className="text-[11px] font-mono text-slate-350 group-hover:text-white transition-colors">
+              Sumar fundas nuevas al inventario (+ stock)
+            </span>
+          </label>
+        </div>
+
+        {/* Mode-specific panel */}
+        {mode === 'take' && status.hasConflict && (
+          <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-300 font-mono leading-relaxed flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
+            <div>
+              <p className="font-bold">Aviso de stock insuficiente</p>
+              <p className="text-slate-400 mt-0.5">
+                Faltan {status.N_needed} fundas para este deck, pero solo hay {status.available} libres. El deck se guardará con un faltante.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {mode === 'add' && (
+          <div className="pt-2.5 border-t border-slate-900 space-y-2.5">
+            <label className="block text-[10px] uppercase font-bold text-slate-400 font-mono">
+              Cantidad de fundas a registrar en la colección
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAddedQty(Math.max(1, addedQty - 10))}
+                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold font-mono transition-colors"
+              >
+                -10
+              </button>
+              <input
+                type="number"
+                min={1}
+                value={addedQty}
+                onChange={e => setAddedQty(Math.max(1, parseInt(e.target.value) || 0))}
+                className="w-16 px-2 py-1 bg-slate-900 border border-slate-800 rounded text-center text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setAddedQty(addedQty + 10)}
+                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold font-mono transition-colors"
+              >
+                +10
+              </button>
+              <span className="text-[10px] text-slate-400 font-mono">
+                (Sugerido: 60 u 80)
+              </span>
+            </div>
+            {status.available + addedQty < status.N_needed && (
+              <p className="text-[9px] text-amber-400 font-mono">
+                ⚠️ Aún faltan {status.N_needed - (status.available + addedQty)} fundas para cubrir las cartas del deck.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +309,12 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
           const res = await fetch(`/api/decks/${deck.id}/sleeves`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sleeve_id: mainSleeveId, section_type: 'main_side' }),
+            body: JSON.stringify({ 
+              sleeve_id: mainSleeveId, 
+              section_type: 'main_side',
+              action_mode: mainSleeveMode,
+              added_quantity: mainSleeveAddedQty
+            }),
           });
           if (!res.ok) {
             const errJson = await res.json();
@@ -139,7 +334,12 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
           const res = await fetch(`/api/decks/${deck.id}/sleeves`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sleeve_id: extraSleeveId, section_type: 'extra' }),
+            body: JSON.stringify({ 
+              sleeve_id: extraSleeveId, 
+              section_type: 'extra',
+              action_mode: extraSleeveMode,
+              added_quantity: extraSleeveAddedQty
+            }),
           });
           if (!res.ok) {
             const errJson = await res.json();
@@ -248,8 +448,8 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
                 className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-150 text-sm focus:outline-none focus:border-purple-500"
               >
                 <option value="">Sin almacenar (Sólo Receta)</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
+                {locations.map((loc, idx) => (
+                  <option key={loc.id || `location-${idx}`} value={loc.id}>
                     {loc.type === 'deckbox' ? '📦' : loc.type === 'binder' ? '📘' : '📥'} {loc.name} ({loc.type.toUpperCase()})
                   </option>
                 ))}
@@ -270,39 +470,85 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">
-                      Funda Main & Side
-                    </label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-mono text-slate-400">
+                        Funda Main & Side
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetSleeveSection('main_side');
+                          setIsNewSleeveModalOpen(true);
+                        }}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono hover:underline focus:outline-none"
+                      >
+                        + Registrar nueva
+                      </button>
+                    </div>
                     <select
                       value={mainSleeveId}
-                      onChange={(e) => setMainSleeveId(e.target.value)}
+                      onChange={(e) => {
+                        setMainSleeveId(e.target.value);
+                        setMainSleeveMode('take');
+                      }}
                       className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-150 text-xs focus:outline-none focus:border-purple-500"
                     >
                       <option value="">Ninguna / Sin funda</option>
-                      {availableSleeves.map((s) => (
-                        <option key={s.id} value={s.id}>
+                      {availableSleeves.map((s, idx) => (
+                        <option key={s.id || `sleeve-main-${idx}`} value={s.id}>
                           {s.name} ({s.brand} - {s.color_pattern})
                         </option>
                       ))}
                     </select>
+                    {renderSleeveConflictPanel(
+                      mainSleeveId,
+                      'main_side',
+                      mainSleeveMode,
+                      setMainSleeveMode,
+                      mainSleeveAddedQty,
+                      setMainSleeveAddedQty
+                    )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">
-                      Funda Extra Deck
-                    </label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-mono text-slate-400">
+                        Funda Extra Deck
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetSleeveSection('extra');
+                          setIsNewSleeveModalOpen(true);
+                        }}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono hover:underline focus:outline-none"
+                      >
+                        + Registrar nueva
+                      </button>
+                    </div>
                     <select
                       value={extraSleeveId}
-                      onChange={(e) => setExtraSleeveId(e.target.value)}
+                      onChange={(e) => {
+                        setExtraSleeveId(e.target.value);
+                        setExtraSleeveMode('take');
+                      }}
                       className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-150 text-xs focus:outline-none focus:border-purple-500"
                     >
                       <option value="">Ninguna / Sin funda</option>
-                      {availableSleeves.map((s) => (
-                        <option key={s.id} value={s.id}>
+                      {availableSleeves.map((s, idx) => (
+                        <option key={s.id || `sleeve-extra-${idx}`} value={s.id}>
                           {s.name} ({s.brand} - {s.color_pattern})
                         </option>
                       ))}
                     </select>
+                    {renderSleeveConflictPanel(
+                      extraSleeveId,
+                      'extra',
+                      extraSleeveMode,
+                      setExtraSleeveMode,
+                      extraSleeveAddedQty,
+                      setExtraSleeveAddedQty
+                    )}
                   </div>
                 </div>
               )}
@@ -348,6 +594,16 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
           </form>
         </motion.div>
       </div>
+
+      <SleeveInventoryFormModal
+        isOpen={isNewSleeveModalOpen}
+        onClose={() => {
+          setIsNewSleeveModalOpen(false);
+          setTargetSleeveSection(null);
+        }}
+        onSuccess={handleNewSleeveSuccess}
+      />
     </AnimatePresence>
   );
 };
+

@@ -2,6 +2,8 @@ import React from 'react';
 import { Search, MapPin, ChevronDown, Heart, RefreshCw, Trash } from 'lucide-react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
+import { getSleeveColorHex } from '@/lib/sleeves';
+
 
 interface CollectionCardsTabProps {
   activeTab: 'containers' | 'complete' | 'favorites' | 'sleeves';
@@ -163,7 +165,14 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                   <img
                     src={uc.card_details?.image_url_small || uc.card_details?.image_url || 'https://images.ygoprodeck.com/images/cards/placeholder.jpg'}
                     alt={uc.card_details?.name || 'Yugioh Card'}
-                    className="w-full h-44 object-contain rounded-md shadow-md mb-2 group-hover:scale-103 transition-transform"
+                    className={`w-full h-44 object-contain rounded-md shadow-md mb-2 group-hover:scale-103 transition-transform ${
+                      uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color ? '' : 'border border-slate-800'
+                    }`}
+                    style={
+                      uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color
+                        ? { borderColor: getSleeveColorHex(uc.sleeve_color), borderWidth: '2.5px', borderStyle: 'solid' }
+                        : undefined
+                    }
                     onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                   />
                   {uc.quantity > 1 && (

@@ -20,6 +20,8 @@ import { SearchPanel } from '../deckbuilder/components/SearchPanel';
 import { useBinderBuilderState } from './hooks/useBinderBuilderState';
 import { UserCard } from '@/types/collection';
 import { Card } from '../deckbuilder/types';
+import { getSleeveColorHex } from '@/lib/sleeves';
+
 
 interface PageGridProps {
   pageNumber: number;
@@ -89,12 +91,16 @@ const PageGrid = React.memo(({
                       right: '2px',
                       bottom: `${-offsetTop}px`,
                       zIndex: 10 + index,
+                      borderColor: uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color ? getSleeveColorHex(uc.sleeve_color) : undefined,
+                      borderWidth: uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color ? '2.5px' : undefined,
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
                       onPocketClick(pageNumber, slotNumber, uc);
                     }}
-                    className="rounded-md border border-slate-800/80 hover:border-purple-500 hover:scale-[1.02] shadow-lg group/card transition-all duration-205 cursor-pointer overflow-hidden aspect-3/4 bg-slate-900"
+                    className={`rounded-md hover:border-purple-500 hover:scale-[1.02] shadow-lg group/card transition-all duration-205 cursor-pointer overflow-hidden aspect-3/4 bg-slate-900 ${
+                      uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color ? 'border' : 'border border-slate-800/80'
+                    }`}
                   >
                     {uc.card_details && (
                       <>

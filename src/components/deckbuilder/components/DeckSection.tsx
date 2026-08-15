@@ -15,6 +15,7 @@ interface DeckSectionProps {
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
   openPreviewForCard: (card: HoverCardBase) => void;
+  sleeveColorHex?: string;
 }
 
 export const DeckSection: React.FC<DeckSectionProps> = ({
@@ -30,6 +31,7 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
   handleCardMouseEnter,
   handleCardMouseLeave,
   openPreviewForCard,
+  sleeveColorHex,
 }) => {
   const sectionCards = deckCards.filter(c => c.section === section);
 
@@ -157,8 +159,11 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
               className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border touch-manipulation card-tap group hover:scale-105 transition-all duration-200 ${
                 c.proxy_count && c.proxy_count > 0
                   ? 'border-red-500/70 shadow-md shadow-red-500/20 hover:border-red-400'
-                  : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
+                  : sleeveColorHex
+                    ? ''
+                    : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
               }`}
+              style={sleeveColorHex ? { borderColor: sleeveColorHex, borderWidth: '2.5px', borderStyle: 'solid' } : undefined}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

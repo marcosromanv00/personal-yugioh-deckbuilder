@@ -22,6 +22,8 @@ import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { MobileNav, type MobileTab } from './components/MobileNav';
 import { MobileBottomSheet } from './components/MobileBottomSheet';
 import { DeckCard } from './types';
+import { getSleeveColorHex } from '@/lib/sleeves';
+
 
 /**
  * DeckBuilder Main Component
@@ -337,6 +339,11 @@ export default function DeckBuilder() {
     }
   };
 
+  const mainSleeve = state.availableSleeves.find(s => s.id === state.selectedMainSleeveId);
+  const extraSleeve = state.availableSleeves.find(s => s.id === state.selectedExtraSleeveId);
+  const mainSleeveColorHex = mainSleeve ? getSleeveColorHex(mainSleeve.color_pattern, state.availableSleeves) : '';
+  const extraSleeveColorHex = extraSleeve ? getSleeveColorHex(extraSleeve.color_pattern, state.availableSleeves) : '';
+
   // ── Shared card props helpers ──────────────────────────────────────────────
   const sharedDeckSectionProps = {
     format: state.format,
@@ -612,9 +619,9 @@ export default function DeckBuilder() {
               </div>
 
               <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-thin">
-                <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} {...sharedDeckSectionProps} />
-                <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} {...sharedDeckSectionProps} />
-                <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} {...sharedDeckSectionProps} />
+                <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
+                <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} sleeveColorHex={extraSleeveColorHex} {...sharedDeckSectionProps} />
+                <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
                 <DeckSection title="Extras / Estrategias Sugeridas" section="extras" cardsCount={extrasCardsCount} maxSize={30} {...sharedDeckSectionProps} />
               </div>
             </section>
@@ -723,9 +730,9 @@ export default function DeckBuilder() {
                   </div>
                 </div>
                 <div className="flex-1 flex flex-col gap-5 overflow-y-auto pr-2 scrollbar-thin">
-                  <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} {...sharedDeckSectionProps} />
-                  <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} {...sharedDeckSectionProps} />
-                  <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} {...sharedDeckSectionProps} />
+                  <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
+                  <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} sleeveColorHex={extraSleeveColorHex} {...sharedDeckSectionProps} />
+                  <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
                   <DeckSection title="Extras / Estrategias" section="extras" cardsCount={extrasCardsCount} maxSize={30} {...sharedDeckSectionProps} />
                 </div>
               </section>
@@ -784,9 +791,9 @@ export default function DeckBuilder() {
                   </div>
 
                   <div className="flex flex-col gap-5 overflow-y-auto scrollbar-thin">
-                    <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} {...sharedDeckSectionProps} />
-                    <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} {...sharedDeckSectionProps} />
-                    <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} {...sharedDeckSectionProps} />
+                    <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
+                    <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} sleeveColorHex={extraSleeveColorHex} {...sharedDeckSectionProps} />
+                    <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
                     <DeckSection title="Extras / Estrategias Sugeridas" section="extras" cardsCount={extrasCardsCount} maxSize={30} {...sharedDeckSectionProps} />
                   </div>
                 </motion.section>
