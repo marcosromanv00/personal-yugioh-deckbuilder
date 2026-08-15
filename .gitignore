@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# private folder
+.private/*
+!.private/.gitkeep
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -213,3 +213,11 @@ CREATE TABLE IF NOT EXISTS yg_deck_sleeves (
 
 CREATE INDEX IF NOT EXISTS idx_yg_deck_sleeves_deck ON yg_deck_sleeves (deck_id);
 CREATE INDEX IF NOT EXISTS idx_yg_deck_sleeves_sleeve ON yg_deck_sleeves (sleeve_id);
+
+-- RLS y Políticas de Acceso Público para Fundas
+ALTER TABLE yg_sleeves ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public access sleeves" ON yg_sleeves FOR ALL TO public USING (true) WITH CHECK (true);
+
+ALTER TABLE yg_deck_sleeves ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public access deck sleeves" ON yg_deck_sleeves FOR ALL TO public USING (true) WITH CHECK (true);
+
