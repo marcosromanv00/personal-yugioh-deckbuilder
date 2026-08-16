@@ -44,4 +44,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# UX audit & local research (not for version control)
+/ux-audit/
+
 .vercel
