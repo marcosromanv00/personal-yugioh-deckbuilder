@@ -50,6 +50,10 @@ export function useDeckBuilderState() {
   // Reemplazo e info de carta activa
   const [activeReplacementCardId, setActiveReplacementCardId] = useState<number | null>(null);
 
+  // Historial de Undo / Redo para el constructor
+  const [historyStack, setHistoryStack] = useState<DeckCard[][]>([]);
+  const [redoStack, setRedoStack] = useState<DeckCard[][]>([]);
+
   // Sincronización en caliente
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -418,6 +422,109 @@ export function useDeckBuilderState() {
     }
   }, [favoriteCardIds]);
 
+    const pushHistory = (currentCards: DeckCard[]) => {
+      setHistoryStack(prev => [...prev.slice(-14), currentCards]);
+      setRedoStack([]);
+    };
+
+    const handleUndo = useCallback(() => {
+      if (historyStack.length === 0) return;
+      const previous = historyStack[historyStack.length - 1];
+      setRedoStack(prev => [...prev, deckCards]);
+      setDeckCards(previous);
+      setHistoryStack(prev => prev.slice(0, -1));
+    }, [historyStack, deckCards]);
+
+    const handleRedo = useCallback(() => {
+      if (redoStack.length === 0) return;
+      const next = redoStack[redoStack.length - 1];
+      setHistoryStack(prev => [...prev, deckCards]);
+      setDeckCards(next);
+      setRedoStack(prev => prev.slice(0, -1));
+    }, [redoStack, deckCards]);
+
+    // Persistencia de Borrador en LocalStorage
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        if (deckCards.length > 0) {
+          const draft = {
+            deckName,
+            deckDescription,
+            format,
+            deckCards,
+            timestamp: Date.now()
+          };
+          localStorage.setItem('yg_deck_draft', JSON.stringify(draft));
+        }
+      }
+    }, [deckCards, deckName, deckDescription, format]);
+
+    // Restaurar borrador si el deck está vacío al inicio
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        const rawDraft = localStorage.getItem('yg_deck_draft');
+        if (rawDraft) {
+          try {
+            const draft = JSON.parse(rawDraft);
+            const ageMs = Date.now() - (draft.timestamp || 0);
+            // Si el borrador es de menos de 7 días y tiene cartas
+            if (ageMs < 7 * 24 * 60 * 60 * 1000 && Array.isArray(draft.deckCards) && draft.deckCards.length > 0) {
+              // Cargar como borrador recuperado solo si no hay deckId cargado
+              setDeckCards((current) => {
+                if (current.length === 0) {
+                  if (draft.deckName) setDeckName(draft.deckName);
+                  if (draft.format) setFormat(draft.format);
+                  if (draft.deckDescription) setDeckDescription(draft.deckDescription);
+                  return draft.deckCards;
+                }
+                return current;
+              });
+            }
+          } catch (e) {
+            console.error('Error restaurando borrador de deck:', e);
+          }
+        }
+      }
+    }, []);
+
+    // Exportar deck como archivo .YDK
+    const exportYdkFile = useCallback(() => {
+      const mainCards = deckCards.filter(c => c.section === 'main');
+      const extraCards = deckCards.filter(c => c.section === 'extra');
+      const sideCards = deckCards.filter(c => c.section === 'side');
+
+      let ydkText = `#created by Yu-Gi-Oh! Deckbuilder\n#main\n`;
+      mainCards.forEach(c => {
+        for (let i = 0; i < c.count; i++) {
+          ydkText += `${c.id}\n`;
+        }
+      });
+
+      ydkText += `#extra\n`;
+      extraCards.forEach(c => {
+        for (let i = 0; i < c.count; i++) {
+          ydkText += `${c.id}\n`;
+        }
+      });
+
+      ydkText += `!side\n`;
+      sideCards.forEach(c => {
+        for (let i = 0; i < c.count; i++) {
+          ydkText += `${c.id}\n`;
+        }
+      });
+
+      const blob = new Blob([ydkText], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${deckName.replace(/[^a-zA-Z0-9_\-]/g, '_') || 'deck'}.ydk`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, [deckCards, deckName]);
+
   const addCardToDeck = useCallback((card: Card, targetSection?: 'main' | 'extra' | 'side' | 'extras') => {
     let section: 'main' | 'extra' | 'side' | 'extras' = 'main';
 
@@ -454,6 +561,8 @@ export function useDeckBuilderState() {
       alert(`La sección Extras ha alcanzado el límite máximo (${maxExtrasSize} cartas).`);
       return;
     }
+
+    pushHistory(deckCards);
 
     const historyCard: HistoryItem = {
       id: card.id,
@@ -499,6 +608,8 @@ export function useDeckBuilderState() {
   }, [format, deckCards]);
 
   const removeCardFromDeck = useCallback((cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => {
+    pushHistory(deckCards);
+
     const existing = deckCards.find(c => c.id === cardId && c.section === section);
     if (existing) {
       const historyCard: HistoryItem = {
@@ -968,6 +1079,11 @@ export function useDeckBuilderState() {
     handleSaveDeck,
     handleDeleteDeck,
     handleClearDeck,
-    handleExcludeExisting
+    handleExcludeExisting,
+    handleUndo,
+    handleRedo,
+    canUndo: historyStack.length > 0,
+    canRedo: redoStack.length > 0,
+    exportYdkFile
   };
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Heart, LayoutGrid, List, X, Loader2 } from 'lucide-react';
+import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles } from 'lucide-react';
 import { CardFilters, FilterState } from '../CardFilters';
 import { Card, HoverCardBase } from '../types';
 
@@ -16,6 +16,7 @@ interface SearchPanelProps {
   showStagedTab?: boolean;
   stagedCardsCount?: number;
   onlyFavorites: boolean;
+  onlyFavoritesSetOnlyFavorites?: React.Dispatch<React.SetStateAction<boolean>>;
   setOnlyFavorites: React.Dispatch<React.SetStateAction<boolean>>;
   searchType: 'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra';
   setSearchType: (type: 'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra') => void;
@@ -55,28 +56,34 @@ const SearchResultsList = React.memo(({
   addCardToDeck,
   handleDragCardStart,
   handleCardMouseEnter,
-  handleCardMouseLeave
+  handleCardMouseLeave,
 }: SearchResultsListProps) => {
   if (isSearching && searchResults.length === 0) {
     return (
-      <div className="text-center py-8">
-        <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500 mb-1" />
-        <span className="text-xs font-mono text-slate-500">Buscando...</span>
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <Loader2 className="w-6 h-6 animate-spin text-purple-400 mb-2" />
+        <span className="text-xs font-mono text-slate-400">Consultando base de cartas...</span>
       </div>
     );
   }
 
   if (searchResults.length === 0) {
     return (
-      <div className="text-center py-8 text-zinc-650 text-sm">
-        No se encontraron cartas. Intenta buscando otra palabra.
+      <div className="flex flex-col items-center justify-center py-10 px-4 text-center bg-slate-950/40 rounded-xl border border-dashed border-slate-800">
+        <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-slate-500 mb-2">
+          🔍
+        </div>
+        <p className="text-xs font-bold text-slate-300">No se encontraron cartas</p>
+        <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
+          Intenta buscar por nombre en inglés o limpia los filtros avanzados aplicados.
+        </p>
       </div>
     );
   }
 
   if (searchViewMode === 'grid') {
     return (
-      <div className={`grid gap-x-1 gap-y-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-5'}`}>
+      <div className={`grid gap-x-1.5 gap-y-2.5 ${isMobile ? 'grid-cols-4' : 'grid-cols-4 xl:grid-cols-5'}`}>
         {searchResults.map(card => (
           <div 
             key={card.id}
@@ -85,9 +92,9 @@ const SearchResultsList = React.memo(({
             onClick={() => addCardToDeck(card)}
             onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
             onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
-            className="relative aspect-[3/4.2] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation"
+            className="relative aspect-[3/4.4] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/50 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow shadow-black/40"
           >
-            <div className="relative flex-1 rounded-md overflow-hidden shadow">
+            <div className="relative flex-1 rounded-md overflow-hidden bg-black/40">
               <img 
                 src={card.image_url_small || card.image_url} 
                 alt={card.name} 
@@ -96,8 +103,8 @@ const SearchResultsList = React.memo(({
               />
               {getBanlistBadge(card)}
             </div>
-            <div className="mt-1 transition-all text-center min-w-0">
-              <p className="text-[7.5px] font-semibold text-slate-300 truncate">{card.name}</p>
+            <div className="mt-1 transition-all text-center min-w-0 px-0.5">
+              <p className="text-[9px] font-semibold text-slate-200 group-hover:text-purple-300 transition-colors truncate leading-tight">{card.name}</p>
             </div>
           </div>
         ))}
@@ -120,7 +127,7 @@ const SearchResultsList = React.memo(({
           <img 
             src={card.image_url_small || card.image_url} 
             alt={card.name} 
-            className="w-12 h-18 object-contain rounded-md shadow-md shadow-black/40 group-hover:scale-105 transition-transform"
+            className="w-12 h-18 object-contain rounded-md shadow-md shadow-black/40 group-hover:scale-105 transition-transform" 
             onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
           />
           <div className="flex-1 flex flex-col justify-between min-w-0">
@@ -210,7 +217,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       if (localQuery !== searchQuery) {
         setSearchQuery(localQuery);
       }
-    }, 200);
+    }, 180);
     return () => clearTimeout(timer);
   }, [localQuery, searchQuery, setSearchQuery]);
 
@@ -225,7 +232,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     if (status === 'Forbidden') {
       return (
         <div
-          className="absolute top-1 left-1 bg-black border-[3px] border-red-600 text-red-500 font-sans font-black text-[12px] w-6 h-6 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          className="absolute top-1 left-1 bg-black border-2 border-red-600 text-red-500 font-sans font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
           title="Prohibida (0 copias)"
         >
           🚫
@@ -236,7 +243,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     if (status === 'Limited') {
       return (
         <div
-          className="absolute top-1 left-1 bg-black border-[3px] border-red-500 text-yellow-400 font-sans font-black text-[12px] w-6 h-6 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          className="absolute top-1 left-1 bg-black border-2 border-red-500 text-yellow-400 font-sans font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
           title="Limitada (1 copia)"
         >
           1
@@ -247,7 +254,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     if (status === 'Semi-Limited') {
       return (
         <div
-          className="absolute top-1 left-1 bg-black border-[3px] border-blue-500 text-yellow-400 font-sans font-black text-[12px] w-6 h-6 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
+          className="absolute top-1 left-1 bg-black border-2 border-blue-500 text-yellow-400 font-sans font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
           title="Semi-limitada (2 copias)"
         >
           2
@@ -264,7 +271,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       className={`flex flex-col gap-4 ${
         isMobile
           ? 'w-full'
-          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${leftPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'}`
+          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${leftPanelOpen ? 'p-4' : 'w-10 min-w-10 p-2 items-center'}`
       }`}
     >
       {/* Panel header — hidden on mobile (title is in MobileBottomSheet) */}
@@ -352,9 +359,22 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                 placeholder={searchScope === 'staged' ? "Buscar pendientes..." : searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
                 value={localQuery}
                 onChange={(e) => setLocalQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
+                className="w-full pl-9 pr-8 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
               />
               <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[hsl(215,15%,70%)]" />
+              {localQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocalQuery('');
+                    setSearchQuery('');
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 p-0.5"
+                  title="Limpiar búsqueda"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
             
             <button
@@ -453,9 +473,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             {searchResults.length > 0 && searchResults.length >= searchLimit && (
               <button
                 onClick={() => setSearchLimit(prev => prev + 45)}
-                className="w-full mt-3 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+                className="w-full mt-3 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" /> : '▼'}
+                {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" /> : <ChevronDown className="w-3.5 h-3.5 text-purple-400" />}
                 <span>Cargar más cartas</span>
               </button>
             )}

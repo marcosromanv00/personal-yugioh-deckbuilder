@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { RefreshCw, Save, FolderOpen, MoreVertical, X } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { RefreshCw, Save, FolderOpen, MoreVertical, X, Trash2, Undo2, Redo2, Download, Upload, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// UI Feedback components
+import { useToast } from '@/components/ui/ToastProvider';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { YdkUploadModal } from '@/components/collection/YdkUploadModal';
 
 // Custom Hooks for State & Resizing
 import { usePanelResize } from './hooks/usePanelResize';
@@ -21,7 +26,7 @@ import { ArchetypeBreakdownDrawer } from './components/ArchetypeBreakdownDrawer'
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { MobileNav, type MobileTab } from './components/MobileNav';
 import { MobileBottomSheet } from './components/MobileBottomSheet';
-import { DeckCard } from './types';
+import { DeckCard, Card, HoverCardBase } from './types';
 import { getSleeveColorHex } from '@/lib/sleeves';
 
 
@@ -121,6 +126,78 @@ export default function DeckBuilder() {
       setActiveMobileTab(tab);
     }
   };
+
+  const toast = useToast();
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isYdkUploadOpen, setIsYdkUploadOpen] = useState(false);
+
+  // Atajos de teclado para Deshacer / Rehacer (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignorar si el foco está en un input o textarea
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (state.canUndo) {
+          state.handleUndo();
+          toast.info('Acción deshecha');
+        }
+      } else if (
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        e.preventDefault();
+        if (state.canRedo) {
+          state.handleRedo();
+          toast.info('Acción rehecha');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state.canUndo, state.canRedo, state.handleUndo, state.handleRedo, toast]);
+
+  // Wrapper para añadir cartas con Toast y botón de deshacer
+  const handleAddCardWithFeedback = useCallback(
+    (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'extras') => {
+      state.addCardToDeck(card, targetSection);
+      toast.success(`+1 ${card.name}`, {
+        duration: 3000,
+        action: {
+          label: 'Deshacer',
+          onClick: () => {
+            state.handleUndo();
+          },
+        },
+      });
+    },
+    [state, toast]
+  );
+
+  // Wrapper para remover cartas con Toast y botón de deshacer
+  const handleRemoveCardWithFeedback = useCallback(
+    (cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => {
+      const targetCard = state.deckCards.find((c) => c.id === cardId && c.section === section);
+      state.removeCardFromDeck(cardId, section);
+      if (targetCard) {
+        toast.info(`Removida: ${targetCard.name}`, {
+          duration: 3000,
+          action: {
+            label: 'Deshacer',
+            onClick: () => {
+              state.handleUndo();
+            },
+          },
+        });
+      }
+    },
+    [state, toast]
+  );
 
   // Drag and drop helper payload mapping
   const handleDragCardStart = (
@@ -348,7 +425,7 @@ export default function DeckBuilder() {
   const sharedDeckSectionProps = {
     format: state.format,
     deckCards: getSortedCards(state.deckCards),
-    removeCardFromDeck: state.removeCardFromDeck,
+    removeCardFromDeck: handleRemoveCardWithFeedback,
     handleDragCardStart,
     handleDropCardOnSection,
     handleCardMouseEnter: preview.handleCardMouseEnter,
@@ -466,16 +543,41 @@ export default function DeckBuilder() {
             </button>
 
             <button
-              onClick={state.handleClearDeck}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 hover:text-red-400 hover:bg-red-950/10 rounded-xl text-xs font-semibold text-red-500 transition-all cursor-pointer"
+              onClick={() => setIsYdkUploadOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-cyan-400 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
+              title="Importar archivo .YDK al editor"
             >
-              <Save className="w-3.5 h-3.5 text-red-500" />
-              <span>Limpiar Deck</span>
+              <Upload className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Importar .YDK</span>
+            </button>
+
+            {state.deckCards.length > 0 && (
+              <button
+                onClick={() => {
+                  state.exportYdkFile();
+                  toast.success('Archivo .YDK descargado');
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-emerald-400 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
+                title="Descargar baraja en formato .YDK"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Exportar</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsClearConfirmOpen(true)}
+              disabled={state.deckCards.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 hover:text-red-400 hover:bg-red-950/10 rounded-xl text-xs font-semibold text-red-500 transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+              title="Limpiar todas las cartas del deck"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+              <span>Limpiar</span>
             </button>
 
             <button
               onClick={state.handleOpenSaveModal}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(263,85%,64%)] text-white hover:bg-[hsl(263,85%,58%)] rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] text-white hover:opacity-90 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
               <span>Guardar Deck</span>
@@ -570,7 +672,7 @@ export default function DeckBuilder() {
               searchLimit={state.searchLimit}
               setSearchLimit={state.setSearchLimit}
               format={state.format}
-              addCardToDeck={state.addCardToDeck}
+              addCardToDeck={handleAddCardWithFeedback}
               handleDragCardStart={handleDragCardStart}
               handleCardMouseEnter={preview.handleCardMouseEnter}
               handleCardMouseLeave={preview.handleCardMouseLeave}
@@ -586,8 +688,37 @@ export default function DeckBuilder() {
             {/* MAIN DECKBOARD */}
             <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
               <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
-                <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="font-bold text-lg flex items-center gap-2">📋 Lista de Cartas</h2>
+                  
+                  {/* Undo / Redo Actions Toolbar */}
+                  <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        state.handleUndo();
+                        toast.info('Acción deshecha');
+                      }}
+                      disabled={!state.canUndo}
+                      className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Deshacer última acción (Ctrl+Z)"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        state.handleRedo();
+                        toast.info('Acción rehecha');
+                      }}
+                      disabled={!state.canRedo}
+                      className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Rehacer acción (Ctrl+Y)"
+                    >
+                      <Redo2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
                   <div className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg px-2.5 py-1 text-xs">
                     <span className="text-slate-400">Ordenar por:</span>
                     <select
@@ -686,7 +817,7 @@ export default function DeckBuilder() {
                   searchLimit={state.searchLimit}
                   setSearchLimit={state.setSearchLimit}
                   format={state.format}
-                  addCardToDeck={state.addCardToDeck}
+                  addCardToDeck={handleAddCardWithFeedback}
                   handleDragCardStart={handleDragCardStart}
                   handleCardMouseEnter={preview.handleCardMouseEnter}
                   handleCardMouseLeave={preview.handleCardMouseLeave}
@@ -1064,6 +1195,32 @@ export default function DeckBuilder() {
         handleRemoveFromCollection={handleRemoveFromCollectionWrapper}
         isActionLoading={preview.isActionLoading}
         modalActionMessage={preview.modalActionMessage}
+      />
+
+      {/* CONFIRM CLEAR DECK DIALOG */}
+      <ConfirmDialog
+        isOpen={isClearConfirmOpen}
+        title="¿Limpiar todas las cartas del Deck?"
+        description="Se removerán todas las cartas del Main, Extra, Side y Extras del editor actual. Puedes revertir esta acción usando Deshacer (Ctrl+Z)."
+        confirmLabel="Limpiar Deck"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={() => {
+          state.handleClearDeck();
+          setIsClearConfirmOpen(false);
+          toast.info('Deck limpiado');
+        }}
+        onClose={() => setIsClearConfirmOpen(false)}
+      />
+
+      {/* YDK UPLOAD MODAL IN DECKBUILDER */}
+      <YdkUploadModal
+        isOpen={isYdkUploadOpen}
+        onClose={() => setIsYdkUploadOpen(false)}
+        onSuccess={() => {
+          setIsYdkUploadOpen(false);
+          toast.success('Archivo .YDK importado exitosamente');
+        }}
       />
     </div>
   );

@@ -55,16 +55,22 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
       className={`flex flex-col gap-4 ${
         isMobile
           ? 'w-full'
-          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${rightPanelOpen ? 'p-4' : 'w-10 min-w-[40px] p-2 items-center'}`
+          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${rightPanelOpen ? 'p-4' : 'w-10 min-w-10 p-2 items-center'}`
       }`}
     >
       {/* Panel Header */}
       {!isMobile && (
         <div className={`border-b border-[hsl(224,15%,16%)] pb-2 mb-2 flex items-center shrink-0 ${rightPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
           {rightPanelOpen && (
-            <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
-              <TrendingUp className="w-4 h-4 text-[hsl(180,80%,45%)]" /> Análisis del Meta
-            </h2>
+            <div>
+              <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
+                <TrendingUp className="w-4 h-4 text-[hsl(180,80%,45%)]" /> Análisis del Meta
+              </h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] text-slate-400 font-mono">En vivo • Master Duel Meta</span>
+              </div>
+            </div>
           )}
           <div className="flex items-center gap-1">
             {rightPanelOpen && isAnalyzing && <Loader2 className="w-4 h-4 animate-spin text-[hsl(180,80%,45%)]" />}
