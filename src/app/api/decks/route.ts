@@ -370,33 +370,82 @@ export async function PUT(req: NextRequest) {
       }
       const newStatusFlag = activeStatus ? 'in_deck' : 'collection';
 
-      const inventoryPayload = inventory_cards_to_add.map((c: any) => {
+      // 1. Obtener fundas actuales del deck en yg_deck_sleeves
+      const { data: deckSleeves } = await supabase
+        .from('yg_deck_sleeves')
+        .select('*, sleeve_details:yg_sleeves(*)')
+        .eq('deck_id', id);
+
+      // 2. Obtener copias físicas actuales asociadas a este deck en yg_user_cards
+      const { data: existingUserCards } = await supabase
+        .from('yg_user_cards')
+        .select('card_id, quantity, deck_section, sleeve_type, sleeve_brand, sleeve_color')
+        .eq('deck_id', id);
+
+      // Agrupar copias existentes por card_id y deck_section
+      const existingCounts: Record<string, number> = {};
+      for (const euc of existingUserCards || []) {
+        const key = `${euc.card_id}-${euc.deck_section || 'none'}`;
+        existingCounts[key] = (existingCounts[key] || 0) + (euc.quantity || 1);
+      }
+
+      const inventoryPayload = [];
+
+      for (const c of inventory_cards_to_add) {
         const matchingDeckCard = (cards || []).find((dc: any) => dc.id === c.id);
         const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
           ? matchingDeckCard.section
           : null;
 
-        return {
-          card_id: c.id,
-          storage_location_id: storage_location_id || null,
-          deck_id: id,
-          deck_section: section,
-          quantity: c.count || 1,
-          rarity: 'Common',
-          condition: 'Near Mint',
-          language: 'en',
-          status_flag: newStatusFlag,
-          sleeve_type: 'none',
-          notes: `Registrado automáticamente desde deck "${name || 'Actualizado'}"`
-        };
-      });
+        const targetCount = c.count || 1;
+        const key = `${c.id}-${section || 'none'}`;
+        const alreadyInInventory = existingCounts[key] || 0;
+        const qtyToInsert = Math.max(0, targetCount - alreadyInInventory);
 
-      const { error: invErr } = await supabase
-        .from('yg_user_cards')
-        .insert(inventoryPayload);
+        if (qtyToInsert > 0) {
+          // Determinar si ya hay una funda asignada para esta sección en el deck
+          const sectionType = (section === 'main' || section === 'side') ? 'main_side' : 'extra';
+          const assignedSleeve = deckSleeves?.find(ds => ds.section_type === sectionType);
 
-      if (invErr) {
-        console.error('Error al registrar cartas en inventario:', invErr);
+          let sleeveType = 'none';
+          let sleeveBrand = null;
+          let sleeveColor = null;
+          let sleeveCondition = null;
+
+          if (assignedSleeve?.sleeve_details) {
+            sleeveType = 'single';
+            sleeveBrand = assignedSleeve.sleeve_details.brand;
+            sleeveColor = assignedSleeve.sleeve_details.color_pattern;
+            sleeveCondition = assignedSleeve.sleeve_details.condition || 'good';
+          }
+
+          inventoryPayload.push({
+            card_id: c.id,
+            storage_location_id: storage_location_id || null,
+            deck_id: id,
+            deck_section: section,
+            quantity: qtyToInsert,
+            rarity: 'Common',
+            condition: 'Near Mint',
+            language: 'en',
+            status_flag: newStatusFlag,
+            sleeve_type: sleeveType,
+            sleeve_brand: sleeveBrand,
+            sleeve_color: sleeveColor,
+            sleeve_condition: sleeveCondition,
+            notes: `Registrado automáticamente desde deck "${name || 'Actualizado'}"`
+          });
+        }
+      }
+
+      if (inventoryPayload.length > 0) {
+        const { error: invErr } = await supabase
+          .from('yg_user_cards')
+          .insert(inventoryPayload);
+
+        if (invErr) {
+          console.error('Error al registrar cartas en inventario:', invErr);
+        }
       }
     }
 

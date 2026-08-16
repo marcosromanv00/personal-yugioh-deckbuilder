@@ -654,7 +654,7 @@ export function useDeckBuilderState() {
     setIsLoadModalOpen(true);
   };
 
-  const handleLoadDeck = useCallback((selected: Deck) => {
+  const handleLoadDeck = useCallback(async (selected: Deck) => {
     setDeckId(selected.id);
     setDeckName(selected.name);
     setDeckDescription(selected.description || '');
@@ -686,6 +686,25 @@ export function useDeckBuilderState() {
     });
     setDeckCards(mappedCards);
     setIsLoadModalOpen(false);
+
+    try {
+      const dsRes = await fetch(`/api/decks/${selected.id}/sleeves`);
+      if (dsRes.ok) {
+        const json = await dsRes.json();
+        const assigned: DeckSleeve[] = json.data || [];
+        const mainSleeve = assigned.find(a => a.section_type === 'main_side');
+        const extraSleeve = assigned.find(a => a.section_type === 'extra');
+        setSelectedMainSleeveId(mainSleeve?.sleeve_id || '');
+        setSelectedExtraSleeveId(extraSleeve?.sleeve_id || '');
+      } else {
+        setSelectedMainSleeveId('');
+        setSelectedExtraSleeveId('');
+      }
+    } catch (e) {
+      console.error('Error al cargar fundas al seleccionar deck:', e);
+      setSelectedMainSleeveId('');
+      setSelectedExtraSleeveId('');
+    }
   }, []);
 
   const handleSaveDeck = async () => {

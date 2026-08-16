@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Edit3, Shield, Layers, AlertCircle } from 'lucide-react';
-import { Deck, StorageLocation, SleeveInventory, UserCard } from '@/types/collection';
+import { Deck, StorageLocation, SleeveInventory, UserCard, DeckCardDetail, DeckSleeve } from '@/types/collection';
 import { useRouter } from 'next/navigation';
 import { SleeveInventoryFormModal } from './SleeveInventoryFormModal';
 
@@ -25,10 +25,10 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [format, setFormat] = useState('TCG');
-  const [isActive, setIsActive] = useState(true);
-  const [storageLocationId, setStorageLocationId] = useState<string>('');
+  const [name, setName] = useState(deck?.name || '');
+  const [format, setFormat] = useState(deck?.format || 'TCG');
+  const [isActive, setIsActive] = useState(deck?.is_active !== false);
+  const [storageLocationId, setStorageLocationId] = useState<string>(deck?.storage_location_id || '');
   
   // Sleeves states
   const [availableSleeves, setAvailableSleeves] = useState<SleeveInventory[]>([]);
@@ -51,6 +51,7 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   const [mainSleeveAddedQty, setMainSleeveAddedQty] = useState<number>(60);
   const [extraSleeveMode, setExtraSleeveMode] = useState<'take' | 'add'>('take');
   const [extraSleeveAddedQty, setExtraSleeveAddedQty] = useState<number>(60);
+  const [savingSleeves, setSavingSleeves] = useState(false);
 
 
   const handleNewSleeveSuccess = async (newSleeve?: SleeveInventory) => {
@@ -79,10 +80,6 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   // Fetch current deck sleeves on open
   useEffect(() => {
     if (isOpen && deck) {
-      setName(deck.name || '');
-      setFormat(deck.format || 'TCG');
-      setIsActive(deck.is_active !== false);
-      setStorageLocationId(deck.storage_location_id || '');
       setErrorMsg(null);
 
       const fetchSleevesForDeck = async () => {
@@ -91,10 +88,10 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
           const res = await fetch(`/api/decks/${deck.id}/sleeves`);
           if (res.ok) {
             const json = await res.json();
-            const deckSleeves = json.data || [];
+            const deckSleeves: DeckSleeve[] = json.data || [];
             
-            const mainSleeve = deckSleeves.find((s: any) => s.section_type === 'main_side');
-            const extraSleeve = deckSleeves.find((s: any) => s.section_type === 'extra');
+            const mainSleeve = deckSleeves.find(s => s.section_type === 'main_side');
+            const extraSleeve = deckSleeves.find(s => s.section_type === 'extra');
             
             const mId = mainSleeve?.sleeve_id || '';
             const eId = extraSleeve?.sleeve_id || '';
@@ -132,7 +129,7 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   const getSleevingStats = (section: 'main_side' | 'extra') => {
     const targetSections = section === 'main_side' ? ['main', 'side'] : ['extra'];
     
-    const N_total = deck.cards?.reduce((sum: number, c: any) => {
+    const N_total = deck.cards?.reduce((sum: number, c: DeckCardDetail) => {
       return targetSections.includes(c.section) ? sum + (c.count || 0) : sum;
     }, 0) || 0;
     
@@ -180,7 +177,6 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
     if (!sleeveId) return null;
     
     const status = getSleeveStockStatus(sleeveId, section);
-    const minRequired = status.N_needed - status.available;
 
     return (
       <div className="mt-3 p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3.5">
@@ -277,6 +273,73 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
     );
   };
 
+  const handleSaveSleevesOnly = async () => {
+    if (!deck) return;
+    setSavingSleeves(true);
+    setErrorMsg(null);
+    try {
+      // 1. Save/Update Main Sleeve
+      if (mainSleeveId !== initialMainSleeveId) {
+        if (mainSleeveId) {
+          const res = await fetch(`/api/decks/${deck.id}/sleeves`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              sleeve_id: mainSleeveId, 
+              section_type: 'main_side',
+              action_mode: mainSleeveMode,
+              added_quantity: mainSleeveAddedQty
+            }),
+          });
+          if (!res.ok) {
+            const errJson = await res.json();
+            throw new Error(errJson.error || 'Error al guardar funda del Main Deck');
+          }
+        } else {
+          const res = await fetch(`/api/decks/${deck.id}/sleeves?section_type=main_side`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error('Error al desasignar funda del Main Deck');
+        }
+        setInitialMainSleeveId(mainSleeveId);
+      }
+
+      // 2. Save/Update Extra Sleeve
+      if (extraSleeveId !== initialExtraSleeveId) {
+        if (extraSleeveId) {
+          const res = await fetch(`/api/decks/${deck.id}/sleeves`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              sleeve_id: extraSleeveId, 
+              section_type: 'extra',
+              action_mode: extraSleeveMode,
+              added_quantity: extraSleeveAddedQty
+            }),
+          });
+          if (!res.ok) {
+            const errJson = await res.json();
+            throw new Error(errJson.error || 'Error al guardar funda del Extra Deck');
+          }
+        } else {
+          const res = await fetch(`/api/decks/${deck.id}/sleeves?section_type=extra`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error('Error al desasignar funda del Extra Deck');
+        }
+        setInitialExtraSleeveId(extraSleeveId);
+      }
+
+      alert('¡Fundas guardadas correctamente!');
+      onSuccess();
+    } catch (err: unknown) {
+      console.error(err);
+      setErrorMsg(err instanceof Error ? err.message : 'Ocurrió un error inesperado al guardar las fundas.');
+    } finally {
+      setSavingSleeves(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -355,15 +418,15 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setErrorMsg(err.message || 'Ocurrió un error inesperado al guardar.');
+      setErrorMsg(err instanceof Error ? err.message : 'Ocurrió un error inesperado al guardar.');
     } finally {
       setSaving(false);
     }
   };
 
-  const cardsCount = deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0;
+  const cardsCount = deck.cards?.reduce((acc: number, c: DeckCardDetail) => acc + c.count, 0) || 0;
 
   return (
     <AnimatePresence>
@@ -549,6 +612,19 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
                       extraSleeveAddedQty,
                       setExtraSleeveAddedQty
                     )}
+                  </div>
+                  
+                  {/* Botón rápido para guardar sólo fundas */}
+                  <div className="col-span-2 flex justify-end pt-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveSleevesOnly}
+                      disabled={savingSleeves || (mainSleeveId === initialMainSleeveId && extraSleeveId === initialExtraSleeveId)}
+                      className="px-4 py-2 rounded-xl border border-cyan-500/30 bg-cyan-950/20 hover:bg-cyan-900/30 text-cyan-300 disabled:opacity-45 font-semibold text-xs transition-colors flex items-center space-x-1.5 shadow cursor-pointer"
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>{savingSleeves ? 'Guardando...' : 'Confirmar Fundas'}</span>
+                    </button>
                   </div>
                 </div>
               )}

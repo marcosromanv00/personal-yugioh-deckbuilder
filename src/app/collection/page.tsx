@@ -305,6 +305,7 @@ export default function CollectionPage() {
       />
 
       <DeckDetailsModal
+        key={selectedDeck?.id || 'none'}
         deck={selectedDeck}
         isOpen={isDeckDetailsOpen}
         onClose={() => {
