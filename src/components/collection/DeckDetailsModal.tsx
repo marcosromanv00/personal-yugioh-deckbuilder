@@ -167,18 +167,18 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   };
 
   useEffect(() => {
-    if (mainSleeveId && availableSleeves.length > 0) {
-      const status = getSleeveStockStatus(mainSleeveId, 'main_side');
-      setMainSleeveAddedQty(status.N_needed > 0 ? status.N_needed : 60);
+    if (mainSleeveId) {
+      const stats = getSleevingStats('main_side');
+      setMainSleeveAddedQty(stats.N_total > 0 ? stats.N_total : 60);
     }
-  }, [mainSleeveId, availableSleeves, userCards]);
+  }, [mainSleeveId]);
 
   useEffect(() => {
-    if (extraSleeveId && availableSleeves.length > 0) {
-      const status = getSleeveStockStatus(extraSleeveId, 'extra');
-      setExtraSleeveAddedQty(status.N_needed > 0 ? status.N_needed : 60);
+    if (extraSleeveId) {
+      const stats = getSleevingStats('extra');
+      setExtraSleeveAddedQty(stats.N_total > 0 ? stats.N_total : 60);
     }
-  }, [extraSleeveId, availableSleeves, userCards]);
+  }, [extraSleeveId]);
 
   const renderSleeveConflictPanel = (
     sleeveId: string,
