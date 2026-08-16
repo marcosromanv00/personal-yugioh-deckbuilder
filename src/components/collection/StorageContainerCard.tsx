@@ -28,6 +28,7 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
   const capacity = location.capacity || 1;
   const occupancyPercent = Math.min(100, Math.round((occupied / capacity) * 100));
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isDecksExpanded, setIsDecksExpanded] = useState(false);
 
   // Filtrar los decks almacenados en este contenedor específico
   const storedDecks = decks.filter(d => d.storage_location_id === location.id);
@@ -171,36 +172,48 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
         </p>
       )}
 
-      {/* Listado extendido de decks vinculados */}
-      {location.type === 'deckbox' && storedDecks.length > 0 && (
-        <div className="mt-3.5 space-y-1.5">
-          <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Decks Almacenados:</p>
-          <div className="flex flex-col gap-1">
-            {storedDecks.map(deck => (
-              <div 
-                key={deck.id} 
-                className="flex items-center justify-between text-xs bg-slate-950/60 p-2 rounded-lg border border-slate-850 hover:border-cyan-900/50 transition-colors"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
-                  <span className="font-semibold text-slate-200 truncate">{deck.name}</span>
-                  <span className="text-[9px] font-mono text-slate-500 shrink-0">({deck.format})</span>
+      {/* Listado interactivo de decks vinculados */}
+      {storedDecks.length > 0 && (
+        <div className="mt-3.5 pt-3 border-t border-[hsl(224,15%,16%)]/40" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setIsDecksExpanded(!isDecksExpanded)}
+            className="flex items-center justify-between w-full text-[10px] font-mono text-slate-500 hover:text-slate-350 transition-colors uppercase tracking-wider cursor-pointer"
+          >
+            <span>Decks Almacenados ({storedDecks.length})</span>
+            <span className="text-[10px] transition-transform duration-250 select-none" style={{ transform: isDecksExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              ▼
+            </span>
+          </button>
+          
+          {isDecksExpanded && (
+            <div className="mt-2.5 space-y-1.5 max-h-40 overflow-y-auto pr-1 scrollbar-thin flex flex-col gap-1">
+              {storedDecks.map(deck => (
+                <div 
+                  key={deck.id} 
+                  className="flex items-center justify-between text-xs bg-slate-950/65 p-2 rounded-lg border border-slate-850 hover:border-cyan-500/30 transition-colors"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
+                    <span className="font-semibold text-slate-200 truncate">{deck.name}</span>
+                    <span className="text-[9px] font-mono text-slate-500 shrink-0">({deck.format})</span>
+                  </div>
+                  
+                  {/* Botón para sacar del contenedor */}
+                  {onDropDeck && (
+                    <button
+                      type="button"
+                      onClick={() => onDropDeck(deck.id, null)}
+                      className="p-1 rounded hover:bg-slate-900 text-slate-550 hover:text-amber-400 transition-colors shrink-0 cursor-pointer"
+                      title="Sacar de este contenedor"
+                    >
+                      <LogOut className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
-                
-                {/* Botón para sacar del deckbox */}
-                {onDropDeck && (
-                  <button
-                    onClick={() => onDropDeck(deck.id, null)}
-                    className="p-1 rounded hover:bg-slate-900 text-slate-500 hover:text-amber-400 transition-colors shrink-0"
-                    title="Sacar de esta Deckbox"
-                  >
-                    <LogOut className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
