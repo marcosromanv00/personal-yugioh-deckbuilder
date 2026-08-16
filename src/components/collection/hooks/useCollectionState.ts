@@ -16,7 +16,7 @@ export function useCollectionState() {
   const [loading, setLoading] = useState(true);
 
   // Tab activo y listado de cartas de la colección completa
-  const [activeTab, setActiveTab] = useState<'containers' | 'complete' | 'favorites' | 'sleeves'>('containers');
+  const [activeTab, setActiveTab] = useState<'containers' | 'sleeves' | 'decks' | 'complete' | 'favorites'>('containers');
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
   const [allCollectionFilters, setAllCollectionFilters] = useState<FilterState>({

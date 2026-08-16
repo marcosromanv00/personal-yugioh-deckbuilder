@@ -13,6 +13,7 @@ interface ContainersTabProps {
   handleDeleteStorage: (id: string) => Promise<void>;
   handleDropDeck: (deckId: string, locationId: string | null) => Promise<void>;
   handleNewContainerClick: () => void;
+  onDeckClick?: (deck: Deck) => void;
 }
 
 /**
@@ -29,6 +30,7 @@ export const ContainersTab: React.FC<ContainersTabProps> = ({
   handleDeleteStorage,
   handleDropDeck,
   handleNewContainerClick,
+  onDeckClick,
 }) => {
   if (loading) {
     return (
@@ -51,6 +53,7 @@ export const ContainersTab: React.FC<ContainersTabProps> = ({
           onCopy={handleCopyStorage}
           onDelete={handleDeleteStorage}
           onDropDeck={handleDropDeck}
+          onDeckClick={onDeckClick}
         />
       ))}
 

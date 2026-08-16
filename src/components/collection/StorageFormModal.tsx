@@ -172,9 +172,89 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Presets Rápidos */}
+            {!initialData && (
+              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
+                <span className="text-[11px] font-mono font-semibold text-slate-400">Plantillas Rápidas (1-Clic):</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setName('Mi Binder 9-Pocket');
+                      setType('binder');
+                      setSubType('binder_3x3');
+                      setRows(3);
+                      setCols(3);
+                      setTotalPages(40);
+                      setCapacity(360);
+                      setColorCode('#8b5cf6');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                  >
+                    📗 Binder 9-Pocket (360)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setName('Mi Binder 4-Pocket');
+                      setType('binder');
+                      setSubType('binder_2x2');
+                      setRows(2);
+                      setCols(2);
+                      setTotalPages(40);
+                      setCapacity(160);
+                      setColorCode('#06b6d4');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                  >
+                    📘 Binder 4-Pocket (160)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setName('Deckbox Principal');
+                      setType('deckbox');
+                      setSubType('standard');
+                      setCapacity(100);
+                      setColorCode('#06b6d4');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                  >
+                    🛡️ Deckbox (100)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setName('Lata Mega-Tin');
+                      setType('tin');
+                      setSubType('standard');
+                      setCapacity(300);
+                      setColorCode('#f59e0b');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-amber-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                  >
+                    🥫 Lata / Tin (300)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setName('Caja de Almacenamiento');
+                      setType('box');
+                      setSubType('box_multi_row');
+                      setCapacity(800);
+                      setColorCode('#6366f1');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-indigo-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                  >
+                    📦 Caja (800)
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Nombre */}
             <div>
-              <label className="block text-xs font-mono text-slate-400 mb-1">Nombre del Objeto</label>
+              <label className="block text-xs font-mono text-slate-400 mb-1">Nombre del Objeto *</label>
               <input
                 type="text"
                 placeholder="ej: Binder 1 - Raras, Lata Kaiba 2022, Deckbox Doble Neón"

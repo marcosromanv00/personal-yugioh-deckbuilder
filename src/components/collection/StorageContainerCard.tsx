@@ -13,6 +13,7 @@ interface StorageContainerCardProps {
   onCopy: (location: StorageLocation) => void;
   onDelete: (id: string) => void;
   onDropDeck?: (deckId: string, locationId: string | null) => void;
+  onDeckClick?: (deck: Deck) => void;
 }
 
 export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
@@ -22,7 +23,8 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
   onEdit,
   onCopy,
   onDelete,
-  onDropDeck
+  onDropDeck,
+  onDeckClick
 }) => {
   const occupied = location.occupied_cards || 0;
   const capacity = location.capacity || 1;
@@ -191,25 +193,40 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
               {storedDecks.map(deck => (
                 <div 
                   key={deck.id} 
-                  className="flex items-center justify-between text-xs bg-slate-950/65 p-2 rounded-lg border border-slate-850 hover:border-cyan-500/30 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onDeckClick) {
+                      onDeckClick(deck);
+                    }
+                  }}
+                  className="flex items-center justify-between text-xs bg-slate-950/80 p-2 rounded-lg border border-slate-800 hover:border-cyan-400 hover:bg-slate-900 transition-all cursor-pointer group/deck"
+                  title="Haz clic para ver los detalles y cartas de este deck"
                 >
                   <div className="flex items-center gap-1.5 truncate">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
-                    <span className="font-semibold text-slate-200 truncate">{deck.name}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0 group-hover/deck:scale-125 transition-transform" />
+                    <span className="font-semibold text-slate-200 group-hover/deck:text-cyan-300 transition-colors truncate">{deck.name}</span>
                     <span className="text-[9px] font-mono text-slate-500 shrink-0">({deck.format})</span>
                   </div>
                   
-                  {/* Botón para sacar del contenedor */}
-                  {onDropDeck && (
-                    <button
-                      type="button"
-                      onClick={() => onDropDeck(deck.id, null)}
-                      className="p-1 rounded hover:bg-slate-900 text-slate-550 hover:text-amber-400 transition-colors shrink-0 cursor-pointer"
-                      title="Sacar de este contenedor"
-                    >
-                      <LogOut className="w-3 h-3" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[9px] font-mono text-cyan-400 group-hover/deck:underline hidden xs:inline">
+                      Ver detalle
+                    </span>
+                    {/* Botón para sacar del contenedor */}
+                    {onDropDeck && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDropDeck(deck.id, null);
+                        }}
+                        className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-amber-400 transition-colors cursor-pointer"
+                        title="Sacar de este contenedor"
+                      >
+                        <LogOut className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

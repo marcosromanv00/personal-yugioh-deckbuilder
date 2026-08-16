@@ -7,9 +7,10 @@ import {
   Upload, 
   Sparkles, 
   Shield, 
-  Plus,
-  Layers,
-  Heart
+  Plus, 
+  Layers, 
+  Heart,
+  FileText
 } from 'lucide-react';
 
 // Custom State Hook
@@ -20,6 +21,7 @@ import { UnsortedInboxBanner } from '@/components/collection/components/Unsorted
 import { ContainersTab } from '@/components/collection/components/ContainersTab';
 import { CollectionCardsTab } from '@/components/collection/components/CollectionCardsTab';
 import { SleevesTab } from '@/components/collection/components/SleevesTab';
+import { DecksTab } from '@/components/collection/components/DecksTab';
 import { DecksPanel } from '@/components/collection/components/DecksPanel';
 
 // Collection Modals
@@ -142,10 +144,10 @@ export default function CollectionPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* LEFT AREA: MAIN TABS DISPLAY */}
-          <div className="lg:col-span-8 space-y-4">
+          <div className={`${state.activeTab === 'decks' ? 'lg:col-span-12' : 'lg:col-span-8'} space-y-4`}>
             
             <div className="flex flex-wrap items-center justify-between border-b border-[hsl(224,15%,16%)] pb-2.5 gap-4">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <button
                   onClick={() => state.setActiveTab('containers')}
                   className={`font-bold text-sm uppercase tracking-wider flex items-center gap-2 pb-2 border-b-2 transition-all cursor-pointer ${
@@ -154,8 +156,30 @@ export default function CollectionPage() {
                       : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
                   }`}
                 >
-                  <Box className="w-4 h-4" />
+                  <Box className="w-4 h-4 text-purple-400" />
                   <span>Almacenamiento ({state.locations.length})</span>
+                </button>
+                <button
+                  onClick={() => state.setActiveTab('sleeves')}
+                  className={`font-bold text-sm uppercase tracking-wider flex items-center gap-2 pb-2 border-b-2 transition-all cursor-pointer ${
+                    state.activeTab === 'sleeves' 
+                      ? 'border-cyan-400 text-cyan-300' 
+                      : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
+                  }`}
+                >
+                  <Shield className="w-4 h-4 text-cyan-400" />
+                  <span>Mis Fundas ({state.sleeves.length})</span>
+                </button>
+                <button
+                  onClick={() => state.setActiveTab('decks')}
+                  className={`font-bold text-sm uppercase tracking-wider flex items-center gap-2 pb-2 border-b-2 transition-all cursor-pointer ${
+                    state.activeTab === 'decks' 
+                      ? 'border-[hsl(263,85%,64%)] text-white' 
+                      : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-purple-400" />
+                  <span>Mis Decks ({state.decks.length})</span>
                 </button>
                 <button
                   onClick={() => state.setActiveTab('complete')}
@@ -165,7 +189,7 @@ export default function CollectionPage() {
                       : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
                   }`}
                 >
-                  <Layers className="w-4 h-4" />
+                  <Layers className="w-4 h-4 text-indigo-400" />
                   <span>Colección Completa ({totalCardsInCollection})</span>
                 </button>
                 <button
@@ -176,19 +200,8 @@ export default function CollectionPage() {
                       : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
                   }`}
                 >
-                  <Heart className={`w-4 h-4 ${state.activeTab === 'favorites' ? 'fill-pink-500 text-pink-500' : ''}`} />
+                  <Heart className={`w-4 h-4 ${state.activeTab === 'favorites' ? 'fill-pink-500 text-pink-500' : 'text-pink-400'}`} />
                   <span>Favoritas</span>
-                </button>
-                <button
-                  onClick={() => state.setActiveTab('sleeves')}
-                  className={`font-bold text-sm uppercase tracking-wider flex items-center gap-2 pb-2 border-b-2 transition-all cursor-pointer ${
-                    state.activeTab === 'sleeves' 
-                      ? 'border-cyan-400 text-cyan-300' 
-                      : 'border-transparent text-[hsl(215,15%,70%)] hover:text-slate-200'
-                  }`}
-                >
-                  <Shield className="w-4 h-4" />
-                  <span>Mis Fundas ({state.sleeves.length})</span>
                 </button>
               </div>
             </div>
@@ -205,6 +218,10 @@ export default function CollectionPage() {
                 handleDeleteStorage={state.handleDeleteStorage}
                 handleDropDeck={state.handleDropDeck}
                 handleNewContainerClick={state.handleNewContainerClick}
+                onDeckClick={(deck) => {
+                  setSelectedDeck(deck);
+                  setIsDeckDetailsOpen(true);
+                }}
               />
             ) : state.activeTab === 'sleeves' ? (
               <SleevesTab
@@ -213,6 +230,18 @@ export default function CollectionPage() {
                 setEditingSleeve={state.setEditingSleeve}
                 setIsSleeveFormOpen={state.setIsSleeveFormOpen}
                 handleDeleteSleeve={state.handleDeleteSleeve}
+              />
+            ) : state.activeTab === 'decks' ? (
+              <DecksTab
+                decks={state.decks}
+                locations={state.locations}
+                sleeves={state.sleeves}
+                setDecks={state.setDecks}
+                onDeckClick={(deck) => {
+                  setSelectedDeck(deck);
+                  setIsDeckDetailsOpen(true);
+                }}
+                onRefreshData={state.fetchCollectionData}
               />
             ) : (
               <CollectionCardsTab
@@ -236,17 +265,19 @@ export default function CollectionPage() {
             )}
           </div>
 
-          {/* RIGHT SIDEBAR PANEL: DECKS DIRECTORY LIST */}
-          <DecksPanel
-            decks={state.decks}
-            locations={state.locations}
-            setDecks={state.setDecks}
-            handleDragStart={handleDragStart}
-            onDeckClick={(deck) => {
-              setSelectedDeck(deck);
-              setIsDeckDetailsOpen(true);
-            }}
-          />
+          {/* RIGHT SIDEBAR PANEL: DECKS DIRECTORY LIST (Oculto cuando activeTab === 'decks' para aprovechar todo el ancho) */}
+          {state.activeTab !== 'decks' && (
+            <DecksPanel
+              decks={state.decks}
+              locations={state.locations}
+              setDecks={state.setDecks}
+              handleDragStart={handleDragStart}
+              onDeckClick={(deck) => {
+                setSelectedDeck(deck);
+                setIsDeckDetailsOpen(true);
+              }}
+            />
+          )}
 
         </div>
       </main>
@@ -268,6 +299,10 @@ export default function CollectionPage() {
         onClose={() => state.setIsInventoryOpen(false)}
         decks={state.decks}
         onRefreshData={state.fetchCollectionData}
+        onDeckClick={(deck) => {
+          setSelectedDeck(deck);
+          setIsDeckDetailsOpen(true);
+        }}
       />
 
       <YdkUploadModal

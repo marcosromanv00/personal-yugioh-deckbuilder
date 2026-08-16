@@ -11,6 +11,7 @@ interface GamifiedInventoryModalProps {
   onClose: () => void;
   decks: Deck[];
   onRefreshData: () => void;
+  onDeckClick?: (deck: Deck) => void;
 }
 
 export const GamifiedInventoryModal: React.FC<GamifiedInventoryModalProps> = ({
@@ -19,6 +20,7 @@ export const GamifiedInventoryModal: React.FC<GamifiedInventoryModalProps> = ({
   onClose,
   decks = [],
   onRefreshData,
+  onDeckClick,
 }) => {
   const [cards, setCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(false);
@@ -421,15 +423,28 @@ export const GamifiedInventoryModal: React.FC<GamifiedInventoryModalProps> = ({
                     {associatedDecks.map((d) => {
                       const deckCardsCount = d.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0;
                       return (
-                        <div key={d.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between gap-3 shadow shadow-black">
+                        <div 
+                          key={d.id} 
+                          onClick={() => {
+                            if (onDeckClick) {
+                              onDeckClick(d);
+                            }
+                          }}
+                          className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 hover:border-cyan-500/50 hover:bg-slate-900/90 transition-all flex items-center justify-between gap-3 shadow shadow-black cursor-pointer group/assocDeck"
+                          title="Haz clic para ver detalles del deck"
+                        >
                           <div>
-                            <h4 className="font-bold text-sm text-slate-200">{d.name}</h4>
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="font-bold text-sm text-slate-200 group-hover/assocDeck:text-cyan-300 transition-colors">{d.name}</h4>
+                              <span className="text-[9px] font-mono text-cyan-400 opacity-0 group-hover/assocDeck:opacity-100 transition-opacity">🔍</span>
+                            </div>
                             <p className="text-[10px] text-slate-400 mt-1 font-mono">
                               {d.format} • {deckCardsCount} cartas
                             </p>
                           </div>
                           <button
-                            onClick={async () => {
+                            onClick={async (e) => {
+                              e.stopPropagation();
                               try {
                                 const res = await fetch('/api/decks', {
                                   method: 'PUT',
@@ -444,7 +459,8 @@ export const GamifiedInventoryModal: React.FC<GamifiedInventoryModalProps> = ({
                                 console.error('Error al desasignar baraja:', err);
                               }
                             }}
-                            className="px-2.5 py-1.5 rounded-lg border border-red-900/40 hover:border-red-650 bg-red-950/20 hover:bg-red-950/60 text-[10px] font-bold text-red-450 hover:text-red-300 transition-colors cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg border border-red-900/40 hover:border-red-650 bg-red-950/20 hover:bg-red-950/60 text-[10px] font-bold text-red-450 hover:text-red-300 transition-colors cursor-pointer shrink-0"
+                            title="Quitar deck de este contenedor"
                           >
                             Quitar
                           </button>

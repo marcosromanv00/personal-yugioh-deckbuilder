@@ -115,6 +115,18 @@ export const SleevingAdvisorModal: React.FC<SleevingAdvisorModalProps> = ({ isOp
                     </div>
                   ))}
                 </div>
+                {/* Guía Oficial de Torneos */}
+                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Reglamento Oficial de Torneos (KDE / TCG / MD)</span>
+                  </div>
+                  <ul className="text-[11px] text-slate-400 space-y-1 list-disc list-inside">
+                    <li><b>Main & Side Deck:</b> Todas las fundas deben ser estrictamente idénticas en tamaño, color, textura y estado de desgaste.</li>
+                    <li><b>Extra Deck:</b> Es altamente recomendable usar un color de funda diferente y contrastante para evitar mezclar cartas del Extra con el Main.</li>
+                    <li><b>Doble Funda:</b> Si se usa doble funda (Inner + Outer), debe aplicarse consistentemente a toda la baraja principal y no solo a cartas específicas.</li>
+                  </ul>
+                </div>
               </>
             ) : (
               <div className="text-center py-12 text-slate-500 font-mono text-sm flex flex-col items-center">
@@ -127,9 +139,9 @@ export const SleevingAdvisorModal: React.FC<SleevingAdvisorModalProps> = ({ isOp
           <div className="flex justify-end pt-4 border-t border-slate-800">
             <button
               onClick={onClose}
-              className="px-5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium"
+              className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer transition-colors"
             >
-              Cerrar
+              Entendido
             </button>
           </div>
         </motion.div>
