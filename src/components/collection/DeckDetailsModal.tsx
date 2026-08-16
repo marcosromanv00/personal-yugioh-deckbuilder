@@ -14,6 +14,7 @@ interface DeckDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   locations: StorageLocation[];
+  decks?: Deck[];
   onSuccess: () => void;
 }
 
@@ -22,6 +23,7 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   isOpen,
   onClose,
   locations,
+  decks = [],
   onSuccess,
 }) => {
   const router = useRouter();
@@ -525,11 +527,17 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
                 className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-150 text-sm focus:outline-none focus:border-purple-500"
               >
                 <option value="">Sin almacenar (Sólo Receta)</option>
-                {locations.map((loc, idx) => (
-                  <option key={loc.id || `location-${idx}`} value={loc.id}>
-                    {loc.type === 'deckbox' ? '📦' : loc.type === 'binder' ? '📘' : '📥'} {loc.name} ({loc.type.toUpperCase()})
-                  </option>
-                ))}
+                {locations.map((loc, idx) => {
+                  const containerDecks = decks.filter(d => d.storage_location_id === loc.id && d.id !== deck?.id);
+                  const decksLabel = containerDecks.length > 0
+                    ? ` (Contiene: ${containerDecks.map(d => d.name).join(', ')})`
+                    : '';
+                  return (
+                    <option key={loc.id || `location-${idx}`} value={loc.id}>
+                      {loc.type === 'deckbox' ? '📦' : loc.type === 'binder' ? '📘' : '📥'} {loc.name} ({loc.type.toUpperCase()}){decksLabel}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

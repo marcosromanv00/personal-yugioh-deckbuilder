@@ -313,6 +313,7 @@ export default function CollectionPage() {
           setSelectedDeck(null);
         }}
         locations={state.locations}
+        decks={state.decks}
         onSuccess={state.fetchCollectionData}
       />
 
