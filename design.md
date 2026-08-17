@@ -1,61 +1,68 @@
-# Sistema de Diseño y Experiencia de Usuario: Yu-Gi-Oh! Deckbuilder & Hub de Inventario
+# Sistema de Diseño y Experiencia de Usuario: Yu-Gi-Oh! Deckbuilder & Hub Analítico (Estilo Exordio)
 
-Este documento establece las especificaciones de diseño visual, paleta de colores, tipografía, interacciones y micro-animaciones para el proyecto **personal-yugioh-deckbuilder**, asegurando una experiencia de usuario (UX) premium, gamificada, fluida e inmersiva.
-
----
-
-## 1. Dirección Artística y Temática
-La estética del sistema se inspira en interfaces futuristas oscuras (Cyberpunk / Tech-Fantasy / RPG Inventory UI), alineadas con la temática moderna de Yu-Gi-Oh! y plataformas competitivas de videojuegos:
-- **Aspecto**: Oscuro elegante con acentos brillantes correspondientes a las rarezas de las cartas o a las advertencias de banlist.
-- **Efectos**: Bordes sutiles con gradientes, efectos de cristal esmerilado (glassmorphism), sombras de neón difusas y **sistemas de partículas en Canvas/CSS** al interactuar con objetos de almacenamiento.
+Este documento establece la guía maestra de diseño visual, sistema de componentes, temas (Light Tech / Dark Carbón) y arquitectura de interfaz para la suite analítica y el ecosistema de IA del proyecto **personal-yugioh-deckbuilder**, fuertemente inspirado en la estética de transmisión competitiva y análisis de decks de **El Exordio del Duelista**.
 
 ---
 
-## 2. Paleta de Colores (HSL)
+## 1. Filosofía y Dirección Artística Unificada
 
-Diseñamos una paleta en modo oscuro de alto contraste y sofisticada para evitar colores planos aburridos.
+El rediseño transforma toda la aplicación en un **centro de mando eSports / Broadcast Analítico de Yu-Gi-Oh!**, combinando interfaces tácticas, tarjetas holográficas, dashboards de estadísticas multidimensionales y asistentes cognitivos de IA.
 
-| Rol de Color | Variable CSS | Tono / HSL | Aplicación Visual |
-| :--- | :--- | :--- | :--- |
-| **Fondo Principal** | `--bg-main` | `hsl(224, 25%, 6%)` | Fondo oscuro profundo con tintes azulados. |
-| **Fondo Tarjetas / Paneles** | `--bg-panel` | `hsl(224, 22%, 10%)` | Contenedores de cartas, buscador, panel lateral. |
-| **Bordes y Divisiones** | `--border-soft` | `hsl(224, 15%, 16%)` | Líneas divisorias y bordes de paneles. |
-| **Acento Primario (Neon)** | `--accent-primary` | `hsl(263, 85%, 64%)` | Botones principales, estados de selección activos. |
-| **Acento Secundario (Aqua)** | `--accent-aqua` | `hsl(180, 80%, 45%)` | Sugerencias positivas de ratios y botones de ayuda. |
-| **Alerta / Prohibido** | `--color-forbidden` | `hsl(0, 84%, 60%)` | Cartas de la banlist Prohibidas (Forbidden) y errores. |
-| **Limitado (1 Copia)** | `--color-limited` | `hsl(38, 92%, 50%)` | Color dorado para cartas Limitadas a 1 copia. |
-| **Semi-Limitado (2)** | `--color-semi` | `hsl(210, 90%, 55%)` | Color azul brillante para cartas Semi-Limitadas. |
-| **Texto Principal** | `--text-primary` | `hsl(210, 40%, 98%)` | Nombres de cartas y títulos principales. |
-| **Texto Secundario** | `--text-muted` | `hsl(215, 15%, 70%)` | Descripciones de efectos, porcentajes de uso y tags. |
+- **Estilo Visual**: Broadcast Tournament UI con tipografía `Outfit` + `JetBrains Mono`.
+- **Estructura de Información en 1 Sola Fila Limpia**:
+  - **Identidad & Formato**: Logo `EX` + Nombre de Deck editable + Selector de Formato compacto `[ TCG | MD | DL ]`.
+  - **Navegación Segmentada**: `[ 🛠️ Taller | 📊 Análisis Exordio | 📈 Meta | 📦 Colección ]`.
+  - **Acciones Clave & Tema**: Botón destacado `🤖 IA Copilot` + Menú desplegable `📁 Deck` (Guardar, Cargar, Importar YDK, Exportar YDK, Limpiar, Sincronizar) + Toggle de Tema `☀️ / 🌙`.
 
 ---
 
-## 3. Tipografía
-- **Fuente Principal (Sans-serif)**: `Outfit` (de Google Fonts) o `Inter` como respaldo. Proporciona una lectura clara y moderna ideal para estadísticas de ratios.
-- **Fuente Monoespaciada**: `JetBrains Mono` para ratios, cantidades de copias en deck, porcentajes de popularidad y contadores de cartas.
+## 2. Sistema de Tokens y Paleta de Colores Global (Light Tech & Dark Carbón)
+
+### Modo Oscuro (Dark Carbón - Default)
+- **Fondo Principal**: `#09090b` (Negro Carbón)
+- **Fondo Paneles / Tarjetas**: `#18181b` (Grafito / Zinc 900)
+- **Bordes Tácticos**: `#27272a` (Zinc 800)
+- **Acento Primario Exordio**: `#dc2626` / `#ef4444` (Rojo Carmesí de Transmisión)
+- **Acento Oro / Boss Card**: `#f59e0b` (Dorado Holográfico)
+- **Acento Cyan / Sinergia**: `#06b6d4`
+- **Acento Éxito / Win Rate**: `#10b981`
+- **Texto Principal**: `#f4f4f5` (Zinc 100)
+- **Texto Secundario**: `#71717a` (Zinc 500)
+
+### Modo Claro (Light Tech)
+- **Fondo Principal**: `#f8fafc` (Blanco Tecnológico)
+- **Fondo Paneles / Tarjetas**: `#ffffff` (Blanco Puro)
+- **Bordes Tácticos**: `#e2e8f0` (Zinc 200)
+- **Acento Primario Exordio**: `#dc2626` (Rojo Carmesí de Transmisión)
+- **Acento Oro / Boss Card**: `#d97706`
+- **Acento Cyan / Sinergia**: `#0891b2`
+- **Acento Éxito / Win Rate**: `#059669`
+- **Texto Principal**: `#09090b` (Negro Carbón)
+- **Texto Secundario**: `#64748b` (Zinc 500)
 
 ---
 
-## 4. Estructura y Vistas del Deckbuilder (Responsive)
+## 3. Las 5 Diapositivas de Transmisión (Exordio Hub)
 
-El layout se organiza en una cuadrícula flexible de 3 columnas en pantallas grandes (laptops/desktops) y se apila verticalmente en móviles.
+1. **Slide 1: Radar Heptagonal & Deck Stats**:
+   - 7 Ejes vectoriales: *Attack, Control, Consistency, Board Breaking, Versatility, Resilience, Recovery*.
+   - Barras de estadísticas y desglose de stamina por fases (*Early, Mid, Long Game, GY Recycle*).
+2. **Slide 2: Key Cards Role Matrix**:
+   - Clasificación táctica: *Main Starters, Key Cards, Main Beaters, Main Defenders*.
+   - Showcase holográfico de la *Best Card*.
+3. **Slide 3: Threat Cards Matrix & Danger Levels**:
+   - Alertas *Danger Level (1/4 a 4/4)* clasificadas por *Handtraps*, *Board Breakers* y *Floodgates*.
+4. **Slide 4: Testing Data & KPIs**:
+   - Anillos circulares de *Win Ratio %*, *Dead Hands (x/10)* y *OTK (x/10)* basados en simulación Monte Carlo.
+   - Comparativa de cartas más y menos jugadas.
+5. **Slide 5: Decklist Broadcast**:
+   - Vista de transmisión con cálculo de *Non-Engine (20+)* y viabilidad *Going 1st / 2nd*.
 
 ---
 
-## 5. Micro-interacciones y Animaciones (Framer Motion)
-- **Hover en Cartas**: Agrandamiento sutil (scale: 1.05) con un destello de borde de color según la rareza de la carta y efecto de sombra exterior brillante.
-- **Transición de Páginas (Page Flip)**: Animación 3D realista al cambiar de página en carpetas (binders).
-- **Indicadores Visuales de Funda (Sleeve Badges)**: Bordes resplandecientes o insignias pequeñas en las cartas para denotar `Doble Funda (Inner+Outer)`, `Funda Simple` o `Sin Funda`.
+## 4. Suite de Inteligencia Artificial (Gemini 3.1 Flash Lite)
 
----
-
-## 6. Sistema Visual de Almacenamiento Dinámico & Gestión de Fundas (Sleeves)
-
-### 6.1 Registro Visual de Fundas y Protección
-- **Visualización de Bordes**: Las cartas en el inventario o binder muestran el color/arte exacto de su funda o un contorno translúcido si tienen doble funda (*Inner Perfect Fit + Outer*).
-- **Inspección de Ranura**: Al hacer clic en un bolsillo del binder o slot de deckbox, se abre la ficha detallada indicando marca, color, estado y recomendaciones de la funda.
-
-### 6.2 Asistente Recomendador de Fundas (Sleeving Advisor)
-1. **Reglas de Valor & Protección**: Alerta visual si una carta de rareza alta/cara no tiene doble funda.
-2. **Normativa de Torneo TCG**: Verifica que el Main Deck y Side Deck usen fundas uniformes sin variaciones de tono, mientras sugiere fundas de color contrastante o Arte Oficial para el Extra Deck.
-3. **Optimización de Espacio**: Identifica cartas de bajo valor en latas que no requieren fundas individuales para reducir volumen.
+- **AI Copilot Modal Unificado**:
+  - **Sintetizador**: Construcción desde cero, optimización por colección física, sintonización con meta oficial de Agosto 2026 y optimizador de presupuesto.
+  - **Juez de Duelo en Vivo**: Chat contextualizado para manos iniciales, resolución de cadenas y mitigación de handtraps.
+- **Modelos Oficiales**: `gemini-3.1-flash-lite-preview` (predeterminado), `gemini-3-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`.
