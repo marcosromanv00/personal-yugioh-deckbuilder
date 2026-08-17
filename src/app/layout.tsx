@@ -1,40 +1,52 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit, JetBrains_Mono } from "next/font/google";
+import { Inter, Montserrat, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { ThemeProvider } from "@/components/ui/ThemeProvider";
 
-const outfit = Outfit({
+const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
+
+const montserrat = Montserrat({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800", "900"],
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "YGO Deckbuilder – Constructor de Decks Inteligente",
+  title: "Exordio DeckLab – Yu-Gi-Oh! Deck Builder & Analytics",
   description:
-    "Construye, analiza y optimiza tus decks de Yu-Gi-Oh! con datos del meta en tiempo real.",
+    "Construye, analiza y optimiza tus decks de Yu-Gi-Oh! con datos del meta y asistente táctico en tiempo real.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0d0f1a",
+  themeColor: "#09090b",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
-      className={`${outfit.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${montserrat.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">
-        <ToastProvider>{children}</ToastProvider>
+      <body className="min-h-full flex flex-col font-sans bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 transition-colors duration-200">
+        <ThemeProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

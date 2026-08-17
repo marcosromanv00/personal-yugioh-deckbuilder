@@ -1,9 +1,11 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ─── Design Tokens ──────────────────────────────────────────── */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #f8fafc;
+  --foreground: #09090b;
   /* Safe area insets (iOS notch/home bar) */
   --sat: env(safe-area-inset-top, 0px);
   --sar: env(safe-area-inset-right, 0px);
@@ -11,11 +13,17 @@
   --sal: env(safe-area-inset-left, 0px);
 }
 
+.dark {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans), system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-display), var(--font-sans), sans-serif;
+  --font-mono: var(--font-mono), monospace;
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
@@ -24,7 +32,7 @@ body {
   height: 100%;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   /* Prevent content jump on mobile scroll */
   overscroll-behavior: none;
 }
@@ -81,3 +89,56 @@ body {
     transition: transform 0.1s ease;
   }
 }
+
+/* ─── Exordio Tech & Tactical UI Utilities ───────────────────── */
+.tech-cut-tr {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+}
+
+.tech-cut-bl-tr {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+}
+
+.tech-cut-both {
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+}
+
+.tech-cut-panel {
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+}
+
+.tech-bracket-l {
+  border-left: 3px solid #dc2626;
+  padding-left: 0.5rem;
+}
+
+.tech-grid-pattern {
+  background-image: radial-gradient(rgba(220, 38, 38, 0.08) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.dark .tech-grid-pattern {
+  background-image: radial-gradient(rgba(244, 244, 245, 0.05) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.tech-stripes {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(220, 38, 38, 0.06) 6px,
+    rgba(220, 38, 38, 0.06) 12px
+  );
+}
+
+.dark .tech-stripes {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(220, 38, 38, 0.12) 6px,
+    rgba(220, 38, 38, 0.12) 12px
+  );
+}
+
