@@ -30,6 +30,7 @@ interface SearchPanelProps {
   setSearchLimit: React.Dispatch<React.SetStateAction<number>>;
   format: 'Master Duel' | 'TCG' | 'Duel Links';
   addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
+  openPreviewForCard?: (card: HoverCardBase) => void;
   handleDragCardStart: (e: React.DragEvent, cardData: any) => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
@@ -42,6 +43,7 @@ interface SearchResultsListProps {
   isMobile: boolean;
   getBanlistBadge: (card: Card) => React.ReactNode;
   addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
+  openPreviewForCard?: (card: HoverCardBase) => void;
   handleDragCardStart: (e: React.DragEvent, cardData: any) => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
@@ -54,6 +56,7 @@ const SearchResultsList = React.memo(({
   isMobile,
   getBanlistBadge,
   addCardToDeck,
+  openPreviewForCard,
   handleDragCardStart,
   handleCardMouseEnter,
   handleCardMouseLeave,
@@ -90,6 +93,12 @@ const SearchResultsList = React.memo(({
             draggable={!isMobile}
             onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype }) : undefined}
             onClick={() => addCardToDeck(card)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (openPreviewForCard) {
+                openPreviewForCard(card as HoverCardBase);
+              }
+            }}
             onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
             onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
             className="relative aspect-[3/4.4] bg-white dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow-xs"
@@ -120,6 +129,12 @@ const SearchResultsList = React.memo(({
           draggable
           onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
           onClick={() => addCardToDeck(card)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (openPreviewForCard) {
+              openPreviewForCard(card as HoverCardBase);
+            }
+          }}
           onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
           onMouseLeave={handleCardMouseLeave}
           className="flex gap-3 p-2.5 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group cursor-grab active:cursor-grabbing shadow-xs"

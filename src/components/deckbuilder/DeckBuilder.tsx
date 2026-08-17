@@ -157,6 +157,39 @@ export default function DeckBuilder() {
   const [isYdkUploadOpen, setIsYdkUploadOpen] = useState(false);
   const [isAICopilotOpen, setIsAICopilotOpen] = useState(false);
 
+  // 5. Right panel tabs & card detail selection
+  const [activeRightTab, setActiveRightTab] = useState<'detail' | 'meta'>('detail');
+  const [selectedDetailCard, setSelectedDetailCard] = useState<Card | DeckCard | HoverCardBase | null>(null);
+
+  const selectedDeckCard = selectedDetailCard
+    ? state.deckCards.find((c) => c.id === selectedDetailCard.id) || null
+    : null;
+
+  const handleSelectCardForDetail = useCallback(
+    (card: Card | DeckCard | HoverCardBase) => {
+      setSelectedDetailCard(card);
+      setActiveRightTab('detail');
+      if (!resize.rightPanelOpen) {
+        resize.setRightPanelOpen(true);
+      }
+    },
+    [resize]
+  );
+
+  const handleUpdateDeckCard = useCallback(
+    (cardId: number, updates: Partial<DeckCard>) => {
+      state.setDeckCards((prev) =>
+        prev.map((c) => {
+          if (c.id === cardId) {
+            return { ...c, ...updates };
+          }
+          return c;
+        })
+      );
+    },
+    [state]
+  );
+
   // Aplicar receta generada por Gemini AI al constructor
   const handleApplyGeneratedDeck = useCallback(
     async (cards: { name: string; count: number; section: 'main' | 'extra' }[]) => {
@@ -244,6 +277,8 @@ export default function DeckBuilder() {
   const handleAddCardWithFeedback = useCallback(
     (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'extras') => {
       state.addCardToDeck(card, targetSection);
+      setSelectedDetailCard(card);
+      setActiveRightTab('detail');
       toast.success(`+1 ${card.name}`, {
         duration: 3000,
         action: {
@@ -509,6 +544,8 @@ export default function DeckBuilder() {
     handleCardMouseEnter: preview.handleCardMouseEnter,
     handleCardMouseLeave: preview.handleCardMouseLeave,
     openPreviewForCard: preview.openPreviewForCard,
+    onSelectCard: handleSelectCardForDetail,
+    selectedCardId: selectedDetailCard?.id,
   };
 
   return (
@@ -690,6 +727,7 @@ export default function DeckBuilder() {
               setSearchLimit={state.setSearchLimit}
               format={state.format}
               addCardToDeck={handleAddCardWithFeedback}
+              openPreviewForCard={preview.openPreviewForCard}
               handleDragCardStart={handleDragCardStart}
               handleCardMouseEnter={preview.handleCardMouseEnter}
               handleCardMouseLeave={preview.handleCardMouseLeave}
@@ -771,12 +809,23 @@ export default function DeckBuilder() {
               />
             )}
 
-            {/* META ANALYSIS */}
+            {/* META ANALYSIS & CARD DETAIL */}
             <MetaAnalysisPanel
               rightPanelOpen={resize.rightPanelOpen}
               setRightPanelOpen={resize.setRightPanelOpen}
               rightPanelWidth={resize.rightPanelWidth}
               isMobile={false}
+              activeRightTab={activeRightTab}
+              setActiveRightTab={setActiveRightTab}
+              selectedDetailCard={selectedDetailCard}
+              selectedDeckCard={selectedDeckCard}
+              onUpdateDeckCard={handleUpdateDeckCard}
+              onRemoveFromDeck={handleRemoveCardWithFeedback}
+              onAddCardToDeck={handleAddCardWithFeedback}
+              onToggleFavorite={state.handleToggleFavorite}
+              favoriteCardIds={state.favoriteCardIds}
+              availableSleeves={state.availableSleeves}
+              format={state.format}
               isAnalyzing={state.isAnalyzing}
               inferredArchetype={state.inferredArchetype}
               detectedArchetypes={state.detectedArchetypes}
@@ -868,6 +917,17 @@ export default function DeckBuilder() {
                   setRightPanelOpen={resize.setRightPanelOpen}
                   rightPanelWidth={resize.rightPanelWidth}
                   isMobile={false}
+                  activeRightTab={activeRightTab}
+                  setActiveRightTab={setActiveRightTab}
+                  selectedDetailCard={selectedDetailCard}
+                  selectedDeckCard={selectedDeckCard}
+                  onUpdateDeckCard={handleUpdateDeckCard}
+                  onRemoveFromDeck={handleRemoveCardWithFeedback}
+                  onAddCardToDeck={handleAddCardWithFeedback}
+                  onToggleFavorite={state.handleToggleFavorite}
+                  favoriteCardIds={state.favoriteCardIds}
+                  availableSleeves={state.availableSleeves}
+                  format={state.format}
                   isAnalyzing={state.isAnalyzing}
                   inferredArchetype={state.inferredArchetype}
                   detectedArchetypes={state.detectedArchetypes}
@@ -966,7 +1026,7 @@ export default function DeckBuilder() {
             <MobileBottomSheet
               isOpen={activeMobileTab === 'meta'}
               onClose={() => setActiveMobileTab('deck')}
-              title="📊 Análisis del Meta"
+              title="📊 Detalle & Análisis"
               heightClass="h-[85vh]"
             >
               <div className="p-4">
@@ -975,6 +1035,17 @@ export default function DeckBuilder() {
                   setRightPanelOpen={() => setActiveMobileTab('deck')}
                   rightPanelWidth={0}
                   isMobile={true}
+                  activeRightTab={activeRightTab}
+                  setActiveRightTab={setActiveRightTab}
+                  selectedDetailCard={selectedDetailCard}
+                  selectedDeckCard={selectedDeckCard}
+                  onUpdateDeckCard={handleUpdateDeckCard}
+                  onRemoveFromDeck={handleRemoveCardWithFeedback}
+                  onAddCardToDeck={handleAddCardWithFeedback}
+                  onToggleFavorite={state.handleToggleFavorite}
+                  favoriteCardIds={state.favoriteCardIds}
+                  availableSleeves={state.availableSleeves}
+                  format={state.format}
                   isAnalyzing={state.isAnalyzing}
                   inferredArchetype={state.inferredArchetype}
                   detectedArchetypes={state.detectedArchetypes}

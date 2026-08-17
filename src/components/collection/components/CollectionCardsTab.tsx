@@ -22,6 +22,7 @@ interface CollectionCardsTabProps {
   handleToggleFavorite: (uc: UserCard) => Promise<void>;
   handleDeleteCard: (id: string) => Promise<void>;
   handleUpdateCardStatus: (id: string, status: string) => Promise<void>;
+  onCardContextMenu?: (uc: UserCard) => void;
 }
 
 /**
@@ -45,6 +46,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
   handleToggleFavorite,
   handleDeleteCard,
   handleUpdateCardStatus,
+  onCardContextMenu,
 }) => {
   return (
     <div className="space-y-6">
@@ -168,7 +170,13 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
             return (
               <div 
                 key={uc.id}
-                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 flex flex-col justify-between hover:border-red-500/50 transition-all duration-200 relative group shadow-xs"
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (onCardContextMenu) {
+                    onCardContextMenu(uc);
+                  }
+                }}
+                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 flex flex-col justify-between hover:border-red-500/50 transition-all duration-200 relative group shadow-xs cursor-pointer"
               >
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

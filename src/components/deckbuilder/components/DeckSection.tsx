@@ -15,6 +15,8 @@ interface DeckSectionProps {
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
   openPreviewForCard: (card: HoverCardBase) => void;
+  onSelectCard?: (card: DeckCard) => void;
+  selectedCardId?: number | null;
   sleeveColorHex?: string;
 }
 
@@ -31,6 +33,8 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
   handleCardMouseEnter,
   handleCardMouseLeave,
   openPreviewForCard,
+  onSelectCard,
+  selectedCardId,
   sleeveColorHex,
 }) => {
   const sectionCards = deckCards.filter(c => c.section === section);
@@ -142,42 +146,66 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
-          {sectionCards.map(c => (
-            <TouchableCard
-              key={c.id}
-              card={c as HoverCardBase}
-              onTap={() => removeCardFromDeck(c.id, section)}
-              onOpenPreview={openPreviewForCard}
-              onMouseEnter={handleCardMouseEnter}
-              onMouseLeave={handleCardMouseLeave}
-              draggable={true}
-              onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: section })}
-              showInfoButton={true}
-              className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border touch-manipulation card-tap group hover:scale-105 transition-all duration-200 ${
-                c.proxy_count && c.proxy_count > 0
-                  ? 'border-red-500/70 shadow-md shadow-red-500/20 hover:border-red-400'
-                  : sleeveColorHex
-                    ? ''
-                    : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
-              }`}
-              style={sleeveColorHex ? { borderColor: sleeveColorHex, borderWidth: '2.5px', borderStyle: 'solid' } : undefined}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={c.image_url}
-                alt={c.name}
-                className="w-full h-full object-contain"
-                onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
-              />
-              {getBanlistBadge(c)}
-              {renderCardFanCount(c.count)}
-              {c.proxy_count && c.proxy_count > 0 && (
-                <span className="absolute top-0.5 left-0.5 bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded leading-none uppercase shadow">
-                  P{c.proxy_count > 1 ? c.proxy_count : ''}
-                </span>
-              )}
-            </TouchableCard>
-          ))}
+          {sectionCards.map(c => {
+            const isSelected = selectedCardId === c.id;
+            return (
+              <div
+                key={`${c.id}-${section}`}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  openPreviewForCard(c as HoverCardBase);
+                }}
+                className="relative"
+              >
+                <TouchableCard
+                  card={c as HoverCardBase}
+                  onTap={() => {
+                    if (onSelectCard) {
+                      onSelectCard(c);
+                    } else {
+                      removeCardFromDeck(c.id, section);
+                    }
+                  }}
+                  onOpenPreview={openPreviewForCard}
+                  onMouseEnter={handleCardMouseEnter}
+                  onMouseLeave={handleCardMouseLeave}
+                  draggable={true}
+                  onDragStart={(e) => handleDragCardStart(e, { id: c.id, name: c.name, type: c.type, image_url: c.image_url, archetype: c.archetype, fromSection: section })}
+                  showInfoButton={true}
+                  className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border touch-manipulation card-tap group hover:scale-105 transition-all duration-200 cursor-pointer ${
+                    isSelected
+                      ? 'ring-2 ring-red-500 shadow-md shadow-red-500/40 border-red-500 scale-102 z-10'
+                      : c.proxy_count && c.proxy_count > 0
+                        ? 'border-red-500/70 shadow-md shadow-red-500/20 hover:border-red-400'
+                        : sleeveColorHex
+                          ? ''
+                          : 'border-[hsl(224,15%,16%)] hover:border-red-500/50'
+                  }`}
+                  style={sleeveColorHex ? { borderColor: sleeveColorHex, borderWidth: '2.5px', borderStyle: 'solid' } : undefined}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={c.image_url}
+                    alt={c.name}
+                    className="w-full h-full object-contain"
+                    onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
+                  />
+                  {getBanlistBadge(c)}
+                  {renderCardFanCount(c.count)}
+                  {c.proxy_count && c.proxy_count > 0 && (
+                    <span className="absolute top-0.5 left-0.5 bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded leading-none uppercase shadow">
+                      P{c.proxy_count > 1 ? c.proxy_count : ''}
+                    </span>
+                  )}
+                  {c.rarity && c.rarity !== 'Common' && (
+                    <span className="absolute bottom-0.5 right-0.5 bg-amber-500/90 text-black text-[6px] font-black px-1 rounded uppercase tracking-tighter leading-none shadow">
+                      {c.rarity.substring(0, 3)}
+                    </span>
+                  )}
+                </TouchableCard>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

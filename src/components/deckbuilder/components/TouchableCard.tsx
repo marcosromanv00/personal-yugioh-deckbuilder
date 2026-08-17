@@ -57,6 +57,10 @@ export const TouchableCard: React.FC<TouchableCardProps> = ({
       onMouseEnter={onMouseEnter ? () => onMouseEnter(card) : undefined}
       onMouseLeave={onMouseLeave}
       onClick={onTap}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onOpenPreview(card);
+      }}
       /* ── Touch interactions ── */
       onTouchStart={longPress.onTouchStart}
       onTouchMove={longPress.onTouchMove}
