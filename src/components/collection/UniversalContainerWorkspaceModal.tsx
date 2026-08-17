@@ -110,7 +110,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   // Paginación y filtros internos del contenedor (panel central)
   const [containerSearch, setContainerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [activeCompartment, setActiveCompartment] = useState(0);
+  const [activeCompartment, setActiveCompartment] = useState<number>(-1);
   const [currentGridPage, setCurrentGridPage] = useState(1);
   const [currentBinderViewIndex, setCurrentBinderViewIndex] = useState(0);
 
@@ -351,13 +351,15 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         });
       }
 
+      const effectiveCompartment = activeCompartment === -1 ? 0 : activeCompartment;
+
       // Mover la carta física a este contenedor
       const payload: Record<string, unknown> = {
         id: userCard.id,
         storage_location_id: isInbox ? null : containerId,
         deck_id: null,
         deck_section: null,
-        compartment_index: activeCompartment,
+        compartment_index: effectiveCompartment,
       };
 
       if (containerType === 'binder') {
@@ -435,6 +437,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         }
       }
 
+      const effectiveCompartment = activeCompartment === -1 ? 0 : activeCompartment;
+
       const payload: Record<string, unknown> = {
         card_id: card.id,
         storage_location_id: isInbox ? null : containerId,
@@ -443,7 +447,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         condition: 'Near Mint',
         status_flag: 'collection',
         sleeve_type: 'none',
-        compartment_index: activeCompartment,
+        compartment_index: effectiveCompartment,
       };
 
       if (containerType === 'binder') {
@@ -597,10 +601,10 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     return cards.filter(c => {
       const nameMatch = !containerSearch || (c.card_details?.name.toLowerCase().includes(containerSearch.toLowerCase()) ?? false);
       const statusMatch = statusFilter === 'all' || c.status_flag === statusFilter;
-      const compMatch = containerType !== 'box' || !location?.compartments || location.compartments.count <= 1 || c.compartment_index === activeCompartment;
+      const compMatch = activeCompartment === -1 || (c.compartment_index || 0) === activeCompartment;
       return nameMatch && statusMatch && compMatch;
     });
-  }, [cards, containerSearch, statusFilter, activeCompartment, containerType, location]);
+  }, [cards, containerSearch, statusFilter, activeCompartment]);
 
   // Paginación para Box / Tin / Inbox
   const CARDS_PER_GRID_PAGE = 30;
@@ -1060,6 +1064,48 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             </div>
           </div>
 
+          {/* Tabs de Carriles / Compartimentos */}
+          {location?.compartments && location.compartments.count > 1 && (
+            <div className="px-3 sm:px-6 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/30 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
+              <span className="text-[10px] font-mono font-black uppercase text-zinc-400 dark:text-zinc-500 mr-1 shrink-0 flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5 text-purple-500" />
+                <span>Carriles:</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setActiveCompartment(-1)}
+                className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  activeCompartment === -1
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+                }`}
+              >
+                <span>Todos los carriles ({cards.length})</span>
+              </button>
+
+              {location.compartments.names.map((compName, idx) => {
+                const compCount = cards.filter(c => (c.compartment_index || 0) === idx).length;
+                const isActive = activeCompartment === idx;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveCompartment(idx)}
+                    className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    <Box className="w-3 h-3 text-purple-400" />
+                    <span>{compName || `Carril ${idx + 1}`} ({compCount})</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Banner de Click to Place para Binders */}
           <AnimatePresence>
             {selectedSearchCard && (
@@ -1510,6 +1556,27 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                     <option value="workshop">Taller / Decks Activos</option>
                   </select>
                 </div>
+
+                {/* Carril / Compartimento */}
+                {location?.compartments && location.compartments.count > 1 && (
+                  <div>
+                    <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <Layers className="w-3 h-3 text-purple-400" />
+                      <span>Carril / Compartimento</span>
+                    </label>
+                    <select
+                      value={selectedUserCard.compartment_index ?? 0}
+                      onChange={(e) => handleUpdateCard({ compartment_index: parseInt(e.target.value) })}
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer font-bold"
+                    >
+                      {location.compartments.names.map((compName, idx) => (
+                        <option key={idx} value={idx}>
+                          📦 {compName || `Carril ${idx + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Mover de Contenedor */}
                 <div>

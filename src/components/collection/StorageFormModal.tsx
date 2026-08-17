@@ -22,6 +22,8 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
   const [cols, setCols] = useState(3);
   const [description, setDescription] = useState('');
   const [totalPages, setTotalPages] = useState(40);
+  const [compartmentCount, setCompartmentCount] = useState(1);
+  const [compartmentNames, setCompartmentNames] = useState<string[]>(['Principal']);
 
   useEffect(() => {
     if (isOpen) {
@@ -35,6 +37,13 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
         setCols(initialData.grid_layout?.cols || 3);
         setDescription(initialData.description || '');
         setTotalPages(initialData.grid_layout?.total_pages || 40);
+        if (initialData.compartments) {
+          setCompartmentCount(initialData.compartments.count || 1);
+          setCompartmentNames(initialData.compartments.names || ['Principal']);
+        } else {
+          setCompartmentCount(1);
+          setCompartmentNames(['Principal']);
+        }
       } else {
         setName('');
         setType('binder');
@@ -45,11 +54,37 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
         setCols(3);
         setDescription('');
         setTotalPages(40);
+        setCompartmentCount(1);
+        setCompartmentNames(['Principal']);
       }
     }
   }, [isOpen, initialData]);
 
   if (!isOpen) return null;
+
+  const handleCompartmentCountChange = (newCount: number) => {
+    const count = Math.max(1, Math.min(10, newCount));
+    setCompartmentCount(count);
+    setCompartmentNames(prev => {
+      const next = [...prev];
+      if (count > next.length) {
+        for (let i = next.length; i < count; i++) {
+          next.push(`Carril ${i + 1}`);
+        }
+      } else {
+        next.length = count;
+      }
+      return next;
+    });
+  };
+
+  const handleCompartmentNameChange = (index: number, val: string) => {
+    setCompartmentNames(prev => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
+  };
 
   const handlePagesChange = (pages: number) => {
     setTotalPages(pages);
@@ -110,8 +145,8 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
         total_pages: Math.ceil(capacity / (rows * cols || 1)),
       },
       compartments: {
-        count: 1,
-        names: ['Principal'],
+        count: compartmentCount,
+        names: compartmentNames.map((n, idx) => n.trim() || `Carril ${idx + 1}`),
       },
       render_style: `${type}_${subType}`,
       description,
@@ -355,6 +390,61 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                   <span className="text-xs font-mono font-bold text-zinc-500">{colorCode}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Configuración de Carriles / Compartimentos */}
+            <div className="bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10.5px] font-mono font-black uppercase text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Carriles / Compartimentos</span>
+                  </span>
+                  <p className="text-[10px] text-zinc-500 font-mono">
+                    Divide esta caja en filas o secciones independientes
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1">
+                  <button
+                    type="button"
+                    disabled={compartmentCount <= 1}
+                    onClick={() => handleCompartmentCountChange(compartmentCount - 1)}
+                    className="px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold disabled:opacity-40 cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="px-2 text-xs font-mono font-black text-purple-500">
+                    {compartmentCount} {compartmentCount === 1 ? 'carril' : 'carriles'}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={compartmentCount >= 10}
+                    onClick={() => handleCompartmentCountChange(compartmentCount + 1)}
+                    className="px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs font-bold disabled:opacity-40 cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {compartmentCount > 1 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-36 overflow-y-auto">
+                  {compartmentNames.map((cName, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono font-bold text-zinc-400 shrink-0 w-12">
+                        Carril {idx + 1}:
+                      </span>
+                      <input
+                        type="text"
+                        value={cName}
+                        onChange={(e) => handleCompartmentNameChange(idx, e.target.value)}
+                        placeholder={`Nombre carril ${idx + 1}`}
+                        className="flex-1 px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-bold focus:border-purple-500 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Descripción */}
