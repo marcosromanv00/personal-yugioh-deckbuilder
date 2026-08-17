@@ -37,6 +37,11 @@ export const viewport: Viewport = {
   themeColor: "#09090b",
 };
 
+import { IdealEnvironmentProvider } from "@/context/IdealEnvironmentContext";
+import { IdealSyncLoaderModal } from "@/components/collection/IdealSyncLoaderModal";
+import { IdealReportModal } from "@/components/collection/IdealReportModal";
+import { PhysicalStagingAssistantModal } from "@/components/collection/PhysicalStagingAssistantModal";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -45,9 +50,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col font-sans bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 transition-colors duration-200">
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <IdealEnvironmentProvider>
+              {children}
+              <IdealSyncLoaderModal />
+              <IdealReportModal />
+              <PhysicalStagingAssistantModal />
+            </IdealEnvironmentProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
+
