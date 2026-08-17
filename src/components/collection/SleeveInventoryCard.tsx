@@ -33,11 +33,11 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group relative bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-xl overflow-hidden hover:border-purple-500/40 transition-all duration-300"
+      className="group relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden hover:border-red-500/50 shadow-xs transition-all duration-200"
     >
       {/* Color swatch strip */}
       <div
-        className="h-2 w-full"
+        className="h-2.5 w-full"
         style={{ backgroundColor: sleeve.color_hex || '#1a1a2e' }}
       />
 
@@ -45,20 +45,20 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-white truncate">{sleeve.name}</h3>
-            <p className="text-xs text-slate-400 truncate">{sleeve.brand}</p>
+            <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate">{sleeve.name}</h3>
+            <p className="text-xs font-bold text-zinc-500 truncate font-mono">{sleeve.brand}</p>
           </div>
           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
               onClick={() => onEdit(sleeve)}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-purple-900/60 hover:text-purple-300 text-slate-400 transition-colors"
+              className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer"
               title="Editar"
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onDelete(sleeve)}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/60 hover:text-red-400 text-slate-400 transition-colors"
+              className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-red-100 dark:hover:bg-red-950/40 hover:text-red-500 text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer"
               title="Eliminar"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -68,34 +68,34 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve
 
         {/* Color & Size badges */}
         <div className="flex flex-wrap gap-1.5 mb-3">
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800/70 text-[10px] text-slate-300 border border-slate-700/50">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
             <span
-              className="w-2.5 h-2.5 rounded-full border border-white/20"
+              className="w-2.5 h-2.5 rounded-full border border-black/10 dark:border-white/20 shadow-xs"
               style={{ backgroundColor: sleeve.color_hex || '#1a1a2e' }}
             />
             {sleeve.color_pattern}
           </span>
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800/70 text-[10px] text-slate-300 border border-slate-700/50">
-            <Layers className="w-2.5 h-2.5" />
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+            <Layers className="w-2.5 h-2.5 text-zinc-400" />
             {SIZE_LABELS[sleeve.size_type] || sleeve.size_type}
           </span>
-          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border ${conditionCfg.bg} ${conditionCfg.color}`}>
+          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${conditionCfg.bg} ${conditionCfg.color}`}>
             {conditionCfg.label}
           </span>
         </div>
 
         {/* Availability bar */}
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-              <Package className="w-3 h-3" />
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 font-mono">
+              <Package className="w-3 h-3 text-red-500" />
               Disponibilidad
             </span>
-            <span className="text-[10px] font-bold text-white">
-              {available} <span className="text-slate-500 font-normal">/ {sleeve.quantity_total}</span>
+            <span className="text-[10px] font-black text-zinc-900 dark:text-zinc-100 font-mono">
+              {available} <span className="text-zinc-400 font-normal">/ {sleeve.quantity_total}</span>
             </span>
           </div>
-          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${availPct}%` }}
@@ -106,7 +106,7 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve
         </div>
 
         {sleeve.notes && (
-          <p className="mt-2 text-[10px] text-slate-500 line-clamp-2">{sleeve.notes}</p>
+          <p className="mt-2 text-[10px] text-zinc-500 line-clamp-2 italic">{sleeve.notes}</p>
         )}
       </div>
     </motion.div>
@@ -118,12 +118,12 @@ export const AddSleeveCard: React.FC<{ onClick: () => void }> = ({ onClick }) =>
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     onClick={onClick}
-    className="group relative bg-[hsl(224,22%,10%)] border border-dashed border-[hsl(224,15%,22%)] rounded-xl p-4 hover:border-purple-500/60 hover:bg-purple-500/5 transition-all duration-300 min-h-35 flex flex-col items-center justify-center gap-2"
+    className="group relative bg-white dark:bg-zinc-900 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 hover:border-red-500/60 hover:bg-red-50/20 dark:hover:bg-red-950/10 transition-all duration-200 min-h-35 flex flex-col items-center justify-center gap-2 cursor-pointer shadow-xs"
   >
-    <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-      <Layers className="w-5 h-5 text-purple-400" />
+    <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 flex items-center justify-center group-hover:scale-105 transition-all text-red-600 dark:text-red-400">
+      <Layers className="w-5 h-5" />
     </div>
-    <span className="text-xs text-slate-400 group-hover:text-purple-300 transition-colors font-medium">
+    <span className="text-xs font-black uppercase tracking-wider text-zinc-600 dark:text-zinc-400 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
       Agregar Fundas
     </span>
   </motion.button>

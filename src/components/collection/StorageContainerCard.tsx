@@ -91,8 +91,8 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
     <motion.div
       whileHover={{ 
         y: -4,
-        borderColor: isDragOver ? '#06b6d4' : (location.color_code || 'hsl(224, 15%, 25%)'),
-        boxShadow: `0 10px 30px -10px ${location.color_code || '#8b5cf6'}25`
+        borderColor: isDragOver ? '#06b6d4' : (location.color_code || '#dc2626'),
+        boxShadow: `0 10px 30px -10px ${location.color_code || '#dc2626'}25`
       }}
       whileTap={{ scale: 0.98 }}
       onClick={() => onClick(location)}
@@ -100,87 +100,87 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`relative cursor-pointer group rounded-2xl p-5 border transition-all duration-300 shadow-md shadow-black/25 overflow-hidden ${
+      className={`relative cursor-pointer group rounded-2xl p-5 border transition-all duration-300 shadow-sm overflow-hidden ${
         isDragOver 
-          ? 'border-cyan-400 bg-cyan-950/20 shadow-cyan-950/40 shadow-lg scale-[1.02]' 
-          : 'border-[hsl(224,15%,16%)] bg-[hsl(224,22%,10%)]/70 hover:bg-[hsl(224,22%,10%)]/95'
+          ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30 shadow-lg scale-[1.02]' 
+          : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-500/50'
       }`}
     >
       {/* Efecto hover premium para drag zone */}
       {isDragOver && (
-        <div className="absolute inset-0 border-2 border-dashed border-cyan-400/60 rounded-2xl pointer-events-none animate-pulse" />
+        <div className="absolute inset-0 border-2 border-dashed border-cyan-500 rounded-2xl pointer-events-none animate-pulse" />
       )}
 
       <div className="flex items-start justify-between">
         <div className="flex items-center space-x-3">
-          <div className="p-3 rounded-xl flex items-center justify-center border border-[hsl(224,15%,16%)] bg-[hsl(224,25%,6%)]">
+          <div className="p-3 rounded-xl flex items-center justify-center border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950 shadow-xs">
             {getContainerIcon()}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-base text-slate-100 group-hover:text-purple-300 transition-colors">
+              <h3 className="font-black text-base text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors">
                 {location.name}
               </h3>
               <div 
-                className="w-2.5 h-2.5 rounded-full shrink-0" 
-                style={{ backgroundColor: location.color_code || '#8b5cf6' }} 
+                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" 
+                style={{ backgroundColor: location.color_code || '#dc2626' }} 
                 title="Color del contenedor"
               />
             </div>
-            <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-mono mt-1.5 bg-slate-950/60 text-slate-400 border border-slate-850">
+            <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-mono font-bold mt-1.5 bg-zinc-100 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800">
               {getFormatBadge()}
             </span>
           </div>
         </div>
 
         {/* Botones de Acción */}
-        <div className="flex space-x-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
+        <div className="flex space-x-1 opacity-90 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onEdit(location);
             }}
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-450 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
             title="Editar contenedor"
           >
-            <Pencil className="w-3 h-3" />
+            <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onCopy(location);
             }}
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-455 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
             title="Duplicar contenedor"
           >
-            <Copy className="w-3 h-3" />
+            <Copy className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onDelete(location.id);
             }}
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-455 hover:text-red-400 hover:bg-red-950/20 hover:border-red-900/40 transition-colors"
+            className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
             title="Eliminar contenedor"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {location.description && (
-        <p className="text-xs text-slate-400 mt-3.5 line-clamp-2">
+        <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-3.5 line-clamp-2 font-medium">
           {location.description}
         </p>
       )}
 
       {/* Listado interactivo de decks vinculados */}
       {storedDecks.length > 0 && (
-        <div className="mt-3.5 pt-3 border-t border-[hsl(224,15%,16%)]/40" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-3.5 pt-3 border-t border-zinc-200 dark:border-zinc-800" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={() => setIsDecksExpanded(!isDecksExpanded)}
-            className="flex items-center justify-between w-full text-[10px] font-mono text-slate-500 hover:text-slate-350 transition-colors uppercase tracking-wider cursor-pointer"
+            className="flex items-center justify-between w-full text-[10px] font-mono font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 transition-colors uppercase tracking-wider cursor-pointer"
           >
             <span>Decks Almacenados ({storedDecks.length})</span>
             <span className="text-[10px] transition-transform duration-250 select-none" style={{ transform: isDecksExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
@@ -199,17 +199,17 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
                       onDeckClick(deck);
                     }
                   }}
-                  className="flex items-center justify-between text-xs bg-slate-950/80 p-2 rounded-lg border border-slate-800 hover:border-cyan-400 hover:bg-slate-900 transition-all cursor-pointer group/deck"
+                  className="flex items-center justify-between text-xs bg-zinc-50 dark:bg-zinc-950 p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all cursor-pointer group/deck"
                   title="Haz clic para ver los detalles y cartas de este deck"
                 >
                   <div className="flex items-center gap-1.5 truncate">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0 group-hover/deck:scale-125 transition-transform" />
-                    <span className="font-semibold text-slate-200 group-hover/deck:text-cyan-300 transition-colors truncate">{deck.name}</span>
-                    <span className="text-[9px] font-mono text-slate-500 shrink-0">({deck.format})</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 group-hover/deck:scale-125 transition-transform" />
+                    <span className="font-bold text-zinc-900 dark:text-zinc-100 group-hover/deck:text-red-500 transition-colors truncate">{deck.name}</span>
+                    <span className="text-[9px] font-mono font-bold text-zinc-500 shrink-0">({deck.format})</span>
                   </div>
                   
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[9px] font-mono text-cyan-400 group-hover/deck:underline hidden xs:inline">
+                    <span className="text-[9px] font-mono font-bold text-red-500 group-hover/deck:underline hidden xs:inline">
                       Ver detalle
                     </span>
                     {/* Botón para sacar del contenedor */}
@@ -220,7 +220,7 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
                           e.stopPropagation();
                           onDropDeck(deck.id, null);
                         }}
-                        className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-amber-400 transition-colors cursor-pointer"
+                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-amber-500 transition-colors cursor-pointer"
                         title="Sacar de este contenedor"
                       >
                         <LogOut className="w-3 h-3" />
@@ -235,30 +235,30 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
       )}
 
       {/* Barra de Ocupación / Estado de Decks */}
-      <div className="mt-4 pt-3 border-t border-[hsl(224,15%,16%)]">
+      <div className="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800">
         {location.type === 'deckbox' ? (
           <div className="flex flex-col gap-1.5">
-            <div className="flex justify-between items-center text-[11px] font-mono text-slate-400">
+            <div className="flex justify-between items-center text-[11px] font-mono font-bold text-zinc-500">
               <span>Barajas Guardadas</span>
-              <span className="text-cyan-400 font-semibold">{storedDecks.length} deck(s)</span>
+              <span className="text-red-600 dark:text-red-400 font-bold">{storedDecks.length} deck(s)</span>
             </div>
             {storedDecks.length === 0 && (
-              <span className="text-[10px] text-amber-500 font-mono italic">
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono font-bold italic">
                 ⚠️ Sin barajas asignadas
               </span>
             )}
           </div>
         ) : (
           <>
-            <div className="flex justify-between items-center text-[11px] font-mono text-slate-400 mb-1">
+            <div className="flex justify-between items-center text-[11px] font-mono font-bold text-zinc-500 mb-1">
               <span>Ocupación</span>
-              <span className="text-slate-200 font-semibold">{occupied} / {capacity}</span>
+              <span className="text-zinc-900 dark:text-zinc-100 font-bold">{occupied} / {capacity}</span>
             </div>
-            <div className="w-full bg-slate-950/80 rounded-full h-1.5 overflow-hidden border border-slate-900">
+            <div className="w-full bg-zinc-100 dark:bg-zinc-950 rounded-full h-2 overflow-hidden border border-zinc-200 dark:border-zinc-800">
               <motion.div
                 className="h-full rounded-full"
                 style={{
-                  backgroundColor: location.color_code || '#8b5cf6',
+                  backgroundColor: location.color_code || '#dc2626',
                   width: `${occupancyPercent}%`,
                 }}
                 initial={{ width: 0 }}
@@ -268,7 +268,8 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
             </div>
           </>
         )}
-      </div>    </motion.div>
+      </div>
+    </motion.div>
   );
 };
 
@@ -277,20 +278,19 @@ export const AddContainerCard: React.FC<{ onClick: () => void }> = ({ onClick })
     <motion.div
       whileHover={{ 
         y: -4,
-        borderColor: '#8b5cf6',
-        backgroundColor: 'rgba(139, 92, 246, 0.03)'
+        borderColor: '#dc2626',
       }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="cursor-pointer rounded-2xl p-5 border border-dashed border-[hsl(224,15%,16%)] bg-[hsl(224,22%,10%)]/20 transition-all duration-300 flex flex-col items-center justify-center min-h-40 group text-center"
+      className="cursor-pointer rounded-2xl p-5 border-2 border-dashed border-zinc-300 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 hover:bg-white dark:hover:bg-zinc-900 transition-all duration-300 flex flex-col items-center justify-center min-h-40 group text-center shadow-xs"
     >
-      <div className="p-3 rounded-xl bg-purple-900/10 text-purple-400 group-hover:scale-110 transition-transform mb-2 border border-purple-900/20">
+      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform mb-2 border border-red-200 dark:border-red-900/40 shadow-xs">
         <Plus className="w-5 h-5" />
       </div>
-      <span className="text-sm font-medium text-slate-350 group-hover:text-purple-300">
+      <span className="text-sm font-black text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 uppercase tracking-wider">
         Añadir Nuevo Contenedor
       </span>
-      <span className="text-xs text-slate-500 mt-1 font-mono">
+      <span className="text-xs text-zinc-500 mt-1 font-mono font-medium">
         Binder, Lata, Deckbox o Caja
       </span>
     </motion.div>

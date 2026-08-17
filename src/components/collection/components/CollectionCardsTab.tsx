@@ -50,9 +50,11 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
     <div className="space-y-6">
       {/* Header Disclaimer for Favorites Mode */}
       {activeTab === 'favorites' && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-pink-950/20 border border-pink-900/30">
-          <Heart className="w-4 h-4 fill-pink-500 text-pink-500" />
-          <span className="text-xs font-semibold text-pink-300">Mostrando sólo cartas marcadas como favoritas</span>
+        <div className="flex items-center gap-2 p-3 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 shadow-xs">
+          <Heart className="w-4 h-4 fill-red-500 text-red-500 shrink-0" />
+          <span className="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300 font-mono">
+            [ FAVORITAS ] Mostrando cartas marcadas como favoritas en tu colección y taller
+          </span>
         </div>
       )}
 
@@ -63,17 +65,17 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
           placeholder="Buscar por nombre, rareza, notas..."
           value={allSearchQuery}
           onChange={(e) => setAllSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
+          className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-2xl text-xs font-bold focus:outline-none shadow-xs transition-colors"
         />
-        <Search className="w-3.5 h-3.5 absolute left-3 top-3.5 text-[hsl(215,15%,70%)]" />
+        <Search className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
       </div>
 
       {/* Location / Deck filters (only in Complete Tab) */}
       {activeTab === 'complete' && (
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-            <span className="text-[10px] uppercase font-bold text-slate-400">Ubicación:</span>
+            <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
+            <span className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Ubicación:</span>
           </div>
           <div className="relative">
             <select
@@ -82,36 +84,36 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                 setLocationFilter(e.target.value);
                 setDeckFilter('');
               }}
-              className="pl-3 pr-7 py-1.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 text-xs text-slate-200 rounded-lg focus:outline-none focus:border-purple-500 appearance-none cursor-pointer"
+              className="pl-3 pr-7 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs font-bold text-zinc-900 dark:text-zinc-100 rounded-xl focus:outline-none focus:border-red-500 appearance-none cursor-pointer shadow-xs"
             >
-              <option value="">Todas las ubicaciones</option>
-              <option value="inbox">📥 Sin Clasificar (Inbox)</option>
-              <option value="in_deck">⚔️ En Deck</option>
+              <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Todas las ubicaciones</option>
+              <option value="inbox" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">📥 Sin Clasificar (Inbox)</option>
+              <option value="in_deck" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">⚔️ En Deck</option>
               {locations.map(l => (
-                <option key={l.id} value={l.id}>📦 {l.name}</option>
+                <option key={l.id} value={l.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">📦 {l.name}</option>
               ))}
             </select>
-            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2 top-2.5 pointer-events-none" />
+            <ChevronDown className="w-3 h-3 text-zinc-400 absolute right-2 top-2.5 pointer-events-none" />
           </div>
           {locationFilter === 'in_deck' && (
             <div className="relative">
               <select
                 value={deckFilter}
                 onChange={(e) => setDeckFilter(e.target.value)}
-                className="pl-3 pr-7 py-1.5 bg-[hsl(224,25%,6%)] border border-purple-500/40 text-xs text-purple-200 rounded-lg focus:outline-none appearance-none cursor-pointer"
+                className="pl-3 pr-7 py-1.5 bg-white dark:bg-zinc-900 border border-red-500/40 text-xs font-bold text-red-600 dark:text-red-300 rounded-xl focus:outline-none appearance-none cursor-pointer shadow-xs"
               >
-                <option value="">Todos los decks</option>
+                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Todos los decks</option>
                 {decks.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{d.name}</option>
                 ))}
               </select>
-              <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2 top-2.5 pointer-events-none" />
+              <ChevronDown className="w-3 h-3 text-zinc-400 absolute right-2 top-2.5 pointer-events-none" />
             </div>
           )}
           {locationFilter && (
             <button
               onClick={() => { setLocationFilter(''); setDeckFilter(''); }}
-              className="text-[10px] text-slate-500 hover:text-white underline cursor-pointer"
+              className="text-[10px] font-bold text-red-600 hover:text-red-500 underline cursor-pointer font-mono"
             >
               Limpiar
             </button>
@@ -142,14 +144,22 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
 
       {loadingAllCards ? (
         <div className="flex flex-col items-center justify-center py-20">
-          <RefreshCw className="w-6 h-6 text-cyan-400 animate-spin mb-2" />
-          <p className="text-xs font-mono text-slate-500">Cargando colección completa...</p>
+          <RefreshCw className="w-6 h-6 text-red-500 animate-spin mb-2" />
+          <p className="text-xs font-mono font-bold text-zinc-500">Cargando colección completa...</p>
         </div>
       ) : allCollectionCards.length === 0 ? (
-        <div className="text-center py-20 bg-[hsl(224,22%,10%)] rounded-2xl border border-[hsl(224,15%,16%)] text-slate-500 text-sm">
-          {activeTab === 'favorites'
-            ? 'No tienes cartas marcadas como favoritas. ¡Pulsa el corazón en cualquier carta para agregarla!'
-            : 'No se encontraron cartas en tu colección con los filtros seleccionados.'}
+        <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-sm font-medium shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xl mx-auto mb-3">
+            {activeTab === 'favorites' ? '❤️' : '📦'}
+          </div>
+          <h3 className="font-black text-sm text-zinc-900 dark:text-zinc-100 uppercase tracking-wider mb-1">
+            {activeTab === 'favorites' ? 'Sin Cartas Favoritas' : 'No se encontraron cartas'}
+          </h3>
+          <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+            {activeTab === 'favorites'
+              ? 'No tienes cartas marcadas como favoritas aún. ¡Pulsa el icono de corazón en cualquier carta de tu colección o en el buscador para añadirla!'
+              : 'No se encontraron cartas en tu colección con los filtros seleccionados.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -158,15 +168,15 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
             return (
               <div 
                 key={uc.id}
-                className="bg-slate-900 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between hover:border-purple-500/40 transition-all duration-300 relative group"
+                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 flex flex-col justify-between hover:border-red-500/50 transition-all duration-200 relative group shadow-xs"
               >
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={uc.card_details?.image_url_small || uc.card_details?.image_url || 'https://images.ygoprodeck.com/images/cards/placeholder.jpg'}
                     alt={uc.card_details?.name || 'Yugioh Card'}
-                    className={`w-full h-44 object-contain rounded-md shadow-md mb-2 group-hover:scale-103 transition-transform ${
-                      uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color ? '' : 'border border-slate-800'
+                    className={`w-full h-44 object-contain rounded-xl shadow-xs mb-2 group-hover:scale-103 transition-transform ${
+                      uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color ? '' : 'border border-zinc-200 dark:border-zinc-800'
                     }`}
                     style={
                       uc.sleeve_type && uc.sleeve_type !== 'none' && uc.sleeve_color
@@ -176,53 +186,53 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                     onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                   />
                   {uc.quantity > 1 && (
-                    <span className="absolute top-1.5 right-1.5 bg-purple-600 text-white font-bold text-[10px] px-1.5 py-0.5 rounded-full shadow font-mono">
+                    <span className="absolute top-1.5 right-1.5 bg-zinc-900/90 text-white font-black text-[10px] px-2 py-0.5 rounded-lg shadow-xs font-mono">
                       x{uc.quantity}
                     </span>
                   )}
                   {uc.is_proxy && (
-                    <span className="absolute top-1.5 left-1.5 bg-red-600/90 text-white font-bold text-[9px] px-1.5 py-0.2 rounded font-mono uppercase">
+                    <span className="absolute top-1.5 left-1.5 bg-red-600 text-white font-black text-[9px] px-1.5 py-0.2 rounded-md font-mono uppercase">
                       PROXY
                     </span>
                   )}
                   <button
                     onClick={() => handleToggleFavorite(uc)}
-                    className={`absolute bottom-3.5 right-1.5 p-1 rounded-full transition-all cursor-pointer ${
+                    className={`absolute bottom-3.5 right-1.5 p-1.5 rounded-full transition-all cursor-pointer bg-white/90 dark:bg-zinc-900/90 shadow-xs ${
                       uc.is_favorite
-                        ? 'text-pink-500 opacity-100'
-                        : 'text-slate-500 opacity-0 group-hover:opacity-100 hover:text-pink-400'
+                        ? 'text-red-500 opacity-100'
+                        : 'text-zinc-400 opacity-0 group-hover:opacity-100 hover:text-red-500'
                     }`}
                     title={uc.is_favorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
                   >
-                    <Heart className={`w-4 h-4 ${uc.is_favorite ? 'fill-pink-500' : ''}`} />
+                    <Heart className={`w-4 h-4 ${uc.is_favorite ? 'fill-red-500 text-red-500' : ''}`} />
                   </button>
                 </div>
 
                 <div className="flex-1 flex flex-col justify-between">
                   <div>
-                    <h4 className="font-bold text-xs text-slate-200 line-clamp-1 group-hover:text-purple-300 transition-colors" title={uc.card_details?.name}>
+                    <h4 className="font-black text-xs text-zinc-900 dark:text-zinc-100 line-clamp-1 group-hover:text-red-500 transition-colors" title={uc.card_details?.name}>
                       {uc.card_details?.name || 'Cargando...'}
                     </h4>
                     
                     <div className="flex flex-wrap gap-1 mt-1">
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-950 text-slate-400 font-medium">
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-bold">
                         {uc.rarity || 'Common'}
                       </span>
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-950 text-cyan-400 font-mono">
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-zinc-100 dark:bg-zinc-800 text-red-600 dark:text-red-400 font-mono font-bold">
                         {uc.condition || 'NM'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-slate-800/60 space-y-1.5">
+                  <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-1.5">
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-slate-500 text-[9px]">Ubicación:</span>
+                      <span className="text-zinc-500 text-[9px] font-bold">Ubicación:</span>
                       {storedIn ? (
-                        <span className="font-semibold text-cyan-400 text-[9px] truncate max-w-22.5" title={storedIn.name}>
+                        <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[9px] truncate max-w-22.5" title={storedIn.name}>
                           📦 {storedIn.name}
                         </span>
                       ) : (
-                        <span className="font-semibold text-amber-500 text-[9px]">
+                        <span className="font-bold text-amber-600 dark:text-amber-400 text-[9px]">
                           📥 Inbox
                         </span>
                       )}
@@ -230,29 +240,29 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
 
                     {(uc.deck_details?.name || uc.deck_id) && (
                       <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-500 text-[9px]">Deck:</span>
-                        <span className="font-semibold text-purple-400 text-[9px] truncate max-w-28" title={`${uc.deck_details?.name || 'Deck'} (${uc.deck_section || 'Main'})`}>
+                        <span className="text-zinc-500 text-[9px] font-bold">Deck:</span>
+                        <span className="font-bold text-red-600 dark:text-red-400 text-[9px] truncate max-w-28" title={`${uc.deck_details?.name || 'Deck'} (${uc.deck_section || 'Main'})`}>
                           ⚔️ {uc.deck_details?.name || 'Deck'} {uc.deck_section ? `(${uc.deck_section.toUpperCase()})` : ''}
                         </span>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-slate-500 text-[9px]">Destino:</span>
+                      <span className="text-zinc-500 text-[9px] font-bold">Destino:</span>
                       <select
                         value={uc.status_flag}
                         onChange={(e) => handleUpdateCardStatus(uc.id, e.target.value)}
-                        className="bg-slate-950 border border-slate-800 text-[9px] text-slate-350 rounded px-1 py-0.2 focus:outline-none"
+                        className="bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-[9px] font-bold text-zinc-900 dark:text-zinc-100 rounded-lg px-1.5 py-0.5 focus:outline-none"
                       >
-                        <option value="collection">Colección</option>
-                        <option value="trade_sale">Venta</option>
-                        <option value="workshop">Taller</option>
-                        <option value="bulk">Bulk</option>
+                        <option value="collection" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Colección</option>
+                        <option value="trade_sale" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Venta</option>
+                        <option value="workshop" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Taller</option>
+                        <option value="bulk" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Bulk</option>
                       </select>
                     </div>
 
                     {uc.notes && (
-                      <p className="text-[9px] text-slate-500 line-clamp-1 italic">
+                      <p className="text-[9px] text-zinc-500 line-clamp-1 italic">
                         &quot;{uc.notes}&quot;
                       </p>
                     )}
@@ -260,7 +270,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                     <div className="flex items-center justify-end gap-1.5 pt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => handleDeleteCard(uc.id)}
-                        className="p-1 hover:bg-red-950/40 text-slate-400 hover:text-red-400 rounded transition-colors cursor-pointer"
+                        className="p-1 hover:bg-red-100 dark:hover:bg-red-950/40 text-zinc-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
                         title="Eliminar carta"
                       >
                         <Trash className="w-3.5 h-3.5" />

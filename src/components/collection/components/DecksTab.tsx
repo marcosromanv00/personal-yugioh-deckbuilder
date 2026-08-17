@@ -90,29 +90,29 @@ export const DecksTab: React.FC<DecksTabProps> = ({
   return (
     <div className="space-y-6">
       {/* TOOLBAR: BUSCADOR Y FILTROS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[hsl(224,22%,10%)] p-4 rounded-2xl border border-[hsl(224,15%,16%)]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
         <div className="relative flex-1 min-w-50">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             placeholder="Buscar baraja por nombre..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[hsl(263,85%,64%)] transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-red-500 transition-colors shadow-xs"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Formato Filter */}
-          <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
+          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
             {(['all', 'Master Duel', 'TCG', 'Duel Links'] as const).map((fmt) => (
               <button
                 key={fmt}
                 onClick={() => setFormatFilter(fmt)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                   formatFilter === fmt
-                    ? 'bg-[hsl(263,85%,64%)] text-white shadow-sm'
-                    : 'text-[hsl(215,15%,70%)] hover:text-white'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                 }`}
               >
                 {fmt === 'all' ? 'Todos' : fmt === 'Master Duel' ? 'MD' : fmt === 'Duel Links' ? 'DL' : 'TCG'}
@@ -124,16 +124,16 @@ export const DecksTab: React.FC<DecksTabProps> = ({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-xl text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
+            className="px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none cursor-pointer shadow-xs"
           >
-            <option value="all">Estado: Todos</option>
-            <option value="active">Solo Activos (Físicos)</option>
-            <option value="recipe">Solo Recetas / Inactivos</option>
+            <option value="all" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Estado: Todos</option>
+            <option value="active" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Solo Activos (Físicos)</option>
+            <option value="recipe" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Solo Recetas / Inactivos</option>
           </select>
 
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] text-white font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-red-600/30 transition-all cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Crear en Constructor</span>
@@ -143,10 +143,10 @@ export const DecksTab: React.FC<DecksTabProps> = ({
 
       {/* GRID DE DECKS */}
       {filteredDecks.length === 0 ? (
-        <div className="text-center py-16 bg-[hsl(224,22%,10%)]/50 border border-dashed border-[hsl(224,15%,16%)] rounded-2xl p-6">
-          <Layers className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-slate-300">No se encontraron barajas</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+        <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl p-6 shadow-xs">
+          <Layers className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
+          <h3 className="text-base font-black text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">No se encontraron barajas</h3>
+          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto font-medium">
             {decks.length === 0
               ? 'Aún no tienes barajas guardadas en tu cuenta. Diseña una en el constructor inteligente.'
               : 'Ninguna baraja coincide con los filtros de búsqueda aplicados.'}
@@ -154,7 +154,7 @@ export const DecksTab: React.FC<DecksTabProps> = ({
           {decks.length === 0 && (
             <Link
               href="/"
-              className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-[hsl(263,85%,64%)] text-white text-xs font-bold rounded-xl hover:bg-[hsl(263,85%,58%)] transition-colors"
+              className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-red-500 shadow-md shadow-red-600/30 transition-all"
             >
               <Plus className="w-4 h-4" />
               <span>Construir mi primer deck</span>
@@ -175,16 +175,16 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                 whileHover={{ y: -4 }}
                 transition={{ duration: 0.2 }}
                 onClick={() => onDeckClick(deck)}
-                className={`relative group rounded-2xl p-5 border transition-all duration-300 shadow-md shadow-black/30 overflow-hidden cursor-pointer flex flex-col justify-between ${
+                className={`relative group rounded-2xl p-5 border transition-all duration-200 shadow-xs overflow-hidden cursor-pointer flex flex-col justify-between ${
                   isActive
-                    ? 'border-[hsl(224,15%,16%)] bg-[hsl(224,22%,10%)]/85 hover:border-purple-500/60 hover:shadow-purple-950/20'
-                    : 'border-[hsl(224,15%,14%)] bg-[hsl(224,22%,8%)]/60 opacity-80 hover:opacity-100 hover:border-slate-700'
+                    ? 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-red-500/60'
+                    : 'border-zinc-200 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-950/60 opacity-80 hover:opacity-100 hover:border-zinc-400'
                 }`}
               >
                 <div>
                   {/* Top Bar: Formato + Estado */}
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-lg border uppercase ${getFormatBadgeColor(formatStr)}`}>
+                    <span className="text-[10px] font-mono font-black px-2.5 py-0.5 rounded-lg border uppercase bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700">
                       {formatStr}
                     </span>
 
@@ -193,8 +193,8 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                       onClick={(e) => toggleDeckActive(e, deck)}
                       className={`text-[9px] font-mono font-bold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
                         isActive
-                          ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/50 hover:bg-emerald-900/60'
-                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700'
                       }`}
                       title="Clic para cambiar entre Activo (físico armado) y Receta"
                     >
@@ -203,35 +203,35 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                   </div>
 
                   {/* Nombre y Descripción */}
-                  <h3 className="font-bold text-base text-slate-100 group-hover:text-purple-300 transition-colors line-clamp-1">
+                  <h3 className="font-black text-base text-zinc-900 dark:text-zinc-100 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors line-clamp-1">
                     {deck.name}
                   </h3>
                   {deck.description ? (
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                    <p className="text-xs text-zinc-500 mt-1 line-clamp-2">
                       {deck.description}
                     </p>
                   ) : (
-                    <p className="text-xs text-slate-600 italic mt-1">
+                    <p className="text-xs text-zinc-400 italic mt-1 font-medium">
                       Sin descripción
                     </p>
                   )}
 
                   {/* Metadata: Cartas y Contenedor */}
-                  <div className="mt-4 pt-3 border-t border-[hsl(224,15%,16%)]/60 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+                  <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono text-zinc-500">
                       <span>Total de Cartas:</span>
-                      <span className="text-white font-bold">{totalCards} cartas</span>
+                      <span className="text-zinc-900 dark:text-zinc-100 font-bold">{totalCards} cartas</span>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+                    <div className="flex items-center justify-between text-xs font-mono text-zinc-500">
                       <span>Almacenamiento:</span>
                       {storedIn ? (
-                        <span className="text-cyan-400 font-semibold flex items-center gap-1 truncate max-w-35">
+                        <span className="text-red-600 dark:text-red-400 font-bold flex items-center gap-1 truncate max-w-35">
                           <Box className="w-3 h-3 shrink-0" />
                           <span className="truncate">{storedIn.name}</span>
                         </span>
                       ) : (
-                        <span className="text-amber-500/80 italic text-[11px]">
+                        <span className="text-amber-600 dark:text-amber-400 italic text-[11px] font-bold">
                           Sin asignar
                         </span>
                       )}
@@ -240,14 +240,14 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                 </div>
 
                 {/* Footer Action */}
-                <div className="mt-5 pt-3 border-t border-[hsl(224,15%,16%)]/40 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 font-mono">
+                <div className="mt-5 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                  <span className="text-[10px] text-zinc-400 font-mono">
                     ID: {deck.id.slice(0, 8)}...
                   </span>
 
                   <button
                     type="button"
-                    className="text-xs font-semibold text-purple-400 group-hover:text-purple-300 flex items-center gap-1"
+                    className="text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 group-hover:text-red-500 flex items-center gap-1 cursor-pointer"
                   >
                     <span>Ver Detalles</span>
                     <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />

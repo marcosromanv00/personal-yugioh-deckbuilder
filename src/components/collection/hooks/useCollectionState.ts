@@ -118,7 +118,35 @@ export function useCollectionState() {
       const res = await fetch(url + params.toString());
       if (res.ok) {
         const json = await res.json();
-        setAllCollectionCards(json.data || []);
+        let fetchedCards: UserCard[] = json.data || [];
+
+        // Sincronización con favoritos guardados localmente
+        if (favoritesOnly && typeof window !== 'undefined') {
+          const localFavsStr = localStorage.getItem('yg_favorite_cards');
+          if (localFavsStr) {
+            try {
+              const localFavIds: number[] = JSON.parse(localFavsStr);
+              if (localFavIds.length > 0) {
+                // Si la BD no tiene marcadas todas las cartas de localStorage, traer la lista completa para filtrar o enriquecer
+                if (fetchedCards.length === 0) {
+                  const allRes = await fetch('/api/collection/cards');
+                  if (allRes.ok) {
+                    const allJson = await allRes.json();
+                    const allCards: UserCard[] = allJson.data || [];
+                    const matched = allCards.filter(c => c.card_id && localFavIds.includes(c.card_id));
+                    if (matched.length > 0) {
+                      fetchedCards = matched.map(c => ({ ...c, is_favorite: true }));
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing local favorites in collection:', e);
+            }
+          }
+        }
+
+        setAllCollectionCards(fetchedCards);
       }
     } catch (err) {
       console.error('Error al cargar colección completa:', err);
@@ -190,11 +218,27 @@ export function useCollectionState() {
 
   // Toggle favorito
   const handleToggleFavorite = async (uc: UserCard) => {
+    const newFavState = !uc.is_favorite;
+    
+    // Actualizar localStorage
+    if (typeof window !== 'undefined' && uc.card_id) {
+      try {
+        const stored = localStorage.getItem('yg_favorite_cards');
+        const ids: number[] = stored ? JSON.parse(stored) : [];
+        const updatedIds = newFavState
+          ? Array.from(new Set([...ids, uc.card_id]))
+          : ids.filter(id => id !== uc.card_id);
+        localStorage.setItem('yg_favorite_cards', JSON.stringify(updatedIds));
+      } catch (e) {
+        console.error('Error updating local favorites:', e);
+      }
+    }
+
     try {
       const res = await fetch('/api/collection/cards', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: uc.id, is_favorite: !uc.is_favorite })
+        body: JSON.stringify({ id: uc.id, is_favorite: newFavState })
       });
       if (res.ok) {
         fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);

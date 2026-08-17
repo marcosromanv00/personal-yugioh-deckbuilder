@@ -23,23 +23,23 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
   onDeckClick,
 }) => {
   return (
-    <div className="lg:col-span-4 bg-[hsl(224,22%,10%)]/75 border border-[hsl(224,15%,16%)] rounded-2xl p-5 space-y-4">
-      <div className="border-b border-[hsl(224,15%,16%)] pb-3 flex flex-col gap-2">
+    <div className="lg:col-span-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-4 shadow-sm transition-colors">
+      <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-            <Layers className="w-4 h-4 text-purple-400" />
+          <h2 className="font-black text-xs uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
+            <Layers className="w-4 h-4 text-red-500" />
             <span>Mis Barajas</span>
           </h2>
         </div>
-        <p className="text-[11px] text-slate-400 flex items-center gap-1">
-          <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+        <p className="text-[11px] text-zinc-600 dark:text-zinc-400 flex items-center gap-1 font-medium">
+          <HelpCircle className="w-3.5 h-3.5 text-cyan-500" />
           Arrastra una baraja activa y suéltala sobre un Deckbox o haz clic para ver detalle.
         </p>
       </div>
 
       {decks.length === 0 ? (
-        <div className="text-center py-10 text-slate-500 text-xs">
-          No tienes barajas guardadas en la base de datos. Crea una en el constructor.
+        <div className="text-center py-10 text-zinc-500 text-xs font-bold">
+          No tienes barajas guardadas en la base de datos. Crea una en el taller.
         </div>
       ) : (
         <div className="space-y-2.5 max-h-130 overflow-y-auto pr-1 scrollbar-thin">
@@ -53,36 +53,36 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
                 draggable
                 onDragStart={(e) => handleDragStart(e, deck.id)}
                 onClick={() => onDeckClick(deck)}
-                className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 shadow shadow-black hover:border-purple-500/50 cursor-pointer ${
+                className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 shadow-xs hover:border-red-500/50 cursor-pointer ${
                   isActive
-                    ? 'bg-slate-950 border-slate-850'
-                    : 'bg-slate-950/50 border-slate-900 opacity-75 hover:opacity-100'
+                    ? 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800'
+                    : 'bg-zinc-100 dark:bg-zinc-950/40 border-zinc-200 dark:border-zinc-800 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <h4 className="font-bold text-xs text-slate-200 truncate">{deck.name}</h4>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono uppercase">
+                    <h4 className="font-black text-xs text-zinc-900 dark:text-zinc-100 truncate">{deck.name}</h4>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-mono font-bold uppercase">
                       {deck.format}
                     </span>
                     <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-mono font-bold uppercase ${
-                      isActive ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-900/40' : 'bg-slate-900 text-slate-500 border border-slate-800'
+                      isActive ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40' : 'bg-zinc-200 dark:bg-zinc-900 text-zinc-500 border border-zinc-300 dark:border-zinc-800'
                     }`}>
                       {isActive ? 'Activo' : 'Inactivo (Receta)'}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-505 mt-1 font-mono">
+                  <p className="text-[10px] text-zinc-500 mt-1 font-mono font-bold">
                     {deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0} cartas
                   </p>
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
                   {storedIn ? (
-                    <span className="text-[9px] font-mono font-bold bg-cyan-950/60 text-cyan-400 border border-cyan-900/30 px-2 py-0.5 rounded-md truncate max-w-24">
+                    <span className="text-[9px] font-mono font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-900/30 px-2 py-0.5 rounded-md truncate max-w-24">
                       📦 {storedIn.name}
                     </span>
                   ) : (
-                    <span className="text-[9px] font-mono font-bold bg-amber-950/30 text-amber-500 border border-amber-900/10 px-2 py-0.5 rounded-md">
+                    <span className="text-[9px] font-mono font-bold bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/20 px-2 py-0.5 rounded-md">
                       Sin almacenar
                     </span>
                   )}
@@ -106,7 +106,7 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
                         console.error('Error al cambiar estado activo del deck:', err);
                       }
                     }}
-                    className="text-[8.5px] font-mono text-slate-400 hover:text-purple-300 underline cursor-pointer"
+                    className="text-[9px] font-mono font-bold text-zinc-500 hover:text-red-500 underline cursor-pointer"
                   >
                     {isActive ? 'Marcar Inactivo' : 'Marcar Activo'}
                   </button>

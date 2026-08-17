@@ -10,8 +10,11 @@ import {
   Plus, 
   Layers, 
   Heart,
-  FileText
+  FileText,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { useTheme } from '@/components/ui/ThemeProvider';
 
 // Custom State Hook
 import { useCollectionState } from '@/components/collection/hooks/useCollectionState';
@@ -52,83 +55,99 @@ export default function CollectionPage() {
 
   const totalCardsInCollection = state.locations.reduce((acc, l) => acc + (l.occupied_cards || 0), 0) + state.inboxCards.length;
 
+  const { theme, toggleTheme } = useTheme();
+
   return (
-    <div className="flex flex-col min-h-screen bg-[hsl(224,25%,6%)] text-[hsl(210,40%,98%)] font-sans antialiased">
+    <div className="flex flex-col min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans antialiased transition-colors duration-200">
       
-      {/* HEADER */}
-      <header className="border-b border-[hsl(224,15%,16%)] bg-[hsl(224,22%,10%)]/90 backdrop-blur-md sticky top-0 z-40 py-4 px-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] flex items-center justify-center font-bold text-xl shadow-lg shadow-[hsl(263,85%,64%)]/20">
-            YG
+      {/* HEADER UNIFICADO EXORDIO */}
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-6 h-16 flex items-center shadow-xs">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
+          {/* Identidad */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-xs shadow-md shadow-red-600/30 shrink-0 font-display tracking-wider">
+              EX
+            </div>
+            <div>
+              <h1 className="text-xs font-black tracking-tight text-zinc-900 dark:text-zinc-100 font-display uppercase leading-none">
+                Exordio DeckLab
+              </h1>
+              <p className="text-[9px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-wider mt-0.5 font-sans">
+                Mi Colección &amp; Almacenamiento
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-100">Mi Colección</h1>
-            <p className="text-xs text-[hsl(215,15%,70%)]">Gestión de Almacenamiento y Binders</p>
+
+          {/* TOP NAVIGATION TABS */}
+          <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800 shrink-0">
+            <Link
+              href="/"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>🛠️</span>
+              <span className="hidden sm:inline">Taller</span>
+            </Link>
+            <Link
+              href="/?tab=exordio"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>📊</span>
+              <span className="hidden sm:inline">Análisis</span>
+            </Link>
+            <Link
+              href="/?tab=breakdowns"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>📈</span>
+              <span className="hidden sm:inline">Meta</span>
+            </Link>
+            <button
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs transition-all cursor-default flex items-center gap-1.5"
+            >
+              <span>📦</span>
+              <span className="hidden sm:inline">Colección</span>
+            </button>
           </div>
-        </div>
 
-        {/* TOP NAVIGATION TABS */}
-        <div className="flex gap-2 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
-          <Link
-            href="/"
-            className="px-4 py-2 rounded-lg font-medium text-xs text-[hsl(215,15%,70%)] hover:text-white transition-all duration-300 cursor-pointer flex items-center gap-1"
-          >
-            🛠️ Constructor
-          </Link>
-          <Link
-            href="/?tab=breakdowns"
-            className="px-4 py-2 rounded-lg font-medium text-xs text-[hsl(215,15%,70%)] hover:text-white transition-all duration-300 cursor-pointer flex items-center gap-1"
-          >
-            📊 Breakdowns Meta
-          </Link>
-          <button
-            className="px-4 py-2 rounded-lg font-medium text-xs bg-zinc-800 text-white transition-all duration-300 cursor-default flex items-center gap-1"
-          >
-            📦 Mi Colección
-          </button>
-        </div>
+          {/* QUICK COLLECTION ACTIONS BUTTONS */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => state.setIsManualCardOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:text-red-500 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Añadir Carta</span>
+            </button>
 
-        {/* QUICK COLLECTION ACTIONS BUTTONS */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => state.setIsManualCardOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Añadir Carta Manual</span>
-          </button>
+            <button
+              onClick={() => state.setIsYdkOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-cyan-500 hover:text-cyan-500 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5 text-cyan-500" />
+              <span className="hidden md:inline">Importar .YDK</span>
+            </button>
 
-          <button
-            onClick={() => state.setIsYdkOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5 text-purple-400" />
-            <span>Importar .YDK</span>
-          </button>
+            <button
+              onClick={state.handleNewContainerClick}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Nuevo Contenedor</span>
+            </button>
 
-          <button
-            onClick={() => state.setIsOrganizeOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-            <span>Organizador Inteligente</span>
-          </button>
-
-          <button
-            onClick={() => state.setIsSleevesOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-          >
-            <Shield className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Recomendador Fundas</span>
-          </button>
-
-          <button
-            onClick={state.handleNewContainerClick}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-[hsl(263,85%,64%)] text-white hover:bg-[hsl(263,85%,58%)] rounded-xl text-xs font-bold transition-all shadow-md shadow-[hsl(263,85%,64%)]/20 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Nuevo Contenedor</span>
-          </button>
+            {/* Toggle Global de Tema */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={`Cambiar a modo ${theme === 'dark' ? 'Light Tech' : 'Dark Carbón'}`}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-zinc-700" />
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
