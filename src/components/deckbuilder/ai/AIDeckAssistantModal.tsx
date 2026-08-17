@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Sparkles, X, Loader2, ArrowRight, DollarSign, Trophy, Layers, CheckCircle2, Shield } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Bot, Sparkles, X, Loader2, DollarSign, Trophy, Layers, CheckCircle2 } from 'lucide-react';
 import { DeckCard } from '@/components/deckbuilder/types';
 import { useToast } from '@/components/ui/ToastProvider';
 
@@ -267,7 +267,7 @@ export const AIDeckAssistantModal: React.FC<AIDeckAssistantModalProps> = ({
                           <span className="text-zinc-200">
                             {c.count}x {c.name}
                           </span>
-                          <span className="text-[10px] text-zinc-400 truncate max-w-[140px]">
+                          <span className="text-[10px] text-zinc-400 truncate max-w-35">
                             {c.justification}
                           </span>
                         </div>
@@ -285,7 +285,7 @@ export const AIDeckAssistantModal: React.FC<AIDeckAssistantModalProps> = ({
                           <span className="text-zinc-200">
                             {c.count}x {c.name}
                           </span>
-                          <span className="text-[10px] text-amber-400 truncate max-w-[140px]">
+                          <span className="text-[10px] text-amber-400 truncate max-w-35">
                             {c.role}
                           </span>
                         </div>

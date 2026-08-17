@@ -2,8 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, DeckCard, ArchetypeItem, BreakdownCardItem, BanlistAlert, Replacement, HistoryItem } from '../types';
 import { FilterState } from '../CardFilters';
 import { StorageLocation, SleeveInventory, DeckSleeve, Deck } from '@/types/collection';
+import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 
 export function useDeckBuilderState() {
+  const { isIdealMode, syncData } = useIdealEnvironment();
+
   // Formato y Deck
   const [format, setFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('Master Duel');
   const [saveFormat, setSaveFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('Master Duel');
@@ -696,11 +699,18 @@ export function useDeckBuilderState() {
   const fetchDecksAndLocations = async () => {
     setLoadingDecks(true);
     try {
+      let fetchedDecks: Deck[] = [];
       const decksRes = await fetch('/api/decks');
       if (decksRes.ok) {
         const json = await decksRes.json();
-        setSavedDecks(json.data || []);
+        fetchedDecks = json.data || [];
       }
+
+      if (isIdealMode && syncData?.idealDecks) {
+        fetchedDecks = [...(syncData.idealDecks as Deck[]), ...fetchedDecks];
+      }
+      setSavedDecks(fetchedDecks);
+
       const locRes = await fetch('/api/collection/storage');
       if (locRes.ok) {
         const json = await locRes.json();
@@ -775,16 +785,17 @@ export function useDeckBuilderState() {
     } else {
       setFormat('Master Duel');
     }
-    const mappedCards: DeckCard[] = (selected.cards || []).map((dc: import('@/types/collection').DeckCardDetail) => {
+
+    const initialMappedCards: DeckCard[] = (selected.cards || []).map((dc: import('@/types/collection').DeckCardDetail) => {
       const cardDetails = dc.card_details as (Card & typeof dc.card_details);
       return {
         id: dc.card_id,
-        name: cardDetails?.name || 'Carta Desconocida',
+        name: cardDetails?.name || `Carta #${dc.card_id}`,
         count: dc.count,
         proxy_count: dc.proxy_count || 0,
         section: dc.section as 'main' | 'extra' | 'side' | 'extras',
         type: cardDetails?.type || 'Monster',
-        image_url: cardDetails?.image_url || cardDetails?.image_url_small || '',
+        image_url: cardDetails?.image_url || cardDetails?.image_url_small || `https://images.ygoprodeck.com/images/cards/${dc.card_id}.jpg`,
         ban_master_duel: cardDetails?.ban_master_duel,
         ban_tcg: cardDetails?.ban_tcg,
         ban_duel_links: cardDetails?.ban_duel_links,
@@ -795,8 +806,56 @@ export function useDeckBuilderState() {
         attribute: cardDetails?.attribute
       };
     });
-    setDeckCards(mappedCards);
+
+    setDeckCards(initialMappedCards);
+    setHistoryStack([]);
+    setRedoStack([]);
     setIsLoadModalOpen(false);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('yg_deck_draft', JSON.stringify({
+        deckName: selected.name,
+        deckDescription: selected.description || '',
+        format: fmt,
+        deckCards: initialMappedCards,
+        timestamp: Date.now()
+      }));
+    }
+
+
+    // Asynchronously resolve details for cards missing names or fallback image
+    try {
+      const missingIds = initialMappedCards.filter(c => c.name.startsWith('Carta #')).map(c => c.id);
+      if (missingIds.length > 0) {
+        const res = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${missingIds.slice(0, 20).join(',')}`);
+        if (res.ok) {
+          const json = await res.json();
+          const detailsList = json.data || [];
+          const detailsMap = new Map<number, any>();
+          detailsList.forEach((item: any) => detailsMap.set(item.id, item));
+
+          setDeckCards(prev => prev.map(card => {
+            const found = detailsMap.get(card.id);
+            if (found) {
+              return {
+                ...card,
+                name: found.name,
+                type: found.type,
+                image_url: found.card_images[0]?.image_url || card.image_url,
+                atk: found.atk,
+                def: found.def,
+                level: found.level,
+                race: found.race,
+                attribute: found.attribute
+              };
+            }
+            return card;
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('Error resolviendo detalles de cartas cargadas:', e);
+    }
 
     try {
       const dsRes = await fetch(`/api/decks/${selected.id}/sleeves`);
@@ -817,6 +876,7 @@ export function useDeckBuilderState() {
       setSelectedExtraSleeveId('');
     }
   }, []);
+
 
   const handleSaveDeck = async () => {
     if (!deckName.trim()) {

@@ -29,6 +29,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { YdkUploadModal } from '@/components/collection/YdkUploadModal';
+import { EnvironmentSwitcher } from '@/components/collection/EnvironmentSwitcher';
 
 // Custom Hooks for State & Resizing
 import { usePanelResize } from './hooks/usePanelResize';
@@ -679,6 +680,9 @@ export default function DeckBuilder() {
               isSyncing={state.isSyncing}
             />
 
+            {/* Switcher de Ambiente Colección Ideal (Icono minimalista) */}
+            <EnvironmentSwitcher />
+
             {/* Toggle Global de Tema Light / Dark */}
             <button
               onClick={toggleTheme}
@@ -692,6 +696,7 @@ export default function DeckBuilder() {
               )}
             </button>
           </div>
+
 
         </div>
       </header>
@@ -1310,6 +1315,49 @@ export default function DeckBuilder() {
           toast.success('Archivo .YDK importado exitosamente');
         }}
       />
+
+      {/* SAVE DECK MODAL */}
+      <SaveDeckModal
+        isOpen={state.isSaveModalOpen}
+        onClose={() => state.setIsSaveModalOpen(false)}
+        deckName={state.deckName}
+        setDeckName={state.setDeckName}
+        deckDescription={state.deckDescription}
+        setDeckDescription={state.setDeckDescription}
+        saveFormat={state.saveFormat}
+        setSaveFormat={state.setSaveFormat}
+        saveIsActive={state.saveIsActive}
+        setSaveIsActive={state.setSaveIsActive}
+        deckCards={state.deckCards}
+        loadingDecks={state.loadingDecks}
+        locations={state.locations}
+        userInventoryCounts={state.userInventoryCounts}
+        registerToInventory={state.registerToInventory}
+        setRegisterToInventory={state.setRegisterToInventory}
+        targetLocationId={state.targetLocationId}
+        setTargetLocationId={state.setTargetLocationId}
+        cardsToRegister={state.cardsToRegister}
+        setCardsToRegister={state.setCardsToRegister}
+        availableSleeves={state.availableSleeves}
+        selectedMainSleeveId={state.selectedMainSleeveId}
+        setSelectedMainSleeveId={state.setSelectedMainSleeveId}
+        selectedExtraSleeveId={state.selectedExtraSleeveId}
+        setSelectedExtraSleeveId={state.setSelectedExtraSleeveId}
+        handleSaveDeck={state.handleSaveDeck}
+        handleExcludeExisting={state.handleExcludeExisting}
+      />
+
+
+      {/* LOAD DECK MODAL */}
+      <LoadDeckModal
+        isOpen={state.isLoadModalOpen}
+        onClose={() => state.setIsLoadModalOpen(false)}
+        loadingDecks={state.loadingDecks}
+        savedDecks={state.savedDecks}
+        handleLoadDeck={state.handleLoadDeck}
+        handleDeleteDeck={state.handleDeleteDeck}
+      />
     </div>
   );
 }
+

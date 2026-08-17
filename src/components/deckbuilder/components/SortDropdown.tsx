@@ -93,7 +93,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({ value, onChange }) =
                   >
                     <span className="flex items-center gap-2">
                       {isSelected ? (
-                        <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                        <Check className="w-3.5 h-3.5 text-white stroke-3" />
                       ) : (
                         <span className="w-3.5 h-3.5" />
                       )}

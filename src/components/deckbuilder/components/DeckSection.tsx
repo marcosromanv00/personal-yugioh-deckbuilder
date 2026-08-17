@@ -187,21 +187,29 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
                   <img
                     src={c.image_url}
                     alt={c.name}
-                    className="w-full h-full object-contain"
+                    className={`w-full h-full object-contain transition-all duration-300 ${
+                      c.is_grayscale_shared ? 'grayscale contrast-125 opacity-75' : ''
+                    }`}
                     onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                   />
                   {getBanlistBadge(c)}
                   {renderCardFanCount(c.count)}
+                  {c.is_grayscale_shared && (
+                    <span className="absolute top-0.5 right-0.5 bg-gray-950/90 text-gray-300 border border-gray-500/80 text-[6px] font-black px-1 py-0.5 rounded leading-none uppercase shadow-md backdrop-blur-xs">
+                      🔄 COMPARTIDA
+                    </span>
+                  )}
                   {c.proxy_count && c.proxy_count > 0 && (
                     <span className="absolute top-0.5 left-0.5 bg-red-600 text-white text-[7px] font-bold px-1 py-0.5 rounded leading-none uppercase shadow">
                       P{c.proxy_count > 1 ? c.proxy_count : ''}
                     </span>
                   )}
-                  {c.rarity && c.rarity !== 'Common' && (
+                  {c.rarity && c.rarity !== 'Common' && !c.is_grayscale_shared && (
                     <span className="absolute bottom-0.5 right-0.5 bg-amber-500/90 text-black text-[6px] font-black px-1 rounded uppercase tracking-tighter leading-none shadow">
                       {c.rarity.substring(0, 3)}
                     </span>
                   )}
+
                 </TouchableCard>
               </div>
             );
