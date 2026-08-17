@@ -103,45 +103,42 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
   const getSectionTitleColor = () => {
     switch (section) {
       case 'main':
-        return 'text-[hsl(180,80%,45%)]';
+        return 'text-red-600 dark:text-red-400';
       case 'extra':
-        return 'text-[hsl(263,85%,64%)]';
+        return 'text-amber-600 dark:text-amber-400';
       case 'side':
-        return 'text-amber-500';
+        return 'text-cyan-600 dark:text-cyan-400';
       case 'extras':
-        return 'text-teal-400';
+        return 'text-emerald-600 dark:text-emerald-400';
       default:
-        return 'text-white';
+        return 'text-zinc-900 dark:text-white';
     }
   };
 
   const getSectionBorderHover = () => {
-    switch (section) {
-      case 'main':
-        return 'hover:border-[hsl(180,80%,45%)]/30';
-      case 'extra':
-        return 'hover:border-[hsl(263,85%,64%)]/30';
-      case 'side':
-        return 'hover:border-amber-500/30';
-      case 'extras':
-        return 'hover:border-teal-500/30';
-      default:
-        return 'hover:border-slate-500/30';
-    }
+    return 'hover:border-red-500/40';
   };
 
   return (
     <div
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => handleDropCardOnSection(e, section)}
-      className={`p-2 rounded-xl border border-transparent transition-colors ${getSectionBorderHover()}`}
+      className={`p-3 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white/60 dark:bg-zinc-900/40 transition-colors ${getSectionBorderHover()}`}
     >
-      <h3 className={`text-xs font-bold uppercase tracking-wider ${getSectionTitleColor()} mb-3 flex items-center gap-2`}>
-        • {title} <span className="text-[10px] lowercase text-[hsl(215,15%,70%)]">({cardsCount} {cardsCount === 1 ? 'carta' : 'cartas'}) {maxSize ? `/ ${maxSize} máx` : ''} - Arrastra aquí</span>
-      </h3>
+      <div className="flex items-center justify-between mb-3 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+        <h3 className={`text-xs font-black uppercase tracking-wider ${getSectionTitleColor()} flex items-center gap-2`}>
+          <span className="w-2 h-2 rounded-full bg-current" />
+          <span>{title}</span>
+        </h3>
+        <span className="text-[11px] font-mono font-bold text-zinc-500">
+          <strong className="text-zinc-900 dark:text-white">{cardsCount}</strong>
+          {maxSize ? ` / ${maxSize}` : ''} cartas
+        </span>
+      </div>
+
       {sectionCards.length === 0 ? (
-        <div className="text-center py-6 bg-[hsl(224,25%,6%)] rounded-xl border border-[hsl(224,15%,16%)] border-dashed text-sm text-zinc-600">
-          Sección vacía. Toca una carta para agregarla.
+        <div className="text-center py-8 bg-zinc-50 dark:bg-zinc-950/60 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed text-xs font-bold text-zinc-400">
+          Sección vacía • Arrastra cartas o toca en el buscador para añadir
         </div>
       ) : (
         <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">

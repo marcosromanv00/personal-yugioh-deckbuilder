@@ -43,6 +43,7 @@ export interface DeckCard {
   proxy_count?: number;
   section: 'main' | 'extra' | 'side' | 'extras';
   type: string;
+  desc?: string;
   image_url: string;
   archetype?: string;
   ban_master_duel?: string;

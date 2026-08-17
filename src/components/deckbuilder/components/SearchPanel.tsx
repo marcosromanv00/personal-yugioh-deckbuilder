@@ -92,9 +92,9 @@ const SearchResultsList = React.memo(({
             onClick={() => addCardToDeck(card)}
             onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
             onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
-            className="relative aspect-[3/4.4] bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-lg border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/50 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow shadow-black/40"
+            className="relative aspect-[3/4.4] bg-white dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow-xs"
           >
-            <div className="relative flex-1 rounded-md overflow-hidden bg-black/40">
+            <div className="relative flex-1 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-900">
               <img 
                 src={card.image_url_small || card.image_url} 
                 alt={card.name} 
@@ -104,7 +104,7 @@ const SearchResultsList = React.memo(({
               {getBanlistBadge(card)}
             </div>
             <div className="mt-1 transition-all text-center min-w-0 px-0.5">
-              <p className="text-[9px] font-semibold text-slate-200 group-hover:text-purple-300 transition-colors truncate leading-tight">{card.name}</p>
+              <p className="text-[9px] font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors truncate leading-tight">{card.name}</p>
             </div>
           </div>
         ))}
@@ -122,40 +122,40 @@ const SearchResultsList = React.memo(({
           onClick={() => addCardToDeck(card)}
           onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
           onMouseLeave={handleCardMouseLeave}
-          className="flex gap-3 p-2 bg-[hsl(224,25%,6%)] hover:bg-[hsl(224,22%,10%)] rounded-xl border border-[hsl(224,15%,16%)] hover:border-[hsl(263,85%,64%)]/40 transition-all duration-300 group cursor-grab active:cursor-grabbing"
+          className="flex gap-3 p-2.5 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group cursor-grab active:cursor-grabbing shadow-xs"
         >
           <img 
             src={card.image_url_small || card.image_url} 
             alt={card.name} 
-            className="w-12 h-18 object-contain rounded-md shadow-md shadow-black/40 group-hover:scale-105 transition-transform" 
+            className="w-12 h-18 object-contain rounded-md shadow-xs group-hover:scale-105 transition-transform shrink-0" 
             onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
           />
           <div className="flex-1 flex flex-col justify-between min-w-0">
             <div>
-              <p className="text-[10.5px] font-semibold text-slate-200 truncate group-hover:text-purple-300 transition-colors">{card.name}</p>
-              <p className="text-[9px] text-[hsl(215,15%,70%)] truncate">
+              <p className="text-xs font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-500 transition-colors">{card.name}</p>
+              <p className="text-[10px] text-zinc-500 font-mono font-bold truncate">
                 {card.type} • {card.archetype || 'Genérica'}
               </p>
             </div>
             
-            <div className="flex gap-1.5 mt-1.5">
+            <div className="flex gap-1.5 mt-2">
               <button
                 onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
-                className="flex-1 py-1 px-1.5 bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,64%)]/80 text-white rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                className="flex-1 py-1 px-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
                 title="Añadir al Deck principal o Extra (Auto)"
               >
                 + Agregar
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
-                className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
                 title="Añadir a Side Deck"
               >
                 + Side
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
-                className="px-1.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-200 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
                 title="Añadir a Extra Deck"
               >
                 + Extra
@@ -271,26 +271,27 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       className={`flex flex-col gap-4 ${
         isMobile
           ? 'w-full'
-          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${leftPanelOpen ? 'p-4' : 'w-10 min-w-10 p-2 items-center'}`
+          : `bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm transition-all overflow-hidden ${leftPanelOpen ? 'p-4' : 'w-10 min-w-10 p-2 items-center'}`
       }`}
     >
       {/* Panel header — hidden on mobile (title is in MobileBottomSheet) */}
       {!isMobile && (
-        <div className={`border-b border-[hsl(224,15%,16%)] pb-2.5 flex items-center ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
+        <div className={`border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
           {leftPanelOpen && (
-            <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
-              🔍 Buscar Cartas
+            <h2 className="font-black text-xs uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+              <span>🔍</span>
+              <span>Buscar Cartas</span>
             </h2>
           )}
           <div className="flex items-center gap-1">
             {leftPanelOpen && (
-              <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
+              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
                 <button
                   onClick={() => setSearchViewMode('grid')}
                   className={`p-1 rounded transition-colors cursor-pointer ${
                     searchViewMode === 'grid'
-                      ? 'bg-zinc-800 text-white font-semibold'
-                      : 'text-[hsl(215,15%,70%)] hover:text-white'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                   }`}
                   title="Vista Cuadrícula"
                 >
@@ -300,8 +301,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                   onClick={() => setSearchViewMode('list')}
                   className={`p-1 rounded transition-colors cursor-pointer ${
                     searchViewMode === 'list'
-                      ? 'bg-zinc-800 text-white font-semibold'
-                      : 'text-[hsl(215,15%,70%)] hover:text-white'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                   }`}
                   title="Vista Lista"
                 >
@@ -311,7 +312,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             )}
             <button
               onClick={() => setLeftPanelOpen(p => !p)}
-              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
               title={leftPanelOpen ? 'Colapsar panel de búsqueda' : 'Expandir panel de búsqueda'}
             >
               {leftPanelOpen ? <X className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
@@ -323,13 +324,13 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       {/* Mobile: inline view/sort controls */}
       {isMobile && (
         <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
+          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
             <button
               onClick={() => setSearchViewMode('grid')}
               className={`p-1.5 rounded transition-colors cursor-pointer touch-manipulation ${
                 searchViewMode === 'grid'
-                  ? 'bg-zinc-800 text-white'
-                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
               title="Vista Cuadrícula"
             >
@@ -339,15 +340,15 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               onClick={() => setSearchViewMode('list')}
               className={`p-1.5 rounded transition-colors cursor-pointer touch-manipulation ${
                 searchViewMode === 'list'
-                  ? 'bg-zinc-800 text-white'
-                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
               title="Vista Lista"
             >
               <List className="w-4 h-4" />
             </button>
           </div>
-          <span className="text-[10px] text-slate-500">{searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}</span>
+          <span className="text-[10px] text-zinc-500">{searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}</span>
         </div>
       )}
       {leftPanelOpen ? (
@@ -359,9 +360,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                 placeholder={searchScope === 'staged' ? "Buscar pendientes..." : searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
                 value={localQuery}
                 onChange={(e) => setLocalQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none transition-colors"
+                className="w-full pl-9 pr-8 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs focus:outline-none transition-colors"
               />
-              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[hsl(215,15%,70%)]" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-zinc-400" />
               {localQuery && (
                 <button
                   type="button"
@@ -369,7 +370,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                     setLocalQuery('');
                     setSearchQuery('');
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 p-0.5"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
                   title="Limpiar búsqueda"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -381,8 +382,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               onClick={() => setOnlyFavorites(prev => !prev)}
               className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
                 onlyFavorites
-                  ? 'bg-pink-950/40 text-pink-500 border-pink-500/50 shadow-md shadow-pink-950/20'
-                  : 'bg-[hsl(224,25%,6%)] border-[hsl(224,15%,16%)] text-slate-400 hover:text-pink-400 hover:border-pink-900/30'
+                  ? 'bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 border-pink-300 dark:border-pink-500/50 shadow-sm'
+                  : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-pink-500'
               }`}
               title={onlyFavorites ? "Mostrar todas las cartas" : "Filtrar por Favoritas"}
             >
@@ -390,23 +391,23 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             </button>
           </div>
 
-          <div className={`grid ${showStagedTab ? 'grid-cols-3' : 'grid-cols-2'} gap-1 bg-[hsl(224,25%,6%)] p-0.5 rounded-xl border border-[hsl(224,15%,16%)] shrink-0`}>
+          <div className={`grid ${showStagedTab ? 'grid-cols-3' : 'grid-cols-2'} gap-1 bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0`}>
             <button
               onClick={() => setSearchScope('global')}
-              className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+              className={`py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                 searchScope === 'global'
-                  ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               🌐 Base Global
             </button>
             <button
               onClick={() => setSearchScope('collection')}
-              className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+              className={`py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                 searchScope === 'collection'
-                  ? 'bg-zinc-800 text-white shadow-sm'
-                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               📦 Mi Colección
@@ -414,10 +415,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             {showStagedTab && (
               <button
                 onClick={() => setSearchScope('staged')}
-                className={`py-1.5 rounded-lg text-[10.5px] font-semibold transition-all duration-300 cursor-pointer ${
+                className={`py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                   searchScope === 'staged'
-                    ? 'bg-purple-650 text-white shadow-sm shadow-purple-900/35 border border-purple-500/20'
-                    : 'text-[hsl(215,15%,70%)] hover:text-white'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                 }`}
               >
                 📥 Pendientes ({stagedCardsCount})
@@ -430,10 +431,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               <button
                 key={t}
                 onClick={() => setSearchType(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                   searchType === t
-                    ? 'bg-[hsl(180,80%,45%)]/20 text-[hsl(180,80%,45%)] border border-[hsl(180,80%,45%)]/40'
-                    : 'bg-[hsl(224,25%,6%)] text-[hsl(215,15%,70%)] border border-[hsl(224,15%,16%)] hover:text-white'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-white'
                 }`}
               >
                 {t}

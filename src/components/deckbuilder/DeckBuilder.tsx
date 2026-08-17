@@ -1,12 +1,32 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { RefreshCw, Save, FolderOpen, MoreVertical, X, Trash2, Undo2, Redo2, Download, Upload, HelpCircle } from 'lucide-react';
+import {
+  RefreshCw,
+  Save,
+  FolderOpen,
+  MoreVertical,
+  X,
+  Trash2,
+  Undo2,
+  Redo2,
+  Download,
+  Upload,
+  HelpCircle,
+  Sun,
+  Moon,
+  Bot,
+  Sparkles,
+  Network,
+  GitFork,
+  PenLine,
+} from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// UI Feedback components
+// UI Feedback components & Theme
 import { useToast } from '@/components/ui/ToastProvider';
+import { useTheme } from '@/components/ui/ThemeProvider';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { YdkUploadModal } from '@/components/collection/YdkUploadModal';
 
@@ -26,8 +46,12 @@ import { ArchetypeBreakdownDrawer } from './components/ArchetypeBreakdownDrawer'
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { MobileNav, type MobileTab } from './components/MobileNav';
 import { MobileBottomSheet } from './components/MobileBottomSheet';
+import { DeckActionsDropdown } from './components/DeckActionsDropdown';
+import { SortDropdown } from './components/SortDropdown';
 import { DeckCard, Card, HoverCardBase } from './types';
 import { getSleeveColorHex } from '@/lib/sleeves';
+import { ExordioAnalyticsDashboard } from './exordio/ExordioAnalyticsDashboard';
+import { AICopilotModal } from './ai/AICopilotModal';
 
 
 /**
@@ -128,8 +152,62 @@ export default function DeckBuilder() {
   };
 
   const toast = useToast();
+  const { theme, toggleTheme } = useTheme();
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isYdkUploadOpen, setIsYdkUploadOpen] = useState(false);
+  const [isAICopilotOpen, setIsAICopilotOpen] = useState(false);
+
+  // Aplicar receta generada por Gemini AI al constructor
+  const handleApplyGeneratedDeck = useCallback(
+    async (cards: { name: string; count: number; section: 'main' | 'extra' }[]) => {
+      toast.info('Cargando cartas del deck generado...');
+      try {
+        const newDeckCards: DeckCard[] = [];
+        for (const item of cards) {
+          try {
+            const res = await fetch(
+              `https://db.ygoprodeck.com/api/v7/cardinfo.php?name=${encodeURIComponent(item.name)}`
+            );
+            const data = await res.json();
+            if (data.data && data.data[0]) {
+              const cardInfo = data.data[0];
+              newDeckCards.push({
+                id: cardInfo.id,
+                name: cardInfo.name,
+                count: item.count,
+                section: item.section,
+                type: cardInfo.type,
+                image_url: cardInfo.card_images[0]?.image_url || '',
+                archetype: cardInfo.archetype,
+                ban_tcg: cardInfo.banlist_info?.ban_tcg,
+                ban_master_duel: cardInfo.banlist_info?.ban_master_duel,
+                atk: cardInfo.atk,
+                def: cardInfo.def,
+                level: cardInfo.level,
+                race: cardInfo.race,
+                attribute: cardInfo.attribute,
+              });
+            }
+          } catch (err) {
+            console.warn(`No se pudo cargar detalles de ${item.name}:`, err);
+          }
+        }
+
+        if (newDeckCards.length > 0) {
+          state.setDeckCards(newDeckCards);
+          toast.success(
+            `¡Deck aplicado con éxito (${newDeckCards.reduce((acc, c) => acc + c.count, 0)} cartas)!`
+          );
+        } else {
+          toast.error('No se pudieron obtener los detalles de las cartas generadas');
+        }
+      } catch (err) {
+        console.error('Error aplicando deck:', err);
+        toast.error('Error al aplicar el deck generado');
+      }
+    },
+    [state, toast]
+  );
 
   // Atajos de teclado para Deshacer / Rehacer (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
   useEffect(() => {
@@ -434,211 +512,150 @@ export default function DeckBuilder() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[hsl(224,25%,6%)] text-[hsl(210,40%,98%)] font-sans antialiased">
+    <div className="flex flex-col min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans antialiased transition-colors duration-200">
 
       {/* ══════════════════════════════════════════════════════════════
-          HEADER — Responsive: compact on mobile, full on desktop
+          UNIFIED EXORDIO HEADER — Perfectly Centered & Polished
       ══════════════════════════════════════════════════════════════ */}
-      <header className="border-b border-[hsl(224,15%,16%)] bg-[hsl(224,22%,10%)]/90 backdrop-blur-md sticky top-0 z-40 pt-safe">
-        {/* ── Mobile + Tablet Header (compact) ── */}
-        <div className="flex lg:hidden items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 shrink-0 rounded-xl bg-linear-to-tr from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] flex items-center justify-center font-bold text-base shadow-lg shadow-[hsl(263,85%,64%)]/20">
-              YG
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-6 h-16 flex items-center shadow-xs">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
+          
+          {/* ZONA IZQUIERDA: Marca Exordio DeckLab + Nombre editable + Selector de Formato */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-xs shadow-md shadow-red-600/30 font-display tracking-wider">
+                EX
+              </div>
+              <div className="hidden sm:flex flex-col">
+                <span className="text-xs font-black tracking-tight text-zinc-900 dark:text-zinc-100 font-display uppercase leading-none">
+                  Exordio DeckLab
+                </span>
+                <span className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 font-sans tracking-wide mt-0.5">
+                  Tactical Builder &amp; Meta
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
+            
+            <div className="flex items-center gap-1.5 min-w-0">
               <input
                 value={state.deckName}
                 onChange={(e) => state.setDeckName(e.target.value)}
-                className="text-sm font-bold bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] focus:outline-none transition-colors w-full max-w-40 text-slate-100 truncate"
+                className="text-sm font-black bg-transparent border-b-2 border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 focus:outline-none transition-colors max-w-32 sm:max-w-44 text-zinc-900 dark:text-zinc-100 truncate"
+                title="Editar nombre del deck"
               />
-              <p className="text-[10px] text-[hsl(215,15%,55%)] truncate">Constructor Inteligente</p>
             </div>
-          </div>
 
-          {/* Mobile: format pill compact + save button */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-0.5 bg-[hsl(224,25%,6%)] p-0.5 rounded-lg border border-[hsl(224,15%,16%)]">
-              {(['MD', 'TCG', 'DL'] as const).map((short, idx) => {
-                const full = (['Master Duel', 'TCG', 'Duel Links'] as const)[idx];
+            {/* Selector de Formato Ultra-Compacto */}
+            <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-0.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0">
+              {(['TCG', 'Master Duel', 'Duel Links'] as const).map((f) => {
+                const label = f === 'Master Duel' ? 'MD' : f === 'Duel Links' ? 'DL' : 'TCG';
+                const isSelected = state.format === f;
                 return (
                   <button
-                    key={full}
-                    onClick={() => state.setFormat(full)}
-                    className={`px-2 py-1 rounded-md font-bold text-[10px] transition-all duration-300 cursor-pointer touch-manipulation ${
-                      state.format === full
-                        ? 'bg-[hsl(263,85%,64%)] text-white shadow-sm'
-                        : 'text-[hsl(215,15%,60%)] hover:text-white'
+                    key={f}
+                    onClick={() => state.setFormat(f)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-red-600 text-white shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                     }`}
+                    title={`Formato ${f}`}
                   >
-                    {short}
+                    {label}
                   </button>
                 );
               })}
             </div>
-
-            <button
-              onClick={state.handleOpenSaveModal}
-              className="flex items-center gap-1 px-3 py-2 bg-[hsl(263,85%,64%)] text-white hover:bg-[hsl(263,85%,58%)] rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer touch-manipulation"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Guardar</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ── Mobile bottom header tabs ── */}
-        <div className="flex lg:hidden gap-1 px-4 pb-2 border-t border-[hsl(224,15%,14%)] pt-2">
-          <button
-            onClick={() => state.setActiveView('builder')}
-            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer touch-manipulation ${
-              state.activeView === 'builder'
-                ? 'bg-zinc-800 text-white font-semibold'
-                : 'text-[hsl(215,15%,60%)] hover:text-white'
-            }`}
-          >
-            🛠️ Constructor
-          </button>
-          <button
-            onClick={() => state.setActiveView('breakdowns')}
-            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer touch-manipulation ${
-              state.activeView === 'breakdowns'
-                ? 'bg-zinc-800 text-white font-semibold'
-                : 'text-[hsl(215,15%,60%)] hover:text-white'
-            }`}
-          >
-            📊 Meta
-          </button>
-          <Link
-            href="/collection"
-            className="px-3 py-1.5 rounded-lg font-medium text-xs text-[hsl(215,15%,60%)] hover:text-white transition-all duration-300 cursor-pointer flex items-center gap-1 touch-manipulation"
-          >
-            📦 Colección
-          </Link>
-        </div>
-
-        {/* ── Desktop Header (full row) ── */}
-        <div className="hidden lg:flex py-4 px-6 flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] flex items-center justify-center font-bold text-xl shadow-lg shadow-[hsl(263,85%,64%)]/20">
-              YG
-            </div>
-            <div>
-              <input
-                value={state.deckName}
-                onChange={(e) => state.setDeckName(e.target.value)}
-                className="text-lg font-bold bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] focus:outline-none transition-colors max-w-xs text-slate-100"
-              />
-              <p className="text-xs text-[hsl(215,15%,70%)]">Constructor de Decks Inteligente</p>
-            </div>
           </div>
 
-          <div className="flex gap-2 items-center">
-            <button
-              onClick={state.handleOpenLoadModal}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-purple-400 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-purple-400" />
-              <span>Cargar Deck</span>
-            </button>
-
-            <button
-              onClick={() => setIsYdkUploadOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-cyan-400 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-              title="Importar archivo .YDK al editor"
-            >
-              <Upload className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Importar .YDK</span>
-            </button>
-
-            {state.deckCards.length > 0 && (
-              <button
-                onClick={() => {
-                  state.exportYdkFile();
-                  toast.success('Archivo .YDK descargado');
-                }}
-                className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-emerald-400 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer"
-                title="Descargar baraja en formato .YDK"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Exportar</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setIsClearConfirmOpen(true)}
-              disabled={state.deckCards.length === 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 hover:text-red-400 hover:bg-red-950/10 rounded-xl text-xs font-semibold text-red-500 transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
-              title="Limpiar todas las cartas del deck"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-red-500" />
-              <span>Limpiar</span>
-            </button>
-
-            <button
-              onClick={state.handleOpenSaveModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-[hsl(263,85%,64%)] to-[hsl(180,80%,45%)] text-white hover:opacity-90 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>Guardar Deck</span>
-            </button>
-          </div>
-
-          <div className="flex gap-2 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
+          {/* ZONA CENTRAL: Navegación de 4 Modos (Segmented Tabs) */}
+          <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800 shrink-0">
             <button
               onClick={() => state.setActiveView('builder')}
-              className={`px-4 py-2 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
                 state.activeView === 'builder'
-                  ? 'bg-zinc-800 text-white font-semibold'
-                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
-              🛠️ Constructor
+              <span>🛠️</span>
+              <span className="hidden sm:inline">Taller</span>
             </button>
+
+            <button
+              onClick={() => state.setActiveView('exordio')}
+              className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                state.activeView === 'exordio'
+                  ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
+                  : 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30'
+              }`}
+            >
+              <span>📊</span>
+              <span className="hidden sm:inline">Análisis</span>
+            </button>
+
             <button
               onClick={() => state.setActiveView('breakdowns')}
-              className={`px-4 py-2 rounded-lg font-medium text-xs transition-all duration-300 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
                 state.activeView === 'breakdowns'
-                  ? 'bg-zinc-800 text-white font-semibold'
-                  : 'text-[hsl(215,15%,70%)] hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
-              📊 Breakdowns Meta
+              <span>📈</span>
+              <span className="hidden sm:inline">Meta</span>
             </button>
+
             <Link
               href="/collection"
-              className="px-4 py-2 rounded-lg font-medium text-xs text-[hsl(215,15%,70%)] hover:text-white transition-all duration-300 cursor-pointer flex items-center gap-1"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
             >
-              📦 Mi Colección
+              <span>📦</span>
+              <span className="hidden sm:inline">Colección</span>
             </Link>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          {/* ZONA DERECHA: Botón AI Copilot + Menú Desplegable Deck + Theme Toggle */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Botón Principal de IA */}
             <button
-              onClick={() => state.triggerSync()}
-              disabled={state.isSyncing}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 hover:text-white rounded-xl text-xs font-semibold text-[hsl(215,15%,70%)] transition-all cursor-pointer disabled:opacity-50"
+              onClick={() => setIsAICopilotOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display"
+              title="Abrir AI Copilot (Sintetizador de Decks & Juez de Duelo)"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-[hsl(180,80%,45%)] ${state.isSyncing ? 'animate-spin' : ''}`} />
-              {state.isSyncing ? 'Sincronizando...' : 'Sincronizar Meta'}
+              <Bot className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">IA Copilot</span>
             </button>
 
-            <div className="flex items-center gap-2 bg-[hsl(224,25%,6%)] p-1 rounded-xl border border-[hsl(224,15%,16%)]">
-              {(['Master Duel', 'TCG', 'Duel Links'] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => state.setFormat(f)}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${
-                    state.format === f
-                      ? 'bg-[hsl(263,85%,64%)] text-white shadow-md'
-                      : 'text-[hsl(215,15%,70%)] hover:text-white hover:bg-[hsl(224,22%,10%)]'
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
+            {/* Menú Desplegable de Operaciones de Deck */}
+            <DeckActionsDropdown
+              onSave={state.handleOpenSaveModal}
+              onLoad={state.handleOpenLoadModal}
+              onImportYdk={() => setIsYdkUploadOpen(true)}
+              onExportYdk={() => {
+                state.exportYdkFile();
+                toast.success('Archivo .YDK descargado');
+              }}
+              onClear={() => setIsClearConfirmOpen(true)}
+              onSyncMeta={() => state.triggerSync()}
+              hasCards={state.deckCards.length > 0}
+              isSyncing={state.isSyncing}
+            />
+
+            {/* Toggle Global de Tema Light / Dark */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={`Cambiar a modo ${theme === 'dark' ? 'Light Tech' : 'Dark Carbón'}`}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-zinc-700" />
+              )}
+            </button>
           </div>
+
         </div>
       </header>
 
@@ -686,13 +703,16 @@ export default function DeckBuilder() {
             )}
 
             {/* MAIN DECKBOARD */}
-            <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-6 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 shrink-0">
+            <section className="flex-1 min-w-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 overflow-hidden shadow-sm transition-colors">
+              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 shrink-0">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="font-bold text-lg flex items-center gap-2">📋 Lista de Cartas</h2>
+                  <h2 className="font-black text-sm sm:text-base uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
+                    <span className="text-red-500">📋</span>
+                    <span>Lista de Cartas</span>
+                  </h2>
                   
                   {/* Undo / Redo Actions Toolbar */}
-                  <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg p-0.5">
+                  <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-0.5 shadow-xs">
                     <button
                       type="button"
                       onClick={() => {
@@ -700,7 +720,7 @@ export default function DeckBuilder() {
                         toast.info('Acción deshecha');
                       }}
                       disabled={!state.canUndo}
-                      className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       title="Deshacer última acción (Ctrl+Z)"
                     >
                       <Undo2 className="w-3.5 h-3.5" />
@@ -712,38 +732,25 @@ export default function DeckBuilder() {
                         toast.info('Acción rehecha');
                       }}
                       disabled={!state.canRedo}
-                      className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       title="Rehacer acción (Ctrl+Y)"
                     >
                       <Redo2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg px-2.5 py-1 text-xs">
-                    <span className="text-slate-400">Ordenar por:</span>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="bg-transparent border-none text-slate-200 outline-none cursor-pointer focus:ring-0 text-xs font-semibold"
-                    >
-                      <option value="default" className="bg-[hsl(224,22%,10%)] text-slate-200">Predeterminado</option>
-                      <option value="name" className="bg-[hsl(224,22%,10%)] text-slate-200">Nombre (A-Z)</option>
-                      <option value="type" className="bg-[hsl(224,22%,10%)] text-slate-200">Tipo (Monstruo, Magia, Trampa)</option>
-                      <option value="level" className="bg-[hsl(224,22%,10%)] text-slate-200">Nivel/Rango</option>
-                      <option value="atk" className="bg-[hsl(224,22%,10%)] text-slate-200">ATK</option>
-                      <option value="def" className="bg-[hsl(224,22%,10%)] text-slate-200">DEF</option>
-                    </select>
-                  </div>
+                  {/* Dropdown de Ordenación Pulido React */}
+                  <SortDropdown value={sortBy} onChange={setSortBy} />
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                <div className="flex flex-wrap gap-2 text-xs font-bold">
                   {[
                     { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
                     { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
                     { label: 'Side', count: sideCardsCount, max: 15 },
                     { label: 'Extras', count: extrasCardsCount, max: 30 },
                   ].map(({ label, count, max }) => (
-                    <span key={label} className="flex items-center gap-1.5 bg-[hsl(224,25%,6%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
-                      {label}: <b className="font-mono text-white">{count}</b>/{max}
+                    <span key={label} className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 py-1 px-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 shadow-xs">
+                      {label}: <b className="font-mono font-black text-zinc-900 dark:text-white">{count}</b>/{max}
                     </span>
                   ))}
                 </div>
@@ -790,9 +797,9 @@ export default function DeckBuilder() {
           {/* ── TABLET (md–lg): 2-column layout — Search + Deck, Meta as icon drawer ── */}
           <div className="hidden md:flex lg:hidden flex-1 flex-row gap-3 p-4 max-w-full w-full overflow-hidden">
             {/* Search Panel — fixed width on tablet */}
-            <div className="w-72 shrink-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl overflow-hidden">
-              <div className="p-4 border-b border-[hsl(224,15%,16%)] flex items-center justify-between shrink-0">
-                <h2 className="font-bold text-sm uppercase tracking-wider">🔍 Buscar</h2>
+            <div className="w-72 shrink-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                <h2 className="font-black text-xs uppercase tracking-wider text-zinc-900 dark:text-zinc-100">🔍 Buscar</h2>
               </div>
               <div className="p-4 pt-0 flex-1 overflow-hidden">
                 <SearchPanel
@@ -828,34 +835,20 @@ export default function DeckBuilder() {
             {/* Deck + Meta column */}
             <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-hidden">
               {/* Deck board */}
-              <section className="flex-1 min-w-0 flex flex-col gap-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl p-4 overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[hsl(224,15%,16%)] pb-3 gap-2 shrink-0">
+              <section className="flex-1 min-w-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 overflow-hidden shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 gap-2 shrink-0">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="font-bold text-base flex items-center gap-2">📋 Lista de Cartas</h2>
-                  <div className="flex items-center gap-1 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg px-2 py-0.5 text-[10px]">
-                    <span className="text-slate-400">Ordenar:</span>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="bg-transparent border-none text-slate-200 outline-none cursor-pointer focus:ring-0 text-[10px] font-semibold py-0"
-                    >
-                      <option value="default" className="bg-[hsl(224,22%,10%)] text-slate-200">Por defecto</option>
-                      <option value="name" className="bg-[hsl(224,22%,10%)] text-slate-200">Nombre (A-Z)</option>
-                      <option value="type" className="bg-[hsl(224,22%,10%)] text-slate-200">Tipo (Monstruo, Magia, Trampa)</option>
-                      <option value="level" className="bg-[hsl(224,22%,10%)] text-slate-200">Nivel/Rango</option>
-                      <option value="atk" className="bg-[hsl(224,22%,10%)] text-slate-200">ATK</option>
-                      <option value="def" className="bg-[hsl(224,22%,10%)] text-slate-200">DEF</option>
-                    </select>
-                  </div>
+                  <h2 className="font-black text-sm uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100">📋 Lista de Cartas</h2>
+                  <SortDropdown value={sortBy} onChange={setSortBy} />
                 </div>
-                <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
+                <div className="flex flex-wrap gap-1.5 text-xs font-bold">
                     {[
                       { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
                       { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
                       { label: 'Side', count: sideCardsCount, max: 15 },
                     ].map(({ label, count, max }) => (
-                      <span key={label} className="flex items-center gap-1 bg-[hsl(224,25%,6%)] py-0.5 px-2 rounded-lg border border-[hsl(224,15%,16%)]">
-                        {label}: <b className="font-mono text-white">{count}</b>/{max}
+                      <span key={label} className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 py-0.5 px-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400">
+                        {label}: <b className="font-mono font-black text-zinc-900 dark:text-white">{count}</b>/{max}
                       </span>
                     ))}
                   </div>
@@ -908,15 +901,15 @@ export default function DeckBuilder() {
                   className="flex-1 flex flex-col gap-3 p-4"
                 >
                   {/* Deck stats bar */}
-                  <div className="flex gap-1.5 text-xs font-semibold overflow-x-auto scrollbar-thin pb-1">
+                  <div className="flex gap-1.5 text-xs font-bold overflow-x-auto scrollbar-thin pb-1">
                     {[
                       { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
                       { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
                       { label: 'Side', count: sideCardsCount, max: 15 },
                       { label: 'Extras', count: extrasCardsCount, max: 30 },
                     ].map(({ label, count, max }) => (
-                      <span key={label} className="shrink-0 flex items-center gap-1 bg-[hsl(224,22%,10%)] py-1 px-2.5 rounded-lg border border-[hsl(224,15%,16%)]">
-                        {label}: <b className="font-mono text-white">{count}</b>/{max}
+                      <span key={label} className="shrink-0 flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 py-1 px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400">
+                        {label}: <b className="font-mono font-black text-zinc-900 dark:text-white">{count}</b>/{max}
                       </span>
                     ))}
                   </div>
@@ -1032,7 +1025,7 @@ export default function DeckBuilder() {
                   onClick={() => { state.handleClearDeck(); setMobileMoreOpen(false); }}
                   className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 rounded-xl text-sm font-semibold text-red-400 transition-all cursor-pointer touch-manipulation"
                 >
-                  <X className="w-4 h-4 text-red-400" />
+                  <Trash2 className="w-4 h-4 text-red-400" />
                   Limpiar Deck
                 </button>
 
@@ -1047,14 +1040,28 @@ export default function DeckBuilder() {
             </MobileBottomSheet>
           </div>
         </>
+      ) : state.activeView === 'exordio' ? (
+        /* EXORDIO ANALYTICS HUB VIEW */
+        <div className="flex-1 w-full pb-20 md:pb-8">
+          <ExordioAnalyticsDashboard
+            deckCards={state.deckCards}
+            inferredArchetype={state.inferredArchetype}
+            format={state.format}
+            onApplyGeneratedDeck={handleApplyGeneratedDeck}
+            onCardClick={(c) => preview.openPreviewForCard(c)}
+            onClose={() => state.setActiveView('builder')}
+          />
+        </div>
       ) : (
         /* ARCHETYPES BREAKDOWNS LIST VIEW */
-        <div className="flex-1 p-4 sm:p-8 max-w-full w-full pb-20 md:pb-8">
+        <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 md:pb-8">
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-[hsl(224,15%,16%)] pb-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-4">
               <div>
-                <h2 className="font-bold text-xl sm:text-2xl text-slate-100 flex items-center gap-2">📊 Breakdowns Competitivos</h2>
-                <p className="text-xs text-[hsl(215,15%,70%)] mt-1">
+                <h2 className="font-black text-xl sm:text-2xl text-zinc-900 dark:text-zinc-100 flex items-center gap-2 uppercase tracking-wider">
+                  <span className="text-red-500">📊</span> Breakdowns Competitivos
+                </h2>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 font-medium">
                   Explora arquetipos de Master Duel Meta y carga sus recetas populares en un solo clic.
                 </p>
               </div>
@@ -1063,14 +1070,14 @@ export default function DeckBuilder() {
                 placeholder="Filtrar arquetipos..."
                 value={state.archetypeSearchQuery}
                 onChange={(e) => state.setArchetypeSearchQuery(e.target.value)}
-                className="pl-3 pr-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 focus:border-[hsl(263,85%,64%)] text-slate-100 rounded-xl text-xs focus:outline-none w-full sm:max-w-xs"
+                className="pl-3 pr-3 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs font-bold focus:outline-none w-full sm:max-w-xs shadow-xs transition-colors"
               />
             </div>
 
             {state.isFetchingArchetypes ? (
               <div className="text-center py-20">
-                <span className="w-8 h-8 animate-spin text-purple-400 mx-auto mb-2 block font-extrabold">⏳</span>
-                <p className="text-xs font-mono text-slate-500">Cargando arquetipos del meta...</p>
+                <span className="w-8 h-8 animate-spin text-red-500 mx-auto mb-2 block font-extrabold">⏳</span>
+                <p className="text-xs font-mono font-bold text-zinc-500">Cargando arquetipos del meta...</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -1080,22 +1087,22 @@ export default function DeckBuilder() {
                     <div
                       key={arch.name}
                       onClick={() => state.openArchetypeBreakdown(arch.name)}
-                      className="cursor-pointer p-4 bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-2xl flex flex-col justify-between group transition-all duration-300 shadow-md touch-manipulation"
+                      className="cursor-pointer p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500/60 rounded-2xl flex flex-col justify-between group transition-all duration-200 shadow-xs touch-manipulation"
                     >
                       <div>
                         <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-base text-slate-200 group-hover:text-purple-300 transition-colors">
+                          <h4 className="font-black text-base text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors">
                             {arch.name}
                           </h4>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-[hsl(180,80%,45%)]/15 text-[hsl(180,80%,45%)] font-bold font-mono">
+                          <span className="text-[10px] px-2 py-0.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-bold font-mono border border-red-200 dark:border-red-900/40">
                             Tier {arch.tier}
                           </span>
                         </div>
-                        <p className="text-xs text-[hsl(215,15%,70%)] mt-2 line-clamp-2">{arch.description}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 line-clamp-2 leading-relaxed">{arch.description}</p>
                       </div>
-                      <div className="mt-4 pt-3 border-t border-[hsl(224,15%,16%)] flex justify-between items-center text-[10px] font-mono text-slate-500">
+                      <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center text-[10px] font-mono font-bold text-zinc-400">
                         <span>Cartas meta: {arch.cardCount}</span>
-                        <span className="text-[hsl(180,80%,45%)] font-bold group-hover:underline">Ver desglose →</span>
+                        <span className="text-red-600 dark:text-red-400 font-black group-hover:underline">Ver desglose →</span>
                       </div>
                     </div>
                   ))}
@@ -1195,6 +1202,16 @@ export default function DeckBuilder() {
         handleRemoveFromCollection={handleRemoveFromCollectionWrapper}
         isActionLoading={preview.isActionLoading}
         modalActionMessage={preview.modalActionMessage}
+      />
+
+      {/* UNIFIED AI COPILOT MODAL (Synthesizer & Live Judge) */}
+      <AICopilotModal
+        isOpen={isAICopilotOpen}
+        onClose={() => setIsAICopilotOpen(false)}
+        currentDeckCards={state.deckCards}
+        currentDeckName={state.deckName}
+        format={state.format}
+        onApplyDeck={handleApplyGeneratedDeck}
       />
 
       {/* CONFIRM CLEAR DECK DIALOG */}

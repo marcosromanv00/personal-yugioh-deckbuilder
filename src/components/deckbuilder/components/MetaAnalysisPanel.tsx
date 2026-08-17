@@ -55,28 +55,29 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
       className={`flex flex-col gap-4 ${
         isMobile
           ? 'w-full'
-          : `bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl transition-all overflow-hidden ${rightPanelOpen ? 'p-4' : 'w-10 min-w-10 p-2 items-center'}`
+          : `bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm transition-all overflow-hidden ${rightPanelOpen ? 'p-4' : 'w-10 min-w-10 p-2 items-center'}`
       }`}
     >
       {/* Panel Header */}
       {!isMobile && (
-        <div className={`border-b border-[hsl(224,15%,16%)] pb-2 mb-2 flex items-center shrink-0 ${rightPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
+        <div className={`border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-2 flex items-center shrink-0 ${rightPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
           {rightPanelOpen && (
             <div>
-              <h2 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 whitespace-nowrap">
-                <TrendingUp className="w-4 h-4 text-[hsl(180,80%,45%)]" /> Análisis del Meta
+              <h2 className="font-black text-xs uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                <TrendingUp className="w-4 h-4 text-red-500" />
+                <span>Análisis del Meta</span>
               </h2>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] text-slate-400 font-mono">En vivo • Master Duel Meta</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] text-zinc-500 font-mono">En vivo • Master Duel Meta</span>
               </div>
             </div>
           )}
           <div className="flex items-center gap-1">
-            {rightPanelOpen && isAnalyzing && <Loader2 className="w-4 h-4 animate-spin text-[hsl(180,80%,45%)]" />}
+            {rightPanelOpen && isAnalyzing && <Loader2 className="w-4 h-4 animate-spin text-red-500" />}
             <button
               onClick={() => setRightPanelOpen(p => !p)}
-              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
               title={rightPanelOpen ? 'Colapsar panel de análisis' : 'Expandir panel de análisis'}
             >
               {rightPanelOpen ? <X className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
@@ -88,7 +89,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
       {!rightPanelOpen && !isMobile ? (
         // Colapsed vertical text
         <div className="flex-1 flex items-center justify-center">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest" style={{ writingMode: 'vertical-rl' }}>Análisis</span>
+          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest" style={{ writingMode: 'vertical-rl' }}>Análisis</span>
         </div>
       ) : (
         // Expanded Panel Content
@@ -96,9 +97,9 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
           
           {/* Detected Archetypes Section */}
           <div>
-            <span className="text-[10px] text-slate-500 font-mono block mb-1.5">Arquetipos Principales Detectados:</span>
+            <span className="text-[10px] text-zinc-500 font-mono font-bold block mb-1.5">Arquetipos Principales Detectados:</span>
             {detectedArchetypes.length === 0 ? (
-              <span className="text-sm font-bold text-slate-300">{inferredArchetype || 'Híbrido / Staples'}</span>
+              <p className="text-xs text-zinc-400 italic">No se han detectado arquetipos aún</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {detectedArchetypes.map((arch) => {
@@ -110,16 +111,14 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
                         setActiveArchetypeTab(arch.name);
                         fetchSidebarBreakdown(arch.name);
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
                         isActive
-                          ? 'bg-purple-600/30 text-purple-200 border border-purple-500/60 shadow-lg shadow-purple-900/20'
-                          : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
+                          ? 'bg-red-600 text-white shadow-xs'
+                          : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-white'
                       }`}
                     >
                       <span>{arch.name}</span>
-                      <span className={`px-1.5 py-0.2 text-[9px] rounded-full font-mono font-extrabold ${isActive ? 'bg-purple-500/40 text-purple-100' : 'bg-zinc-800 text-zinc-400'}`}>
-                        {arch.count}x
-                      </span>
+                      <span className="text-[10px] font-mono opacity-80">{arch.count}x</span>
                     </button>
                   );
                 })}
@@ -146,10 +145,10 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
 
           {/* Archetype Card Breakdown & Popularity */}
           {(activeArchetypeTab || inferredArchetype) && (activeArchetypeTab || inferredArchetype) !== 'Híbrido / Staples' && (
-            <div className="border-t border-[hsl(224,15%,16%)] pt-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-2 flex items-center justify-between">
+            <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
+              <h4 className="text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 mb-2 flex items-center justify-between">
                 <span>📊 Desglose de {activeArchetypeTab || inferredArchetype}</span>
-                {isFetchingSidebarBreakdown && <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />}
+                {isFetchingSidebarBreakdown && <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />}
               </h4>
               {sidebarBreakdownCards.length === 0 ? (
                 <p className="text-xs text-zinc-500 text-center py-4">Sin datos de desglose para este arquetipo.</p>
@@ -182,7 +181,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
                         onClick={() => addRecommendedCard(card.id, card.name, undefined, card)}
                         onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
                         onMouseLeave={handleCardMouseLeave}
-                        className="relative aspect-[3/4.2] rounded-md overflow-hidden border border-zinc-800 hover:border-purple-500 hover:scale-105 transition-all duration-200 bg-zinc-950 cursor-grab active:cursor-grabbing group"
+                        className="relative aspect-[3/4.2] rounded-md overflow-hidden border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:scale-105 transition-all duration-200 bg-white dark:bg-zinc-950 cursor-grab active:cursor-grabbing group shadow-xs"
                         title={hoverText}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -192,10 +191,10 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
                           className="w-full h-full object-contain"
                           onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                         />
-                        <div className="absolute bottom-0 inset-x-0 bg-black/85 py-0.5 text-center text-[10px] font-extrabold text-purple-300 font-mono">
+                        <div className="absolute bottom-0 inset-x-0 bg-black/85 py-0.5 text-center text-[10px] font-extrabold text-red-400 font-mono">
                           {Math.round(card.usage_percent)}%
                         </div>
-                        <div className="absolute top-0.5 left-0.5 bg-black/75 px-1 rounded text-[7px] font-mono text-slate-200">
+                        <div className="absolute top-0.5 left-0.5 bg-black/75 px-1 rounded text-[7px] font-mono text-zinc-200">
                           {suggestedCopies}x
                         </div>
                       </div>

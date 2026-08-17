@@ -83,7 +83,7 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
   });
 
   return (
-    <div className="w-full bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-xl transition-all duration-300">
+    <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xs transition-all duration-300 overflow-hidden">
       {/* Header / Toggle Button */}
       <div
         role="button"
@@ -95,13 +95,13 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
             setIsOpen(!isOpen);
           }
         }}
-        className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-[hsl(215,15%,70%)] hover:text-white cursor-pointer transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-t-xl"
+        className="w-full px-4 py-3 flex items-center justify-between text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors select-none focus:outline-none"
       >
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className={`w-4 h-4 text-purple-400 ${hasActiveFilters ? 'animate-pulse text-cyan-400' : ''}`} />
+          <SlidersHorizontal className={`w-4 h-4 text-red-500 ${hasActiveFilters ? 'animate-pulse text-red-600' : ''}`} />
           <span>Filtros Avanzados</span>
           {hasActiveFilters && (
-            <span className="w-2 h-2 rounded-full bg-cyan-400" />
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -111,55 +111,55 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
                 e.stopPropagation();
                 onReset();
               }}
-              className="p-1 hover:bg-slate-800 rounded text-amber-400 hover:text-amber-300 transition-colors"
+              className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg text-red-600 dark:text-red-400 transition-colors"
               title="Resetear filtros"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           )}
-          {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
         </div>
       </div>
 
       {/* Filter Body */}
       {isOpen && (
-        <div className="p-4 border-t border-[hsl(224,15%,16%)] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-slate-200">
+        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-zinc-900 dark:text-zinc-100 bg-zinc-50/50 dark:bg-zinc-950/40">
           
           {/* Card Type */}
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase font-bold text-slate-400">Tipo de Carta</label>
+            <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Tipo de Carta</label>
             <select
               value={filters.type}
               onChange={(e) => updateFilter('type', e.target.value)}
-              className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+              className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
             >
-              <option value="">Cualquiera</option>
-              <option value="Monster">Monstruo (Main)</option>
-              <option value="Extra">Monstruo (Extra)</option>
-              <option value="Spell">Magia</option>
-              <option value="Trap">Trampa</option>
-              <option value="Fusion Monster">Fusion Monster</option>
-              <option value="Synchro Monster">Synchro Monster</option>
-              <option value="XYZ Monster">XYZ Monster</option>
-              <option value="Link Monster">Link Monster</option>
-              <option value="Ritual Monster">Ritual Monster</option>
-              <option value="Pendulum Effect Monster">Pendulum Monster</option>
+              <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
+              <option value="Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Monstruo (Main)</option>
+              <option value="Extra" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Monstruo (Extra)</option>
+              <option value="Spell" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Magia</option>
+              <option value="Trap" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Trampa</option>
+              <option value="Fusion Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Fusion Monster</option>
+              <option value="Synchro Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Synchro Monster</option>
+              <option value="XYZ Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">XYZ Monster</option>
+              <option value="Link Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Link Monster</option>
+              <option value="Ritual Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Ritual Monster</option>
+              <option value="Pendulum Effect Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Pendulum Monster</option>
             </select>
           </div>
 
           {/* Subtype / Race */}
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase font-bold text-slate-400">
+            <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">
               {filters.type === 'Spell' || filters.type === 'Trap' ? 'Propiedad' : 'Tipo / Raza'}
             </label>
             <select
               value={filters.race}
               onChange={(e) => updateFilter('race', e.target.value)}
-              className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+              className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
             >
-              <option value="">Cualquiera</option>
+              <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
               {getRaceOptions().map((r) => (
-                <option key={r} value={r}>{r}</option>
+                <option key={r} value={r} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{r}</option>
               ))}
             </select>
           </div>
@@ -167,15 +167,15 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {/* Attribute */}
           {(!filters.type || filters.type === 'Monster' || filters.type === 'Extra' || filters.type.includes('Monster')) && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400">Atributo</label>
+              <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Atributo</label>
               <select
                 value={filters.attribute}
                 onChange={(e) => updateFilter('attribute', e.target.value)}
-                className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
               >
-                <option value="">Cualquiera</option>
+                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
                 {ATTRIBUTES.map((attr) => (
-                  <option key={attr} value={attr}>{attr}</option>
+                  <option key={attr} value={attr} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{attr}</option>
                 ))}
               </select>
             </div>
@@ -184,15 +184,15 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {/* Level / Rank */}
           {(!filters.type || filters.type === 'Monster' || filters.type === 'Extra' || filters.type.includes('Monster')) && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400">Nivel / Rango / Link</label>
+              <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Nivel / Rango / Link</label>
               <select
                 value={filters.level}
                 onChange={(e) => updateFilter('level', e.target.value)}
-                className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
               >
-                <option value="">Cualquiera</option>
+                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((lvl) => (
-                  <option key={lvl} value={lvl.toString()}>{lvl}</option>
+                  <option key={lvl} value={lvl.toString()} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{lvl}</option>
                 ))}
               </select>
             </div>
@@ -201,22 +201,22 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {/* ATK Range */}
           {(!filters.type || filters.type === 'Monster' || filters.type === 'Extra' || filters.type.includes('Monster')) && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400">Ataque (ATK)</label>
+              <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Ataque (ATK)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   placeholder="Min"
                   value={filters.atkMin}
                   onChange={(e) => updateFilter('atkMin', e.target.value)}
-                  className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                  className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-mono font-bold shadow-xs transition-colors"
                 />
-                <span className="text-slate-500 text-xs">-</span>
+                <span className="text-zinc-400 text-xs font-bold">-</span>
                 <input
                   type="number"
                   placeholder="Max"
                   value={filters.atkMax}
                   onChange={(e) => updateFilter('atkMax', e.target.value)}
-                  className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                  className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-mono font-bold shadow-xs transition-colors"
                 />
               </div>
             </div>
@@ -225,22 +225,22 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {/* DEF Range */}
           {(!filters.type || filters.type === 'Monster' || filters.type === 'Extra' || filters.type.includes('Monster')) && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400">Defensa (DEF)</label>
+              <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Defensa (DEF)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   placeholder="Min"
                   value={filters.defMin}
                   onChange={(e) => updateFilter('defMin', e.target.value)}
-                  className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                  className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-mono font-bold shadow-xs transition-colors"
                 />
-                <span className="text-slate-500 text-xs">-</span>
+                <span className="text-zinc-400 text-xs font-bold">-</span>
                 <input
                   type="number"
                   placeholder="Max"
                   value={filters.defMax}
                   onChange={(e) => updateFilter('defMax', e.target.value)}
-                  className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                  className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-mono font-bold shadow-xs transition-colors"
                 />
               </div>
             </div>
@@ -248,28 +248,28 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
 
           {/* Archetype */}
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase font-bold text-slate-400">Arquetipo</label>
+            <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Arquetipo</label>
             <input
               type="text"
               placeholder="Ej: Elemental HERO..."
               value={filters.archetype}
               onChange={(e) => updateFilter('archetype', e.target.value)}
-              className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+              className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
             />
           </div>
 
           {/* Rarity (Collection only) */}
           {showRarity && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400">Rareza</label>
+              <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Rareza</label>
               <select
                 value={filters.rarity || ''}
                 onChange={(e) => updateFilter('rarity', e.target.value)}
-                className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
               >
-                <option value="">Cualquiera</option>
+                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
                 {RARITIES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{r}</option>
                 ))}
               </select>
             </div>
@@ -278,15 +278,15 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {/* Status Flag (Collection only) */}
           {showCollectionOptions && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400">Estado / Destino</label>
+              <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Estado / Destino</label>
               <select
                 value={filters.status || ''}
                 onChange={(e) => updateFilter('status', e.target.value)}
-                className="w-full p-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-zinc-700 text-xs rounded-lg text-slate-100 focus:outline-none"
+                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
               >
-                <option value="">Cualquiera</option>
+                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
                 {STATUS_FLAGS.map((f) => (
-                  <option key={f.value} value={f.value}>{f.label}</option>
+                  <option key={f.value} value={f.value} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{f.label}</option>
                 ))}
               </select>
             </div>

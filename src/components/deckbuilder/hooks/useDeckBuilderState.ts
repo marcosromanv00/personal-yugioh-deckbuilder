@@ -15,7 +15,7 @@ export function useDeckBuilderState() {
   const [searchLimit, setSearchLimit] = useState(45);
 
   // Portal de exploración (Archetype Hub)
-  const [activeView, setActiveView] = useState<'builder' | 'breakdowns'>('builder');
+  const [activeView, setActiveView] = useState<'builder' | 'breakdowns' | 'exordio'>('builder');
   const [archetypesList, setArchetypesList] = useState<ArchetypeItem[]>([]);
   const [isFetchingArchetypes, setIsFetchingArchetypes] = useState(false);
   const [archetypeSearchQuery, setArchetypeSearchQuery] = useState('');

@@ -7,8 +7,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 export function usePanelResize() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [leftPanelWidth, setLeftPanelWidth] = useState(320);
-  const [rightPanelWidth, setRightPanelWidth] = useState(320);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(384);
+  const [rightPanelWidth, setRightPanelWidth] = useState(384);
 
   const isResizingLeft = useRef(false);
   const isResizingRight = useRef(false);
