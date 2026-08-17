@@ -121,6 +121,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   const [ydkText, setYdkText] = useState('');
   const [ydkFileName, setYdkFileName] = useState('');
   const [importSubTab, setImportSubTab] = useState<'ydk' | 'id_list'>('ydk');
+  const [splitCopiesImport, setSplitCopiesImport] = useState<boolean>(true);
   const [targetCompartmentForImport, setTargetCompartmentForImport] = useState<number>(0);
   const [importLoading, setImportLoading] = useState(false);
   const [importSuccessMsg, setImportSuccessMsg] = useState('');
@@ -616,6 +617,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       const bodyPayload: Record<string, unknown> = {
         storage_location_id: isInbox ? null : containerId,
         compartment_index: effectiveCompartment,
+        split_individual: splitCopiesImport,
       };
 
       if (importSubTab === 'id_list') {
@@ -652,6 +654,142 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       toast.error(e.message || 'Error al importar cartas', { title: 'Error de importación' });
     } finally {
       setImportLoading(false);
+    }
+  };
+
+  // Obtener todas las variantes de la carta activa en el panel derecho
+  const activeVariants = useMemo(() => {
+    if (!selectedUserCard) return [];
+    const comp = selectedUserCard.compartment_index || 0;
+    return cards.filter(c => c.card_id === selectedUserCard.card_id && (c.compartment_index || 0) === comp);
+  }, [cards, selectedUserCard]);
+
+  const totalCopiesInContainer = useMemo(() => {
+    return activeVariants.reduce((sum, v) => sum + (v.quantity || 1), 0);
+  }, [activeVariants]);
+
+  // Actualizar una variante específica por id
+  const handleUpdateVariantById = async (variantId: string, updatedFields: Partial<UserCard>) => {
+    setCards(prev => prev.map(c => c.id === variantId ? { ...c, ...updatedFields } : c));
+    if (selectedUserCard?.id === variantId) {
+      setSelectedUserCard(prev => prev ? { ...prev, ...updatedFields } : null);
+    }
+    setHasMutated(true);
+
+    try {
+      await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: variantId,
+          ...updatedFields,
+        }),
+      });
+    } catch (err) {
+      console.error('Error al actualizar variante:', err);
+    }
+  };
+
+  // Añadir una nueva variante / rareza para la carta seleccionada
+  const handleAddNewVariant = async () => {
+    if (!selectedUserCard) return;
+
+    try {
+      const payload: Record<string, unknown> = {
+        card_id: selectedUserCard.card_id,
+        storage_location_id: selectedUserCard.storage_location_id,
+        compartment_index: selectedUserCard.compartment_index || 0,
+        quantity: 1,
+        rarity: 'Common',
+        condition: 'Near Mint',
+        status_flag: selectedUserCard.status_flag || 'collection',
+        sleeve_type: 'none',
+      };
+
+      const res = await fetch('/api/collection/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const insertedCard: UserCard = json.data;
+        setCards(prev => [insertedCard, ...prev]);
+        setHasMutated(true);
+        toast.success(`Nueva variante añadida`, { title: '¡Variante creada!' });
+        fetchCards();
+      }
+    } catch (err) {
+      console.error('Error al añadir variante:', err);
+    }
+  };
+
+  // Eliminar una variante específica
+  const handleDeleteVariantById = async (variantId: string) => {
+    if (!confirm('¿Eliminar esta variante/rareza de la colección?')) return;
+
+    setCards(prev => prev.filter(c => c.id !== variantId));
+    if (selectedUserCard?.id === variantId) {
+      const remaining = cards.filter(c => c.id !== variantId && c.card_id === selectedUserCard.card_id);
+      setSelectedUserCard(remaining[0] || null);
+    }
+    setHasMutated(true);
+
+    try {
+      await fetch(`/api/collection/cards?id=${variantId}`, {
+        method: 'DELETE',
+      });
+      fetchCards();
+    } catch (err) {
+      console.error('Error al eliminar variante:', err);
+    }
+  };
+
+  // Desglosar 1 registro agrupado (ej: 6x Alubers) en copias físicas individuales (1x c/u)
+  const handleSplitCopies = async () => {
+    if (!selectedUserCard || selectedUserCard.quantity <= 1) return;
+
+    const count = selectedUserCard.quantity;
+    if (!confirm(`¿Desglosar esta entrada de ${count} copias en ${count} cartas físicas individuales (1x cada una)? Esto te permitirá asignar rareza, estado o funda diferente a cada carta.`)) return;
+
+    try {
+      // 1. Actualizar el registro actual a quantity: 1
+      await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedUserCard.id,
+          quantity: 1,
+        }),
+      });
+
+      // 2. Insertar (count - 1) nuevas filas individuales
+      const baseTime = selectedUserCard.created_at ? new Date(selectedUserCard.created_at).getTime() : Date.now();
+      for (let i = 1; i < count; i++) {
+        await fetch('/api/collection/cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            card_id: selectedUserCard.card_id,
+            storage_location_id: selectedUserCard.storage_location_id,
+            compartment_index: selectedUserCard.compartment_index || 0,
+            quantity: 1,
+            rarity: selectedUserCard.rarity || 'Common',
+            condition: selectedUserCard.condition || 'Near Mint',
+            status_flag: selectedUserCard.status_flag || 'collection',
+            sleeve_type: selectedUserCard.sleeve_type || 'none',
+            created_at: new Date(baseTime + i * 500).toISOString(),
+          }),
+        });
+      }
+
+      toast.success(`Desglosado en ${count} copias individuales`, { title: '¡Cartas desglosadas!' });
+      setHasMutated(true);
+      await fetchCards();
+    } catch (err) {
+      console.error('Error al desglosar copias:', err);
+      toast.error('Error al desglosar copias', { title: 'Error' });
     }
   };
 
@@ -702,13 +840,52 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     });
   }, [cards, containerSearch, statusFilter, activeCompartment, sortBy]);
 
-  // Paginación para Box / Tin / Inbox
+  // Agrupar cartas por card_id + carril para mostrar solo 1 tarjeta por tipo en la galería central
+  const groupedGridCards = useMemo(() => {
+    const groupsMap = new Map<string, {
+      card_id: number;
+      compartment_index: number;
+      card_details?: UserCard['card_details'];
+      totalQuantity: number;
+      representativeUserCard: UserCard;
+      allVariants: UserCard[];
+    }>();
+
+    for (const uc of filteredCards) {
+      const comp = uc.compartment_index || 0;
+      const key = `${uc.card_id}_${comp}`;
+
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, {
+          card_id: uc.card_id,
+          compartment_index: comp,
+          card_details: uc.card_details,
+          totalQuantity: uc.quantity || 1,
+          representativeUserCard: uc,
+          allVariants: [uc],
+        });
+      } else {
+        const group = groupsMap.get(key)!;
+        group.totalQuantity += (uc.quantity || 1);
+        group.allVariants.push(uc);
+      }
+    }
+
+    return Array.from(groupsMap.values());
+  }, [filteredCards]);
+
+  // Conteo total de cartas físicas en el contenedor (sumando copias de todas las variantes)
+  const totalPhysicalCards = useMemo(() => {
+    return cards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  }, [cards]);
+
+  // Paginación para la grilla basada en tarjetas únicas agrupadas
   const CARDS_PER_GRID_PAGE = 30;
-  const totalGridPages = Math.max(1, Math.ceil(filteredCards.length / CARDS_PER_GRID_PAGE));
+  const totalGridPages = Math.max(1, Math.ceil(groupedGridCards.length / CARDS_PER_GRID_PAGE));
   const paginatedGridCards = useMemo(() => {
     const start = (currentGridPage - 1) * CARDS_PER_GRID_PAGE;
-    return filteredCards.slice(start, start + CARDS_PER_GRID_PAGE);
-  }, [filteredCards, currentGridPage]);
+    return groupedGridCards.slice(start, start + CARDS_PER_GRID_PAGE);
+  }, [groupedGridCards, currentGridPage]);
 
   // Configuración de Binder
   const rows = location?.grid_layout?.rows || 3;
@@ -872,7 +1049,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 </span>
               </h1>
               <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono truncate hidden sm:block">
-                {cards.length} {cards.length === 1 ? 'carta registrada' : 'cartas registradas'} • Capacidad: {isInbox ? 'Ilimitada' : `${location?.capacity || 0} slots`}
+                {totalPhysicalCards} {totalPhysicalCards === 1 ? 'carta física registrada' : 'cartas físicas registradas'} ({groupedGridCards.length} en galería) • Capacidad: {isInbox ? 'Ilimitada' : `${location?.capacity || 0} slots`}
               </p>
             </div>
           </div>
@@ -1131,6 +1308,17 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   </div>
                 )}
 
+                {/* Opción para registrar cada copia como ítem físico independiente */}
+                <label className="flex items-center gap-2 cursor-pointer text-[11px] font-bold text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+                  <input
+                    type="checkbox"
+                    checked={splitCopiesImport}
+                    onChange={(e) => setSplitCopiesImport(e.target.checked)}
+                    className="rounded border-zinc-400 text-cyan-600 focus:ring-cyan-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Registrar cada copia como ítem físico independiente (1x)</span>
+                </label>
+
                 {importError && (
                   <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-900 dark:text-red-300 font-semibold rounded-xl flex items-start gap-2 shadow-2xs">
                     <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
@@ -1285,11 +1473,11 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                     : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                 }`}
               >
-                <span>Todos los carriles ({cards.length})</span>
+                <span>Todos los carriles ({totalPhysicalCards})</span>
               </button>
 
               {location.compartments.names.map((compName, idx) => {
-                const compCount = cards.filter(c => (c.compartment_index || 0) === idx).length;
+                const compCount = cards.filter(c => (c.compartment_index || 0) === idx).reduce((sum, c) => sum + (c.quantity || 1), 0);
                 const isActive = activeCompartment === idx;
                 return (
                   <button
@@ -1513,12 +1701,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               ) : (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
-                    {paginatedGridCards.map((uc) => {
-                      const isSelected = selectedUserCard?.id === uc.id;
+                    {paginatedGridCards.map((group) => {
+                      const uc = group.representativeUserCard;
+                      const isSelected = selectedUserCard?.card_id === group.card_id;
                       const sleeveColor = uc.sleeve_type !== 'none' && uc.sleeve_color ? getSleeveColorHex(uc.sleeve_color) : undefined;
                       return (
                         <motion.div
-                          key={uc.id}
+                          key={`${group.card_id}_${group.compartment_index}`}
                           whileHover={{ y: -3, scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => {
@@ -1549,7 +1738,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                               />
                             )}
                             <div className="absolute top-1 right-1 bg-zinc-950/90 text-white font-mono text-[9px] px-1.5 py-0.5 rounded border border-zinc-700 font-black shadow-xs">
-                              {uc.quantity}x
+                              {group.totalQuantity}x
                             </div>
                             {uc.is_proxy && (
                               <div className="absolute top-1 left-1 bg-red-600 text-white font-mono text-[8px] px-1 py-0.5 rounded font-black uppercase shadow-xs">
@@ -1562,7 +1751,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                               {uc.card_details?.name || 'Carta'}
                             </h4>
                             <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500 mt-0.5">
-                              <span className="truncate">{uc.rarity || 'Common'}</span>
+                              <span className="truncate">
+                                {group.allVariants.length > 1 ? `${group.allVariants.length} Variantes` : (uc.rarity || 'Common')}
+                              </span>
                               <span className="uppercase text-zinc-400">{uc.condition?.replace('Played', 'P') || 'NM'}</span>
                             </div>
                           </div>
@@ -1650,99 +1841,123 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 </div>
               </div>
 
-              {/* Formulario de propiedades con margen amplio */}
+              {/* Formulario de propiedades con desglose de variantes */}
               <div className="space-y-4">
-                
-                {/* Rareza */}
-                <div>
-                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-                    Rareza
-                  </label>
-                  <select
-                    value={selectedUserCard.rarity || 'Common'}
-                    onChange={(e) => handleUpdateCard({ rarity: e.target.value })}
-                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
-                  >
-                    <option value="Common">Common (Común)</option>
-                    <option value="Rare">Rare (Rara)</option>
-                    <option value="Super Rare">Super Rare</option>
-                    <option value="Ultra Rare">Ultra Rare</option>
-                    <option value="Secret Rare">Secret Rare</option>
-                    <option value="Ultimate Rare">Ultimate Rare</option>
-                    <option value="Ghost Rare">Ghost Rare</option>
-                    <option value="Starlight Rare">Starlight Rare</option>
-                    <option value="Collector's Rare">Collector's Rare</option>
-                    <option value="Quarter Century Secret Rare">25th Quarter Century</option>
-                  </select>
+                {/* Desglose de Variantes y Rarezas por Copias */}
+                <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Desglose de Copias ({totalCopiesInContainer} en total)</span>
+                  </h4>
                 </div>
 
-                {/* Condición */}
-                <div>
-                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-                    Condición Física
-                  </label>
-                  <select
-                    value={selectedUserCard.condition || 'Near Mint'}
-                    onChange={(e) => handleUpdateCard({ condition: e.target.value as any })}
-                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
-                  >
-                    <option value="Near Mint">Near Mint (NM - Impecable)</option>
-                    <option value="Lightly Played">Lightly Played (LP - Uso leve)</option>
-                    <option value="Moderately Played">Moderately Played (MP - Uso moderado)</option>
-                    <option value="Heavily Played">Heavily Played (HP - Muy jugada)</option>
-                    <option value="Damaged">Damaged (DMG - Dañada)</option>
-                  </select>
+                <div className="space-y-3">
+                  {activeVariants.map((v, idx) => (
+                    <div key={v.id} className="p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-1.5">
+                        <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
+                          Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
+                        </span>
+                        {activeVariants.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVariantById(v.id)}
+                            className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
+                          >
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Cantidad de copias para esta variante */}
+                        <div>
+                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                            Copias:
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="99"
+                            value={v.quantity || 1}
+                            onChange={(e) => handleUpdateVariantById(v.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-mono font-bold focus:border-purple-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Rareza de esta variante */}
+                        <div>
+                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                            Rareza:
+                          </label>
+                          <select
+                            value={v.rarity || 'Common'}
+                            onChange={(e) => handleUpdateVariantById(v.id, { rarity: e.target.value })}
+                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-bold focus:border-purple-500 focus:outline-none cursor-pointer"
+                          >
+                            <option value="Common">Common (Común)</option>
+                            <option value="Rare">Rare (Rara)</option>
+                            <option value="Super Rare">Super Rare</option>
+                            <option value="Ultra Rare">Ultra Rare</option>
+                            <option value="Secret Rare">Secret Rare</option>
+                            <option value="Ultimate Rare">Ultimate Rare</option>
+                            <option value="Ghost Rare">Ghost Rare</option>
+                            <option value="Starlight Rare">Starlight Rare</option>
+                            <option value="Collector's Rare">Collector's Rare</option>
+                            <option value="Quarter Century Secret Rare">25th Quarter Century</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Condición y Funda */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                            Condición:
+                          </label>
+                          <select
+                            value={v.condition || 'Near Mint'}
+                            onChange={(e) => handleUpdateVariantById(v.id, { condition: e.target.value as any })}
+                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
+                          >
+                            <option value="Near Mint">Near Mint (NM)</option>
+                            <option value="Lightly Played">Lightly Played (LP)</option>
+                            <option value="Moderately Played">Moderately Played (MP)</option>
+                            <option value="Heavily Played">Heavily Played (HP)</option>
+                            <option value="Damaged">Damaged (DMG)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                            Funda / Sleeving:
+                          </label>
+                          <select
+                            value={v.sleeve_type || 'none'}
+                            onChange={(e) => handleUpdateVariantById(v.id, { sleeve_type: e.target.value as any })}
+                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
+                          >
+                            <option value="none">Sin Funda</option>
+                            <option value="single">Funda Simple</option>
+                            <option value="double">Funda Doble</option>
+                            <option value="triple">Funda Triple</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                {/* Funda / Sleeve */}
-                <div>
-                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-                    Funda / Sleeving
-                  </label>
-                  <select
-                    value={selectedUserCard.sleeve_type || 'none'}
-                    onChange={(e) => handleUpdateCard({ sleeve_type: e.target.value as any })}
-                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
-                  >
-                    <option value="none">Sin Funda</option>
-                    <option value="single">Funda Simple</option>
-                    <option value="double">Funda Doble (Inner + Outer)</option>
-                    <option value="triple">Funda Triple</option>
-                  </select>
-                </div>
-
-                {/* Cantidad y Proxy */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-                      Copias
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="99"
-                      value={selectedUserCard.quantity || 1}
-                      onChange={(e) => handleUpdateCard({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 font-mono focus:border-red-500 focus:outline-none shadow-2xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-                      Estado Proxy
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateCard({ is_proxy: !selectedUserCard.is_proxy })}
-                      className={`w-full py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
-                        selectedUserCard.is_proxy
-                          ? 'bg-red-950/40 text-red-400 border-red-500'
-                          : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
-                      }`}
-                    >
-                      {selectedUserCard.is_proxy ? 'Es Proxy' : 'Original'}
-                    </button>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleAddNewVariant}
+                  className="w-full py-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 font-bold text-xs rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>➕ Añadir variante / rareza diferente</span>
+                </button>
+              </div>
 
                 {/* Destino / Status flag */}
                 <div>

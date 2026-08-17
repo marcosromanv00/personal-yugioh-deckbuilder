@@ -33,7 +33,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ydkText, cardIds, rarity, status_flag, storage_location_id, compartment_index } = body;
+    const { ydkText, cardIds, rarity, status_flag, storage_location_id, compartment_index, split_individual } = body;
     const targetLocationId = (storage_location_id === 'inbox' || !storage_location_id) ? null : storage_location_id;
 
     let targetCardIds: number[] = [];
@@ -133,27 +133,47 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 3. Insertar registros en yg_user_cards reservando la secuencia exacta del listado bulk
-    const itemsSequence: Array<{ card_id: number; quantity: number }> = [];
-    for (const id of validTargetCardIds) {
-      const lastItem = itemsSequence[itemsSequence.length - 1];
-      if (lastItem && lastItem.card_id === id) {
-        lastItem.quantity += 1;
-      } else {
-        itemsSequence.push({ card_id: id, quantity: 1 });
-      }
-    }
+    // 3. Insertar registros en yg_user_cards
+    const now = Date.now();
+    let rowsToInsert: Array<Record<string, unknown>> = [];
 
-    const rowsToInsert = itemsSequence.map(item => ({
-      card_id: item.card_id,
-      storage_location_id: targetLocationId,
-      compartment_index: typeof compartment_index === 'number' ? compartment_index : 0,
-      quantity: item.quantity,
-      rarity: rarity || 'Common',
-      status_flag: status_flag || 'collection',
-      sleeve_type: 'none',
-      condition: 'Near Mint',
-    }));
+    if (split_individual) {
+      // Registrar cada copia como fila individual de quantity: 1
+      rowsToInsert = validTargetCardIds.map((cardId, idx) => ({
+        card_id: cardId,
+        storage_location_id: targetLocationId,
+        compartment_index: typeof compartment_index === 'number' ? compartment_index : 0,
+        quantity: 1,
+        rarity: rarity || 'Common',
+        status_flag: status_flag || 'collection',
+        sleeve_type: 'none',
+        condition: 'Near Mint',
+        created_at: new Date(now + idx * 1000).toISOString(),
+      }));
+    } else {
+      // Agrupar apariciones consecutivas idénticas
+      const itemsSequence: Array<{ card_id: number; quantity: number }> = [];
+      for (const id of validTargetCardIds) {
+        const lastItem = itemsSequence[itemsSequence.length - 1];
+        if (lastItem && lastItem.card_id === id) {
+          lastItem.quantity += 1;
+        } else {
+          itemsSequence.push({ card_id: id, quantity: 1 });
+        }
+      }
+
+      rowsToInsert = itemsSequence.map((item, idx) => ({
+        card_id: item.card_id,
+        storage_location_id: targetLocationId,
+        compartment_index: typeof compartment_index === 'number' ? compartment_index : 0,
+        quantity: item.quantity,
+        rarity: rarity || 'Common',
+        status_flag: status_flag || 'collection',
+        sleeve_type: 'none',
+        condition: 'Near Mint',
+        created_at: new Date(now + idx * 1000).toISOString(),
+      }));
+    }
 
     const { data: inserted, error: insertError } = await supabase
       .from('yg_user_cards')
@@ -164,7 +184,7 @@ export async function POST(req: NextRequest) {
       throw insertError;
     }
 
-    const insertedTotal = rowsToInsert.reduce((acc, curr) => acc + curr.quantity, 0);
+    const insertedTotal = rowsToInsert.reduce((acc, curr) => acc + (Number(curr.quantity) || 1), 0);
     let warningMsg: string | undefined = undefined;
     if (invalidIds.length > 0) {
       warningMsg = `Se omitieron ${invalidIds.length} IDs no válidos (${invalidIds.slice(0, 3).join(', ')}${invalidIds.length > 3 ? '...' : ''}).`;
