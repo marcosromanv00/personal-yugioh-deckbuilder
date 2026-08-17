@@ -161,7 +161,7 @@ const SearchResultsList = React.memo(({
                 )}
               </div>
               <p className="text-[10px] text-zinc-500 font-mono font-bold truncate">
-                {card.type} • {card.archetype || 'Genérica'}
+                #{card.id} • {card.type} • {card.archetype || 'Genérica'}
               </p>
             </div>
             
@@ -384,7 +384,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             <div className="relative flex-1">
               <input
                 type="text"
-                placeholder={searchScope === 'staged' ? "Buscar pendientes..." : searchScope === 'collection' ? "Buscar en mi colección..." : "Nombre de carta..."}
+                placeholder={searchScope === 'staged' ? "Buscar por nombre o ID..." : searchScope === 'collection' ? "Buscar en mi colección (nombre o ID)..." : "Nombre o ID de carta (ej: 89631139)..."}
                 value={localQuery}
                 onChange={(e) => setLocalQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs focus:outline-none transition-colors"

@@ -58,7 +58,13 @@ export async function GET(req: NextRequest) {
           dbQuery = dbQuery.eq('id', parseInt(id));
         }
         if (query) {
-          dbQuery = dbQuery.ilike('name', `%${query}%`);
+          const isNumeric = /^\d+$/.test(query.trim());
+          if (isNumeric) {
+            const cardIdNum = parseInt(query.trim());
+            dbQuery = dbQuery.or(`name.ilike.%${query}%,id.eq.${cardIdNum}`);
+          } else {
+            dbQuery = dbQuery.ilike('name', `%${query}%`);
+          }
         }
         if (archetype) {
           dbQuery = dbQuery.eq('archetype', archetype);
@@ -125,7 +131,12 @@ export async function GET(req: NextRequest) {
       url = `${YGOPRODECK_API_URL}?id=${id}`;
     } else {
       if (query) {
-        url += `&fname=${encodeURIComponent(query)}`;
+        const isNumeric = /^\d+$/.test(query.trim());
+        if (isNumeric) {
+          url += `&id=${encodeURIComponent(query.trim())}`;
+        } else {
+          url += `&fname=${encodeURIComponent(query)}`;
+        }
       }
       if (archetype) {
         url += `&archetype=${encodeURIComponent(archetype)}`;

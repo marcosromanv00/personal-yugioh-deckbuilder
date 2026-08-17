@@ -20,7 +20,9 @@ import {
   ChevronLeft, 
   ChevronRight,
   Filter,
-  Plus
+  Plus,
+  AlertCircle,
+  ArrowUpDown
 } from 'lucide-react';
 import { StorageLocation, UserCard, SleeveInventory, Deck } from '@/types/collection';
 import { Card, HoverCardBase } from '@/components/deckbuilder/types';
@@ -110,6 +112,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   // Paginación y filtros internos del contenedor (panel central)
   const [containerSearch, setContainerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('registration_asc');
   const [activeCompartment, setActiveCompartment] = useState<number>(-1);
   const [currentGridPage, setCurrentGridPage] = useState(1);
   const [currentBinderViewIndex, setCurrentBinderViewIndex] = useState(0);
@@ -117,9 +120,60 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   // Importación YDK / Bulk
   const [ydkText, setYdkText] = useState('');
   const [ydkFileName, setYdkFileName] = useState('');
+  const [importSubTab, setImportSubTab] = useState<'ydk' | 'id_list'>('ydk');
+  const [targetCompartmentForImport, setTargetCompartmentForImport] = useState<number>(0);
   const [importLoading, setImportLoading] = useState(false);
   const [importSuccessMsg, setImportSuccessMsg] = useState('');
   const [importError, setImportError] = useState('');
+
+  useEffect(() => {
+    if (activeCompartment !== -1) {
+      setTargetCompartmentForImport(activeCompartment);
+    }
+  }, [activeCompartment]);
+
+  // Parser para listas numéricas de cantidad + ID (ej: "1 61280937" o "3 89631139")
+  const parseQuantityIdList = (text: string): number[] => {
+    const lines = text.split('\n');
+    const result: number[] = [];
+
+    for (let line of lines) {
+      line = line.trim();
+      if (!line || line.startsWith('#') || line.startsWith('!')) continue;
+
+      const tokens = line.split(/[\s,xX]+/).filter(Boolean);
+      if (tokens.length === 1) {
+        const id = parseInt(tokens[0], 10);
+        if (!isNaN(id) && id > 100) {
+          result.push(id);
+        }
+      } else if (tokens.length >= 2) {
+        const v1 = parseInt(tokens[0], 10);
+        const v2 = parseInt(tokens[1], 10);
+
+        if (!isNaN(v1) && !isNaN(v2)) {
+          let qty = 1;
+          let cardId = 0;
+
+          if (v1 > 1000) {
+            cardId = v1;
+            qty = Math.min(v2, 100);
+          } else if (v2 > 1000) {
+            qty = Math.min(v1, 100);
+            cardId = v2;
+          }
+
+          if (cardId > 0 && qty > 0) {
+            for (let i = 0; i < qty; i++) {
+              result.push(cardId);
+            }
+          }
+        }
+      }
+    }
+
+    return result;
+  };
 
   // Mobile Tabs
   const [mobileTab, setMobileTab] = useState<'left' | 'center' | 'right'>('center');
@@ -555,13 +609,29 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     setImportSuccessMsg('');
 
     try {
+      const effectiveCompartment = location?.compartments && location.compartments.count > 1
+        ? targetCompartmentForImport
+        : (activeCompartment === -1 ? 0 : activeCompartment);
+
+      const bodyPayload: Record<string, unknown> = {
+        storage_location_id: isInbox ? null : containerId,
+        compartment_index: effectiveCompartment,
+      };
+
+      if (importSubTab === 'id_list') {
+        const parsedCardIds = parseQuantityIdList(ydkText);
+        if (parsedCardIds.length === 0) {
+          throw new Error('No se identificaron IDs numéricos válidos. Formato esperado: "1 61280937" (cantidad e ID por línea)');
+        }
+        bodyPayload.cardIds = parsedCardIds;
+      } else {
+        bodyPayload.ydkText = ydkText;
+      }
+
       const res = await fetch('/api/collection/inbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ydkText,
-          storage_location_id: isInbox ? null : containerId,
-        }),
+        body: JSON.stringify(bodyPayload),
       });
 
       const json = await res.json();
@@ -596,15 +666,41 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     reader.readAsText(file);
   };
 
-  // Filtrado de cartas en el panel central
+  // Filtrado y Ordenamiento de cartas en el panel central
   const filteredCards = useMemo(() => {
-    return cards.filter(c => {
+    const list = cards.filter(c => {
       const nameMatch = !containerSearch || (c.card_details?.name.toLowerCase().includes(containerSearch.toLowerCase()) ?? false);
       const statusMatch = statusFilter === 'all' || c.status_flag === statusFilter;
       const compMatch = activeCompartment === -1 || (c.compartment_index || 0) === activeCompartment;
       return nameMatch && statusMatch && compMatch;
     });
-  }, [cards, containerSearch, statusFilter, activeCompartment]);
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'registration_asc') {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeA - timeB;
+      }
+      if (sortBy === 'registration_desc') {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA;
+      }
+      if (sortBy === 'name_asc') {
+        return (a.card_details?.name || '').localeCompare(b.card_details?.name || '');
+      }
+      if (sortBy === 'name_desc') {
+        return (b.card_details?.name || '').localeCompare(a.card_details?.name || '');
+      }
+      if (sortBy === 'id_asc') {
+        return (a.card_id || 0) - (b.card_id || 0);
+      }
+      if (sortBy === 'type') {
+        return (a.card_details?.type || '').localeCompare(b.card_details?.type || '');
+      }
+      return 0;
+    });
+  }, [cards, containerSearch, statusFilter, activeCompartment, sortBy]);
 
   // Paginación para Box / Tin / Inbox
   const CARDS_PER_GRID_PAGE = 30;
@@ -850,7 +946,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 }`}
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>Importar YDK</span>
+                <span>Importar Bulk</span>
               </button>
             </div>
           </div>
@@ -905,57 +1001,147 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             </div>
           ) : (
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
-              <div className="p-3 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
-                <h3 className="text-xs font-black uppercase text-cyan-500 dark:text-cyan-400 flex items-center gap-1.5">
+              <div className="p-3 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2.5">
+                <h3 className="text-xs font-black uppercase text-cyan-700 dark:text-cyan-400 flex items-center gap-1.5">
                   <Upload className="w-3.5 h-3.5" />
-                  <span>Importar a este Contenedor</span>
+                  <span>Importar Bulk</span>
                 </h3>
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Sube un archivo <strong>.ydk</strong> o pega una lista de texto con cartas para agregarlas directamente a <strong>{isInbox ? 'Sin Clasificar' : location?.name}</strong>.
+                <p className="text-[11px] text-zinc-700 dark:text-zinc-300 font-medium">
+                  Selecciona el método e importa múltiples cartas directamente a <strong>{isInbox ? 'Sin Clasificar' : location?.name}</strong>.
                 </p>
+
+                {/* Sub-Switch de Formato de Importación Bulk */}
+                <div className="flex items-center bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-1 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportSubTab('ydk');
+                      setImportError('');
+                      setImportSuccessMsg('');
+                    }}
+                    className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      importSubTab === 'ydk'
+                        ? 'bg-cyan-600 text-white font-black shadow-xs'
+                        : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    📄 Archivo .YDK / Receta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportSubTab('id_list');
+                      setImportError('');
+                      setImportSuccessMsg('');
+                    }}
+                    className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      importSubTab === 'id_list'
+                        ? 'bg-cyan-600 text-white font-black shadow-xs'
+                        : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    🔢 Lista por IDs (Cantidad + ID)
+                  </button>
+                </div>
               </div>
 
               <form onSubmit={handleYdkImport} className="space-y-4">
-                <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-cyan-500 rounded-2xl p-4 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
-                  <input
-                    type="file"
-                    accept=".ydk,.txt"
-                    onChange={handleFileUpload}
-                    id="workspace-ydk-file"
-                    className="hidden"
-                  />
-                  <label htmlFor="workspace-ydk-file" className="cursor-pointer flex flex-col items-center gap-2">
-                    <Upload className="w-6 h-6 text-cyan-400" />
-                    <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300">
-                      {ydkFileName ? ydkFileName : 'Haz clic para seleccionar archivo .ydk'}
-                    </span>
-                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Formatos: .ydk, .txt</span>
-                  </label>
-                </div>
+                {/* Selector de Carril de Destino (Si el contenedor tiene varios compartimentos) */}
+                {location?.compartments && location.compartments.count > 1 && (
+                  <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-1.5 shadow-2xs">
+                    <label className="block text-[10.5px] font-mono font-black uppercase text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                      <span>Carril / Compartimento de Destino:</span>
+                    </label>
+                    <select
+                      value={targetCompartmentForImport}
+                      onChange={(e) => setTargetCompartmentForImport(parseInt(e.target.value))}
+                      className="w-full bg-white dark:bg-zinc-950 border border-purple-300 dark:border-purple-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 font-bold focus:border-purple-500 focus:outline-none shadow-2xs cursor-pointer"
+                    >
+                      {location.compartments.names.map((compName, idx) => (
+                        <option key={idx} value={idx}>
+                          📦 {compName || `Carril ${idx + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-purple-800 dark:text-purple-300 font-mono font-medium">
+                      Las cartas importadas se asignarán a este carril.
+                    </p>
+                  </div>
+                )}
+                {importSubTab === 'ydk' ? (
+                  <>
+                    <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-cyan-500 rounded-2xl p-4 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
+                      <input
+                        type="file"
+                        accept=".ydk,.txt"
+                        onChange={handleFileUpload}
+                        id="workspace-ydk-file"
+                        className="hidden"
+                      />
+                      <label htmlFor="workspace-ydk-file" className="cursor-pointer flex flex-col items-center gap-2">
+                        <Upload className="w-6 h-6 text-cyan-400" />
+                        <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300">
+                          {ydkFileName ? ydkFileName : 'Haz clic para seleccionar archivo .ydk'}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Formatos: .ydk, .txt</span>
+                      </label>
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                    O pega el texto / receta:
-                  </label>
-                  <textarea
-                    value={ydkText}
-                    onChange={(e) => setYdkText(e.target.value)}
-                    placeholder="3 Ash Blossom & Joyous Spring&#10;1 Nibiru, the Primal Being&#10;2 Triple Tactics Talent"
-                    rows={6}
-                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:border-cyan-500 focus:outline-none resize-none"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
+                        O pega la receta / texto .ydk:
+                      </label>
+                      <textarea
+                        value={ydkText}
+                        onChange={(e) => setYdkText(e.target.value)}
+                        placeholder="3 Ash Blossom & Joyous Spring&#10;1 Nibiru, the Primal Being&#10;2 Triple Tactics Talent"
+                        rows={6}
+                        className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:border-cyan-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="block text-[10px] font-mono font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1">
+                      Pega tu lista [Cantidad] [ID / Passcode]:
+                    </label>
+                    <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-xl text-xs text-purple-900 dark:text-purple-200 mb-2.5 font-mono space-y-1">
+                      <p className="font-black text-purple-950 dark:text-purple-100">Formato aceptado:</p>
+                      <p className="flex items-center gap-1">
+                        • <code className="bg-purple-100 dark:bg-purple-900/60 text-purple-950 dark:text-purple-100 px-1 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-700/50">1 61280937</code>
+                        <span className="text-purple-700 dark:text-purple-300 font-medium">(1x Nibiru)</span>
+                      </p>
+                      <p className="flex items-center gap-1">
+                        • <code className="bg-purple-100 dark:bg-purple-900/60 text-purple-950 dark:text-purple-100 px-1 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-700/50">3 89631139</code>
+                        <span className="text-purple-700 dark:text-purple-300 font-medium">(3x Dragón Blanco)</span>
+                      </p>
+                      <p className="flex items-center gap-1">
+                        • <code className="bg-purple-100 dark:bg-purple-900/60 text-purple-950 dark:text-purple-100 px-1 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-700/50">05318639</code>
+                        <span className="text-purple-700 dark:text-purple-300 font-medium">(1 por línea sin cantidad)</span>
+                      </p>
+                    </div>
+                    <textarea
+                      value={ydkText}
+                      onChange={(e) => setYdkText(e.target.value)}
+                      placeholder="1 61280937&#10;3 89631139&#10;2 05318639&#10;61280937"
+                      rows={7}
+                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl p-3 text-xs text-zinc-900 dark:text-zinc-100 font-mono font-medium focus:border-cyan-500 focus:outline-none resize-none shadow-2xs placeholder-zinc-400 dark:placeholder-zinc-600"
+                    />
+                  </div>
+                )}
 
                 {importError && (
-                  <div className="p-3 bg-red-950/40 border border-red-800 rounded-xl text-xs text-red-400">
-                    {importError}
+                  <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-900 dark:text-red-300 font-semibold rounded-xl flex items-start gap-2 shadow-2xs">
+                    <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                    <span className="flex-1">{importError}</span>
                   </div>
                 )}
 
                 {importSuccessMsg && (
-                  <div className="p-3 bg-emerald-950/40 border border-emerald-800 rounded-xl text-xs text-emerald-400 flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>{importSuccessMsg}</span>
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-300 font-semibold rounded-xl flex items-start gap-2 shadow-2xs">
+                    <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="flex-1">{importSuccessMsg}</span>
                   </div>
                 )}
 
@@ -967,7 +1153,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   {importLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Procesando...</span>
+                      <span>Procesando Bulk...</span>
                     </>
                   ) : (
                     <>
@@ -1033,27 +1219,45 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             )}
           </AnimatePresence>
           
-          {/* Barra Superior de Filtros y Compartimentos */}
-          <div className="p-3 sm:px-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          {/* Barra Superior de Filtros y Compartimentos — En 1 Sola Línea */}
+          <div className="px-3 sm:px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-900/40 flex items-center justify-between gap-2 shrink-0 flex-nowrap overflow-x-auto scrollbar-none">
             
             {/* Buscador dentro del contenedor */}
-            <div className="relative min-w-48 flex-1 max-w-xs">
+            <div className="relative flex-1 min-w-32 max-w-xs shrink">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
               <input
                 type="text"
                 value={containerSearch}
                 onChange={(e) => setContainerSearch(e.target.value)}
-                placeholder="Filtrar cartas en este contenedor..."
-                className="w-full pl-8.5 pr-3 py-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+                placeholder="Filtrar cartas..."
+                className="w-full pl-8.5 pr-2.5 py-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
               />
             </div>
 
-            {/* Selector de Estado */}
-            <div className="flex items-center gap-2">
+            {/* Selector de Estado y Criterio de Ordenamiento en 1 Sola Línea */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Filtro de Ordenamiento */}
+              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1 text-xs text-zinc-700 dark:text-zinc-300 shrink-0">
+                <ArrowUpDown className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-200 focus:outline-none cursor-pointer"
+                >
+                  <option value="registration_asc">Orden: Registro (1º → N)</option>
+                  <option value="registration_desc">Orden: Recientes primero</option>
+                  <option value="name_asc">Nombre (A → Z)</option>
+                  <option value="name_desc">Nombre (Z → A)</option>
+                  <option value="id_asc">ID Passcode (0 → 9)</option>
+                  <option value="type">Tipo de Carta</option>
+                </select>
+              </div>
+
+              {/* Selector de Estado */}
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 focus:border-red-500 focus:outline-none"
+                className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-300 focus:border-red-500 focus:outline-none shrink-0"
               >
                 <option value="all">Todos los estados</option>
                 <option value="collection">En Colección</option>

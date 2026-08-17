@@ -33,7 +33,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ydkText, cardIds, rarity, status_flag, storage_location_id } = body;
+    const { ydkText, cardIds, rarity, status_flag, storage_location_id, compartment_index } = body;
     const targetLocationId = (storage_location_id === 'inbox' || !storage_location_id) ? null : storage_location_id;
 
     let targetCardIds: number[] = [];
@@ -117,16 +117,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Insertar registros en yg_user_cards con storage_location_id correspondiente
-    const cardCountsMap: Record<number, number> = {};
-    for (const id of targetCardIds) {
-      cardCountsMap[id] = (cardCountsMap[id] || 0) + 1;
+    // 2. Verificar cuales IDs realmente existen en yg_cards para evitar violaciones de clave foranea
+    const { data: finalValidCards } = await supabase
+      .from('yg_cards')
+      .select('id')
+      .in('id', uniqueIds);
+
+    const validIdSet = new Set((finalValidCards || []).map((c: { id: number }) => c.id));
+    const validTargetCardIds = targetCardIds.filter(id => validIdSet.has(id));
+    const invalidIds = uniqueIds.filter(id => !validIdSet.has(id));
+
+    if (validTargetCardIds.length === 0) {
+      return NextResponse.json({ 
+        error: `No se encontraron cartas en la base de datos oficial para los IDs ingresados (${invalidIds.slice(0, 5).join(', ')}). Verifica que los passcodes numéricos sean correctos.` 
+      }, { status: 400 });
     }
 
-    const rowsToInsert = Object.entries(cardCountsMap).map(([idStr, qty]) => ({
-      card_id: parseInt(idStr, 10),
+    // 3. Insertar registros en yg_user_cards reservando la secuencia exacta del listado bulk
+    const itemsSequence: Array<{ card_id: number; quantity: number }> = [];
+    for (const id of validTargetCardIds) {
+      const lastItem = itemsSequence[itemsSequence.length - 1];
+      if (lastItem && lastItem.card_id === id) {
+        lastItem.quantity += 1;
+      } else {
+        itemsSequence.push({ card_id: id, quantity: 1 });
+      }
+    }
+
+    const rowsToInsert = itemsSequence.map(item => ({
+      card_id: item.card_id,
       storage_location_id: targetLocationId,
-      quantity: qty,
+      compartment_index: typeof compartment_index === 'number' ? compartment_index : 0,
+      quantity: item.quantity,
       rarity: rarity || 'Common',
       status_flag: status_flag || 'collection',
       sleeve_type: 'none',
@@ -142,10 +164,18 @@ export async function POST(req: NextRequest) {
       throw insertError;
     }
 
+    const insertedTotal = rowsToInsert.reduce((acc, curr) => acc + curr.quantity, 0);
+    let warningMsg: string | undefined = undefined;
+    if (invalidIds.length > 0) {
+      warningMsg = `Se omitieron ${invalidIds.length} IDs no válidos (${invalidIds.slice(0, 3).join(', ')}${invalidIds.length > 3 ? '...' : ''}).`;
+    }
+
     return NextResponse.json({
       success: true,
-      insertedCount: rowsToInsert.reduce((acc, curr) => acc + curr.quantity, 0),
+      insertedCount: insertedTotal,
       uniqueCards: inserted?.length || 0,
+      invalidCount: invalidIds.length,
+      warningMsg,
     });
 
   } catch (error: unknown) {

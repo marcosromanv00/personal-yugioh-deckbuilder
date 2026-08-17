@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     let dbQuery = supabase
       .from('yg_user_cards')
       .select('*, card_details:yg_cards(*), deck_details:yg_decks(name)')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
 
     if (locationId === 'null' || locationId === 'inbox') {
       dbQuery = dbQuery.is('storage_location_id', null).is('deck_id', null);
@@ -75,7 +75,8 @@ export async function GET(req: NextRequest) {
       filteredCards = filteredCards.filter((uc: UserCard) => 
         uc.card_details?.name?.toLowerCase().includes(qLower) ||
         uc.rarity?.toLowerCase().includes(qLower) ||
-        uc.notes?.toLowerCase().includes(qLower)
+        uc.notes?.toLowerCase().includes(qLower) ||
+        String(uc.card_id).includes(qLower)
       );
     }
 
