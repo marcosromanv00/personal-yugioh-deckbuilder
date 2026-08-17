@@ -45,6 +45,7 @@ export interface DeckCard {
   type: string;
   desc?: string;
   image_url: string;
+  image_url_small?: string;
   archetype?: string;
   ban_master_duel?: string;
   ban_tcg?: string;
@@ -54,6 +55,11 @@ export interface DeckCard {
   level?: number | null;
   race?: string | null;
   attribute?: string | null;
+  rarity?: string;
+  condition?: string;
+  notes?: string;
+  sleeve_id?: string;
+  sleeve_color_hex?: string;
 }
 
 export interface BanlistAlert {

@@ -19,9 +19,9 @@ const SLEEVE_SIZES: { value: SleeveSizeType; label: string }[] = [
 ];
 
 const CONDITIONS: { value: SleeveInventoryCondition; label: string; color: string }[] = [
-  { value: 'new', label: 'Nuevas', color: 'text-emerald-400' },
-  { value: 'good', label: 'Buenas', color: 'text-amber-400' },
-  { value: 'worn', label: 'Desgastadas', color: 'text-red-400' },
+  { value: 'new', label: 'Nuevas', color: 'text-emerald-500' },
+  { value: 'good', label: 'Buenas', color: 'text-amber-500' },
+  { value: 'worn', label: 'Desgastadas', color: 'text-red-500' },
 ];
 
 const POPULAR_BRANDS = ['Dragon Shield', 'KMC', 'Ultra Pro', 'Perfect Fit', 'Mayday', 'Ultimate Guard', 'BCW'];
@@ -99,12 +99,16 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Error al guardar');
-      onSuccess(json.data);
-      onClose();
-    } catch (err) {
-      setError((err as Error).message);
+      if (res.ok) {
+        const json = await res.json();
+        onSuccess(json.data);
+        onClose();
+      } else {
+        const json = await res.json();
+        setError(json.error || 'Error al guardar la funda.');
+      }
+    } catch {
+      setError('Error de red al guardar la funda.');
     } finally {
       setSubmitting(false);
     }
@@ -113,59 +117,59 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
           onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="w-full max-w-lg bg-[hsl(224,22%,10%)] border border-[hsl(224,15%,16%)] rounded-2xl overflow-hidden shadow-2xl"
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-2xl text-zinc-900 dark:text-zinc-100"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(224,15%,16%)]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-purple-400" />
-                <h2 className="text-sm font-bold text-white">
-                  {editingSleeve ? 'Editar Funda' : 'Nueva Funda'}
+                <Layers className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                <h2 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                  {editingSleeve ? 'Editar Paquete de Fundas' : 'Registrar Nuevas Fundas'}
                 </h2>
               </div>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+              <button 
+                onClick={onClose} 
+                className="p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {/* Name */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-slate-400">Nombre / Diseño *</label>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Nombre / Modelo *</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={e => update('name', e.target.value)}
                   placeholder="ej. Dragon Shield Matte Black x100"
-                  className="w-full px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                  className="w-full px-3.5 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 focus:border-red-500 rounded-xl text-xs font-bold focus:outline-none"
                 />
               </div>
 
               {/* Brand */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-slate-400">Marca *</label>
-                <div className="flex gap-2 flex-wrap mb-2">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Marca *</label>
+                <div className="flex gap-1.5 flex-wrap mb-1.5">
                   {POPULAR_BRANDS.map(b => (
                     <button
                       key={b}
                       type="button"
                       onClick={() => update('brand', b)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-medium border transition-colors ${
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
                         form.brand === b
-                          ? 'bg-purple-600/40 border-purple-500/60 text-purple-200'
-                          : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-500'
+                          ? 'bg-cyan-50 dark:bg-cyan-950/60 border-cyan-500 text-cyan-600 dark:text-cyan-300'
+                          : 'bg-zinc-100 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300'
                       }`}
                     >
                       {b}
@@ -177,34 +181,34 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
                   value={form.brand}
                   onChange={e => update('brand', e.target.value)}
                   placeholder="O escribe la marca..."
-                  className="w-full px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                  className="w-full px-3.5 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 focus:border-red-500 rounded-xl text-xs font-bold focus:outline-none"
                 />
               </div>
 
               {/* Color */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-slate-400">Color / Patrón</label>
-                <div className="flex gap-2 flex-wrap mb-2">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Color / Patrón</label>
+                <div className="flex gap-2 flex-wrap mb-1.5">
                   {DEFAULT_COLORS.map(c => (
                     <button
                       key={c.hex}
                       type="button"
                       onClick={() => { update('color_hex', c.hex); update('color_pattern', c.name); }}
                       title={c.name}
-                      className={`w-7 h-7 rounded-full border-2 transition-all ${
-                        form.color_hex === c.hex ? 'border-purple-400 scale-110 shadow-lg' : 'border-transparent hover:border-slate-400'
+                      className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${
+                        form.color_hex === c.hex ? 'border-red-500 scale-110 shadow-md' : 'border-zinc-300 dark:border-zinc-700 hover:border-zinc-500'
                       }`}
                       style={{ backgroundColor: c.hex }}
                     />
                   ))}
                   {/* Custom color picker */}
-                  <label className="w-7 h-7 rounded-full border-2 border-dashed border-slate-600 hover:border-slate-400 flex items-center justify-center cursor-pointer overflow-hidden" title="Color personalizado">
-                    <span className="text-[8px] text-slate-500">+</span>
+                  <label className="w-7 h-7 rounded-full border-2 border-dashed border-zinc-400 dark:border-zinc-600 hover:border-red-500 flex items-center justify-center cursor-pointer overflow-hidden" title="Color personalizado">
+                    <span className="text-[9px] font-bold text-zinc-500">+</span>
                     <input
                       type="color"
                       value={form.color_hex}
                       onChange={e => update('color_hex', e.target.value)}
-                      className="absolute opacity-0 w-0 h-0"
+                      className="absolute opacity-0 w-0 h-0 cursor-pointer"
                     />
                   </label>
                 </div>
@@ -213,30 +217,30 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
                   value={form.color_pattern}
                   onChange={e => update('color_pattern', e.target.value)}
                   placeholder="ej. Matte Black, Holographic, Art Series..."
-                  className="w-full px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                  className="w-full px-3.5 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 focus:border-red-500 rounded-xl text-xs font-bold focus:outline-none"
                 />
               </div>
 
               {/* Size + Condition */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-bold text-slate-400">Tamaño</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Tamaño</label>
                   <select
                     value={form.size_type}
                     onChange={e => update('size_type', e.target.value as SleeveSizeType)}
-                    className="w-full px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500 cursor-pointer"
                   >
                     {SLEEVE_SIZES.map(s => (
                       <option key={s.value} value={s.value}>{s.label}</option>
                     ))}
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-bold text-slate-400">Condición</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Condición</label>
                   <select
                     value={form.condition}
                     onChange={e => update('condition', e.target.value as SleeveInventoryCondition)}
-                    className="w-full px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500 cursor-pointer"
                   >
                     {CONDITIONS.map(c => (
                       <option key={c.value} value={c.value}>{c.label}</option>
@@ -246,69 +250,69 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
               </div>
 
               {/* Quantity */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-slate-400">Cantidad Total</label>
-                <div className="flex items-center gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Cantidad Total de Fundas</label>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => update('quantity_total', Math.max(0, form.quantity_total - 10))}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold"
+                    className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-black cursor-pointer"
                   >−10</button>
                   <input
                     type="number"
                     min={0}
                     value={form.quantity_total}
                     onChange={e => update('quantity_total', Math.max(0, parseInt(e.target.value) || 0))}
-                    className="flex-1 px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-lg text-sm text-white text-center focus:outline-none focus:border-purple-500"
+                    className="flex-1 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-mono font-bold text-center focus:outline-none focus:border-red-500"
                   />
                   <button
                     type="button"
                     onClick={() => update('quantity_total', form.quantity_total + 10)}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold"
+                    className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-black cursor-pointer"
                   >+10</button>
                 </div>
               </div>
 
               {/* Notes */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-slate-400">Notas (opcional)</label>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Notas (opcional)</label>
                 <textarea
                   value={form.notes}
                   onChange={e => update('notes', e.target.value)}
                   rows={2}
-                  placeholder="ej. Compradas en Amazon, paquete de 100..."
-                  className="w-full px-3 py-2 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-slate-600 rounded-lg text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500 resize-none"
+                  placeholder="ej. Paquete de 100 fundas..."
+                  className="w-full px-3 py-1.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs focus:outline-none focus:border-red-500 resize-none"
                 />
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                  <p className="text-xs text-red-300">{error}</p>
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                  <p className="text-xs text-red-500 font-bold">{error}</p>
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex gap-3 pt-1">
+              <div className="flex gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded-xl transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-black uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-red-600/25 transition-all cursor-pointer"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {editingSleeve ? 'Actualizar' : 'Guardar'}
+                  <span>{editingSleeve ? 'Actualizar' : 'Guardar Funda'}</span>
                 </button>
               </div>
             </form>
           </motion.div>
-        </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

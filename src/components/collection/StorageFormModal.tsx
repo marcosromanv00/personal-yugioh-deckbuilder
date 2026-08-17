@@ -20,12 +20,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
   const [capacity, setCapacity] = useState(360);
   const [rows, setRows] = useState(3);
   const [cols, setCols] = useState(3);
-  const [width, setWidth] = useState(25);
-  const [height, setHeight] = useState(30);
-  const [depth, setDepth] = useState(4);
   const [description, setDescription] = useState('');
-  const [compartmentsCount, setCompartmentsCount] = useState(1);
-  const [compartmentNames, setCompartmentNames] = useState<string[]>([]);
   const [totalPages, setTotalPages] = useState(40);
 
   useEffect(() => {
@@ -38,12 +33,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
         setCapacity(initialData.capacity || 360);
         setRows(initialData.grid_layout?.rows || 3);
         setCols(initialData.grid_layout?.cols || 3);
-        setWidth(initialData.dimensions?.width || 0);
-        setHeight(initialData.dimensions?.height || 0);
-        setDepth(initialData.dimensions?.depth || 0);
         setDescription(initialData.description || '');
-        setCompartmentsCount(initialData.compartments?.count || 1);
-        setCompartmentNames(initialData.compartments?.names || []);
         setTotalPages(initialData.grid_layout?.total_pages || 40);
       } else {
         setName('');
@@ -53,12 +43,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
         setCapacity(360);
         setRows(3);
         setCols(3);
-        setWidth(25);
-        setHeight(30);
-        setDepth(4);
         setDescription('');
-        setCompartmentsCount(1);
-        setCompartmentNames(['Principal']);
         setTotalPages(40);
       }
     }
@@ -78,46 +63,32 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
       setRows(3);
       setCols(3);
       setCapacity(3 * 3 * totalPages);
-      setCompartmentsCount(1);
-      setCompartmentNames(['Principal']);
     } else if (newType === 'deckbox') {
       setSubType('standard');
-      setCapacity(300);
-      setCompartmentsCount(1);
-      setCompartmentNames(['Principal']);
+      setCapacity(100);
     } else if (newType === 'tin') {
       setSubType('standard');
-      setCapacity(200);
-      setCompartmentsCount(1);
-      setCompartmentNames(['Principal']);
+      setCapacity(300);
     } else {
       setSubType('box_multi_row');
       setCapacity(800);
-      setCompartmentsCount(1);
-      setCompartmentNames(['Principal']);
     }
   };
 
-  const handleSubTypeChange = (newSubType: StorageSubType) => {
-    setSubType(newSubType);
-    let newCount = 1;
-    if (newSubType === 'binder_2x2') {
-      setRows(2);
-      setCols(2);
-      setCapacity(2 * 2 * totalPages);
-      newCount = 1;
-    } else if (newSubType === 'binder_3x3') {
-      setRows(3);
-      setCols(3);
-      setCapacity(3 * 3 * totalPages);
-      newCount = 1;
-    } else if (newSubType === 'binder_3x4') {
-      setRows(3);
-      setCols(4);
-      setCapacity(3 * 4 * totalPages);
-      newCount = 1;
+  const handleSubTypeChange = (sub: StorageSubType) => {
+    setSubType(sub);
+    let r = 3;
+    let c = 3;
+    if (sub === 'binder_2x2') {
+      r = 2;
+      c = 2;
+    } else if (sub === 'binder_3x4') {
+      r = 3;
+      c = 4;
     }
-    setCompartmentsCount(newCount);
+    setRows(r);
+    setCols(c);
+    setCapacity(r * c * totalPages);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -151,31 +122,43 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+      <div 
+        onClick={onClose}
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto"
+      >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100 overflow-hidden"
+          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 text-zinc-900 dark:text-zinc-100 overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800">
-            <h2 className="text-xl font-bold bg-linear-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-              {initialData ? 'Editar Contenedor Físico' : 'Registrar Nuevo Contenedor Físico'}
-            </h2>
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Box className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>{initialData ? 'Editar Contenedor Físico' : 'Registrar Nuevo Contenedor'}</span>
+              </h2>
+              <p className="text-[10px] text-zinc-500 font-mono">
+                Carpetas, cajas, latas o deckboxes físicas
+              </p>
+            </div>
             <button 
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              className="p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Presets Rápidos */}
             {!initialData && (
-              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
-                <span className="text-[11px] font-mono font-semibold text-slate-400">Plantillas Rápidas (1-Clic):</span>
+              <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2">
+                <span className="text-[10px] font-mono font-black uppercase text-zinc-500 dark:text-zinc-400">
+                  Plantillas Rápidas (1-Clic):
+                </span>
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
@@ -189,7 +172,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                       setCapacity(360);
                       setColorCode('#8b5cf6');
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-purple-500 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-purple-600 transition-all cursor-pointer shadow-xs"
                   >
                     📗 Binder 9-Pocket (360)
                   </button>
@@ -205,7 +188,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                       setCapacity(160);
                       setColorCode('#06b6d4');
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-cyan-500 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-cyan-600 transition-all cursor-pointer shadow-xs"
                   >
                     📘 Binder 4-Pocket (160)
                   </button>
@@ -218,7 +201,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                       setCapacity(100);
                       setColorCode('#06b6d4');
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-cyan-500 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-cyan-600 transition-all cursor-pointer shadow-xs"
                   >
                     🛡️ Deckbox (100)
                   </button>
@@ -231,7 +214,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                       setCapacity(300);
                       setColorCode('#f59e0b');
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-amber-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-amber-600 transition-all cursor-pointer shadow-xs"
                   >
                     🥫 Lata / Tin (300)
                   </button>
@@ -244,7 +227,7 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                       setCapacity(800);
                       setColorCode('#6366f1');
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-indigo-500/50 text-[11px] font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-500 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-indigo-600 transition-all cursor-pointer shadow-xs"
                   >
                     📦 Caja (800)
                   </button>
@@ -254,20 +237,24 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
 
             {/* Nombre */}
             <div>
-              <label className="block text-xs font-mono text-slate-400 mb-1">Nombre del Objeto *</label>
+              <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
+                Nombre del Contenedor *
+              </label>
               <input
                 type="text"
                 placeholder="ej: Binder 1 - Raras, Lata Kaiba 2022, Deckbox Doble Neón"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 focus:outline-none focus:border-purple-500 text-sm"
+                className="w-full px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 text-xs font-bold"
               />
             </div>
 
             {/* Selector de Tipo */}
             <div>
-              <label className="block text-xs font-mono text-slate-400 mb-2">Tipo de Contenedor</label>
+              <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1.5">
+                Tipo de Contenedor
+              </label>
               <div className="grid grid-cols-4 gap-2">
                 {[
                   { id: 'binder', label: 'Binder', icon: BookOpen },
@@ -279,14 +266,14 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                     key={id}
                     type="button"
                     onClick={() => handleTypeChange(id as StorageType)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-medium transition-all ${
+                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-xs font-black transition-all cursor-pointer ${
                       type === id
-                        ? 'bg-purple-950/60 border-purple-500 text-purple-300'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        ? 'bg-purple-50 dark:bg-purple-950/60 border-purple-500 text-purple-600 dark:text-purple-300 shadow-xs'
+                        : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
                     }`}
                   >
-                    <Icon className="w-5 h-5 mb-1.5" />
-                    {label}
+                    <Icon className="w-5 h-5 mb-1 text-current" />
+                    <span>{label}</span>
                   </button>
                 ))}
               </div>
@@ -295,21 +282,23 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
             {/* Subtipo / Formato de Cuadrícula */}
             {type === 'binder' && (
               <div>
-                <label className="block text-xs font-mono text-slate-400 mb-2">Formato de Páginas (Bolsillos)</label>
+                <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1.5">
+                  Formato de Páginas (Bolsillos)
+                </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'binder_2x2', label: '2x2 (4 Pockets)', r: 2, c: 2 },
-                    { id: 'binder_3x3', label: '3x3 (9 Pockets)', r: 3, c: 3 },
-                    { id: 'binder_3x4', label: '3x4 (12 Pockets)', r: 3, c: 4 },
+                    { id: 'binder_2x2', label: '2x2 (4 Pockets)' },
+                    { id: 'binder_3x3', label: '3x3 (9 Pockets)' },
+                    { id: 'binder_3x4', label: '3x4 (12 Pockets)' },
                   ].map((sub) => (
                     <button
                       key={sub.id}
                       type="button"
                       onClick={() => handleSubTypeChange(sub.id as StorageSubType)}
-                      className={`p-2.5 rounded-lg border text-xs text-center font-mono ${
+                      className={`p-2.5 rounded-xl border text-xs text-center font-mono font-bold transition-all cursor-pointer ${
                         subType === sub.id
-                          ? 'bg-cyan-950/60 border-cyan-500 text-cyan-300'
-                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                          ? 'bg-cyan-50 dark:bg-cyan-950/60 border-cyan-500 text-cyan-600 dark:text-cyan-300 shadow-xs'
+                          : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400'
                       }`}
                     >
                       {sub.label}
@@ -319,30 +308,26 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
               </div>
             )}
 
-            {type === 'deckbox' && (
-              <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-900/30 text-xs text-cyan-300 font-mono">
-                ℹ️ Esta Deckbox no tiene divisiones por compartimentos. Puedes asignarle cualquier cantidad de barajas (1, 2, 3, 4+ decks).
-              </div>
-            )}
-
             {/* Capacidad y Color */}
             <div className={`grid gap-3 ${type === 'binder' ? 'grid-cols-3' : 'grid-cols-2'}`}>
               {type === 'binder' && (
                 <div>
-                  <label className="block text-xs font-mono text-slate-400 mb-1">Cantidad de Páginas</label>
+                  <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
+                    Hojas / Páginas
+                  </label>
                   <input
                     type="number"
                     min="1"
                     max="500"
                     value={totalPages}
                     onChange={(e) => handlePagesChange(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 text-sm font-mono focus:border-cyan-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-mono font-bold focus:border-red-500 focus:outline-none"
                   />
                 </div>
               )}
               <div>
-                <label className="block text-xs font-mono text-slate-400 mb-1">
-                  Capacidad {type === 'binder' ? '(Calculada)' : 'Máxima (Cartas)'}
+                <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
+                  Capacidad {type === 'binder' ? '(Calculada)' : 'Máxima'}
                 </label>
                 <input
                   type="number"
@@ -351,50 +336,53 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
                   value={capacity}
                   disabled={type === 'binder'}
                   onChange={(e) => setCapacity(parseInt(e.target.value) || 1)}
-                  className={`w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 text-sm font-mono ${
-                    type === 'binder' ? 'opacity-60 cursor-not-allowed bg-slate-900' : 'focus:border-purple-500 focus:outline-none'
+                  className={`w-full px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-mono font-bold ${
+                    type === 'binder' ? 'opacity-60 cursor-not-allowed' : 'focus:border-red-500 focus:outline-none'
                   }`}
                 />
               </div>
               <div>
-                <label className="block text-xs font-mono text-slate-400 mb-1">Color de Acento</label>
+                <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
+                  Color de Acento
+                </label>
                 <div className="flex items-center space-x-2">
                   <input
                     type="color"
                     value={colorCode}
                     onChange={(e) => setColorCode(e.target.value)}
-                    className="w-9 h-9 rounded cursor-pointer bg-transparent border-0"
+                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border border-zinc-300 dark:border-zinc-800"
                   />
-                  <span className="text-xs font-mono text-slate-400">{colorCode}</span>
+                  <span className="text-xs font-mono font-bold text-zinc-500">{colorCode}</span>
                 </div>
               </div>
             </div>
 
-
             {/* Descripción */}
             <div>
-              <label className="block text-xs font-mono text-slate-400 mb-1">Ubicación / Notas Adicionales</label>
+              <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
+                Ubicación / Notas Adicionales
+              </label>
               <textarea
                 placeholder="ej: En el estante superior de la habitación, carpeta azul..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 text-xs resize-none"
+                className="w-full px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs focus:border-red-500 focus:outline-none resize-none"
               />
             </div>
 
             {/* Submit */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+            <div className="flex justify-end space-x-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg border border-slate-700 text-slate-300 text-sm hover:bg-slate-800 transition-colors"
+                className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-black uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm transition-colors flex items-center space-x-1.5 shadow-lg shadow-purple-900/30"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center space-x-1.5 shadow-md shadow-red-600/25 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>Guardar Contenedor</span>

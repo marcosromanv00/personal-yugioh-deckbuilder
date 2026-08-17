@@ -1,8 +1,25 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, Sparkles, Plus, BookOpen, Globe, Check, AlertCircle, FileText, Trash } from 'lucide-react';
+import {
+  X,
+  Search,
+  Sparkles,
+  Plus,
+  Minus,
+  Trash2,
+  BookOpen,
+  FileText,
+  Check,
+  AlertCircle,
+  Layers,
+  Printer,
+  Shield,
+  Box,
+  Globe,
+  Loader2,
+} from 'lucide-react';
 import { StorageLocation, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 
 interface ManualCardAdderModalProps {
@@ -16,19 +33,72 @@ interface YgoCardResult {
   id: number;
   name: string;
   type: string;
+  desc?: string;
   image_url: string;
   image_url_small: string;
   archetype?: string;
+  atk?: number | null;
+  def?: number | null;
+  level?: number | null;
+  attribute?: string | null;
+  race?: string | null;
 }
 
-interface ParsedBulkCard {
+export interface QueuedCardItem {
+  id: string; // unique ID in queue
   card_id: number;
   name: string;
   type: string;
-  image_url?: string;
+  desc?: string;
+  image_url: string;
   image_url_small?: string;
+  archetype?: string;
+  atk?: number | null;
+  def?: number | null;
+  level?: number | null;
+  attribute?: string | null;
+  race?: string | null;
+  // Physical attributes
   quantity: number;
+  storage_location_id: string; // 'inbox' or location id
+  rarity: string;
+  condition: CardCondition;
+  language: 'en' | 'es' | 'jp';
+  status_flag: CardStatusFlag;
+  sleeve_type: SleeveType;
+  is_proxy: boolean;
+  notes: string;
 }
+
+const RARITIES = [
+  'Common',
+  'Rare',
+  'Super Rare',
+  'Ultra Rare',
+  'Secret Rare',
+  'Prismatic Secret Rare',
+  'Starlight Rare',
+  'Collector\'s Rare',
+  'Ultimate Rare',
+  'Ghost Rare',
+  'Gold Rare',
+  'Quarter Century Secret Rare',
+];
+
+const CONDITIONS: CardCondition[] = [
+  'Near Mint',
+  'Lightly Played',
+  'Moderately Played',
+  'Heavily Played',
+  'Damaged',
+];
+
+const STATUS_FLAGS: { value: CardStatusFlag; label: string }[] = [
+  { value: 'collection', label: 'Colección Personal' },
+  { value: 'trade_sale', label: 'Trade / En Venta' },
+  { value: 'bulk', label: 'Bulk / Sobrantes' },
+  { value: 'workshop', label: 'Taller / En Construcción' },
+];
 
 export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
   isOpen,
@@ -36,148 +106,190 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
   locations,
   onSuccess,
 }) => {
-  const [activeTab, setActiveTab] = useState<'individual' | 'bulk'>('individual');
-  
-  // Individual search states
+  const [activeLeftTab, setActiveLeftTab] = useState<'search' | 'bulk'>('search');
+
+  // Search state
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra'>('All');
   const [searchResults, setSearchResults] = useState<YgoCardResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selectedCard, setSelectedCard] = useState<YgoCardResult | null>(null);
 
-  // Bulk tab states
+  // Bulk input state
   const [bulkText, setBulkText] = useState('');
   const [analyzingBulk, setAnalyzingBulk] = useState(false);
-  const [parsedBulkCards, setParsedBulkCards] = useState<ParsedBulkCard[]>([]);
   const [unmatchedBulkCards, setUnmatchedBulkCards] = useState<string[]>([]);
-  const [hasAnalyzed, setHasAnalyzed] = useState(false);
 
-  // Common Form states
-  const [language, setLanguage] = useState<'en' | 'es'>('en');
-  const [quantity, setQuantity] = useState(1);
-  const [storageLocationId, setStorageLocationId] = useState<string>('inbox');
-  const [rarity, setRarity] = useState('Common');
-  const [condition, setCondition] = useState<CardCondition>('Near Mint');
-  const [statusFlag, setStatusFlag] = useState<CardStatusFlag>('collection');
-  const [sleeveType, setSleeveType] = useState<SleeveType>('none');
-  const [isProxy, setIsProxy] = useState(false);
-  const [notes, setNotes] = useState('');
+  // Center Queue & Active selection state
+  const [queuedCards, setQueuedCards] = useState<QueuedCardItem[]>([]);
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
 
+  // Default global location for new cards
+  const [defaultLocationId, setDefaultLocationId] = useState<string>('inbox');
+
+  // Save operation state
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Reset form
+  // Active card derived item
+  const activeCard = queuedCards.find((c) => c.id === activeCardId) || null;
+
+  // Reset form on open
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
       setSearchResults([]);
-      setSelectedCard(null);
+      setQueuedCards([]);
+      setActiveCardId(null);
       setBulkText('');
-      setParsedBulkCards([]);
       setUnmatchedBulkCards([]);
-      setHasAnalyzed(false);
-      setLanguage('en');
-      setQuantity(1);
-      setStorageLocationId('inbox');
-      setRarity('Common');
-      setCondition('Near Mint');
-      setStatusFlag('collection');
-      setSleeveType('none');
-      setIsProxy(false);
-      setNotes('');
       setErrorMsg('');
       setSuccessMsg('');
     }
   }, [isOpen]);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    setSearching(true);
-    setErrorMsg('');
-    try {
-      const res = await fetch(`/api/cards?q=${encodeURIComponent(searchQuery)}&limit=15`);
-      if (res.ok) {
-        const json = await res.json();
-        setSearchResults(json.data || []);
-      } else {
-        setErrorMsg('Error al buscar cartas. Intenta de nuevo.');
+  // Debounced search logic
+  const handleSearch = useCallback(
+    async (queryText: string, typeVal: string) => {
+      if (!queryText.trim()) {
+        setSearchResults([]);
+        return;
       }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg('Error de red al buscar cartas.');
-    } finally {
-      setSearching(false);
-    }
-  };
 
-  const handleRegisterCard = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCard) return;
+      setSearching(true);
+      setErrorMsg('');
+      try {
+        let url = `/api/cards?q=${encodeURIComponent(queryText.trim())}&limit=24`;
+        if (typeVal !== 'All') {
+          url += `&type=${encodeURIComponent(typeVal)}`;
+        }
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          setSearchResults(json.data || []);
+        } else {
+          setErrorMsg('Error al buscar cartas.');
+        }
+      } catch (err) {
+        console.error(err);
+        setErrorMsg('Error de red al consultar cartas.');
+      } finally {
+        setSearching(false);
+      }
+    },
+    []
+  );
 
-    setSubmitting(true);
+  useEffect(() => {
+    if (!isOpen || activeLeftTab !== 'search') return;
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        handleSearch(searchQuery, typeFilter);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, typeFilter, isOpen, activeLeftTab, handleSearch]);
+
+  // Add a card from search to the central queue
+  const handleAddCardToQueue = (card: YgoCardResult) => {
     setErrorMsg('');
     setSuccessMsg('');
 
-    try {
-      const payload = {
-        card_id: selectedCard.id,
-        storage_location_id: storageLocationId === 'inbox' ? null : storageLocationId,
-        quantity,
-        rarity,
-        condition,
-        language,
-        status_flag: statusFlag,
-        sleeve_type: sleeveType,
-        is_proxy: isProxy,
-        notes,
+    // Check if card is already in queue
+    const existingIndex = queuedCards.findIndex((c) => c.card_id === card.id);
+    if (existingIndex >= 0) {
+      // Increment quantity
+      const existing = queuedCards[existingIndex];
+      const updated = [...queuedCards];
+      updated[existingIndex] = {
+        ...existing,
+        quantity: existing.quantity + 1,
       };
-
-      const res = await fetch('/api/collection/cards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setSuccessMsg(`¡${selectedCard.name} registrada exitosamente!`);
-        onSuccess();
-        setTimeout(() => {
-          setSelectedCard(null);
-          setSuccessMsg('');
-        }, 1500);
-      } else {
-        const json = await res.json();
-        setErrorMsg(json.error || 'Error al registrar la carta.');
-      }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg('Error de red al registrar la carta.');
-    } finally {
-      setSubmitting(false);
+      setQueuedCards(updated);
+      setActiveCardId(existing.id);
+    } else {
+      // Create new queue item
+      const newItem: QueuedCardItem = {
+        id: `queue-${card.id}-${Date.now()}`,
+        card_id: card.id,
+        name: card.name,
+        type: card.type,
+        desc: card.desc,
+        image_url: card.image_url,
+        image_url_small: card.image_url_small || card.image_url,
+        archetype: card.archetype,
+        atk: card.atk,
+        def: card.def,
+        level: card.level,
+        attribute: card.attribute,
+        race: card.race,
+        quantity: 1,
+        storage_location_id: defaultLocationId,
+        rarity: 'Common',
+        condition: 'Near Mint',
+        language: 'en',
+        status_flag: 'collection',
+        sleeve_type: 'none',
+        is_proxy: false,
+        notes: '',
+      };
+      setQueuedCards((prev) => [...prev, newItem]);
+      setActiveCardId(newItem.id);
     }
   };
 
+  // Process bulk text and populate the central queue
   const handleAnalyzeBulk = async () => {
     if (!bulkText.trim()) return;
 
     setAnalyzingBulk(true);
     setErrorMsg('');
     setSuccessMsg('');
+    setUnmatchedBulkCards([]);
 
     try {
       const res = await fetch('/api/collection/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: bulkText })
+        body: JSON.stringify({ text: bulkText }),
       });
 
       if (res.ok) {
         const json = await res.json();
-        setParsedBulkCards(json.parsed || []);
-        setUnmatchedBulkCards(json.unmatched || []);
-        setHasAnalyzed(true);
+        const parsed = json.parsed || [];
+        const unmatched = json.unmatched || [];
+        setUnmatchedBulkCards(unmatched);
+
+        if (parsed.length > 0) {
+          const newItems: QueuedCardItem[] = parsed.map((p: any) => ({
+            id: `queue-${p.card_id}-${Math.random()}`,
+            card_id: p.card_id,
+            name: p.name,
+            type: p.type || 'Monster',
+            desc: p.desc || '',
+            image_url: p.image_url || '',
+            image_url_small: p.image_url_small || p.image_url || '',
+            archetype: p.archetype,
+            quantity: p.quantity || 1,
+            storage_location_id: defaultLocationId,
+            rarity: 'Common',
+            condition: 'Near Mint',
+            language: 'en',
+            status_flag: 'collection',
+            sleeve_type: 'none',
+            is_proxy: false,
+            notes: '',
+          }));
+
+          setQueuedCards((prev) => [...prev, ...newItems]);
+          if (newItems.length > 0) {
+            setActiveCardId(newItems[0].id);
+          }
+          setSuccessMsg(`¡${parsed.length} cartas analizadas y agregadas al grid!`);
+        } else {
+          setErrorMsg('No se pudieron reconocer cartas en el texto provisto.');
+        }
       } else {
         const json = await res.json();
         setErrorMsg(json.error || 'Error al analizar el lote.');
@@ -190,471 +302,729 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
     }
   };
 
-  const handleSaveBulk = async () => {
-    if (parsedBulkCards.length === 0) return;
+  // Update attributes on the active card
+  const handleUpdateActiveCard = (updates: Partial<QueuedCardItem>) => {
+    if (!activeCardId) return;
+    setQueuedCards((prev) =>
+      prev.map((item) => (item.id === activeCardId ? { ...item, ...updates } : item))
+    );
+  };
+
+  // Remove a card from the queue
+  const handleRemoveQueuedCard = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setQueuedCards((prev) => {
+      const filtered = prev.filter((item) => item.id !== id);
+      if (activeCardId === id) {
+        setActiveCardId(filtered.length > 0 ? filtered[0].id : null);
+      }
+      return filtered;
+    });
+  };
+
+  // Apply default container to all queued cards
+  const handleApplyLocationToAll = (locId: string) => {
+    setDefaultLocationId(locId);
+    setQueuedCards((prev) =>
+      prev.map((item) => ({
+        ...item,
+        storage_location_id: locId,
+      }))
+    );
+  };
+
+  // Save all queued cards to the collection via batch API
+  const handleSaveAllCards = async () => {
+    if (queuedCards.length === 0) return;
 
     setSubmitting(true);
     setErrorMsg('');
     setSuccessMsg('');
 
     try {
-      const res = await fetch('/api/collection/bulk', {
+      const payload = {
+        cards: queuedCards.map((c) => ({
+          card_id: c.card_id,
+          storage_location_id: c.storage_location_id === 'inbox' ? null : c.storage_location_id,
+          quantity: c.quantity,
+          rarity: c.rarity,
+          condition: c.condition,
+          language: c.language,
+          status_flag: c.status_flag,
+          sleeve_type: c.sleeve_type,
+          is_proxy: c.is_proxy,
+          notes: c.notes,
+        })),
+      };
+
+      const res = await fetch('/api/collection/cards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: bulkText,
-          action: 'save',
-          storage_location_id: storageLocationId,
-          language,
-          status_flag: statusFlag,
-          sleeve_type: sleeveType,
-          condition,
-          rarity
-        })
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         const json = await res.json();
-        setSuccessMsg(json.message || 'Lote registrado con éxito.');
+        const count = json.count || queuedCards.reduce((acc, c) => acc + c.quantity, 0);
+        setSuccessMsg(`¡${count} cartas registradas con éxito en tu colección!`);
         onSuccess();
         setTimeout(() => {
           onClose();
-        }, 1500);
+        }, 1200);
       } else {
         const json = await res.json();
-        setErrorMsg(json.error || 'Error al guardar el lote.');
+        setErrorMsg(json.error || 'Error al registrar las cartas.');
       }
     } catch (err) {
       console.error(err);
-      setErrorMsg('Error de red al registrar el lote.');
+      setErrorMsg('Error de red al guardar las cartas.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const removeParsedCard = (index: number) => {
-    setParsedBulkCards(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateParsedCardQuantity = (index: number, newQty: number) => {
-    setParsedBulkCards(prev => prev.map((item, i) => i === index ? { ...item, quantity: Math.max(1, newQty) } : item));
-  };
+  const totalCardUnits = queuedCards.reduce((acc, c) => acc + c.quantity, 0);
 
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-hidden">
+        
+        {/* Backdrop click to close */}
+        <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
+
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.96, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col md:flex-row max-h-[90vh] overflow-hidden text-slate-100"
+          exit={{ opacity: 0, scale: 0.96, y: 15 }}
+          transition={{ type: 'spring', damping: 26, stiffness: 260 }}
+          className="relative w-full max-w-7xl h-[92vh] max-h-[92vh] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100 z-10"
         >
-          {/* Lado Izquierdo: Buscador o Entrada Bulk */}
-          <div className="flex-1 p-6 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col max-h-[45vh] md:max-h-none overflow-y-auto">
-            {/* Cabecera de Tabs */}
-            <div className="flex border-b border-slate-800 mb-4 shrink-0 gap-4">
-              <button
-                onClick={() => {
-                  setActiveTab('individual');
-                  setErrorMsg('');
-                  setSuccessMsg('');
-                }}
-                className={`pb-2.5 text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                  activeTab === 'individual'
-                    ? 'border-purple-500 text-purple-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Search className="w-4 h-4" />
-                Registro Individual
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab('bulk');
-                  setErrorMsg('');
-                  setSuccessMsg('');
-                }}
-                className={`pb-2.5 text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                  activeTab === 'bulk'
-                    ? 'border-purple-500 text-purple-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                Registro en Lote (Bulk)
-              </button>
+          
+          {/* ══════════════════════════════════════════════════════════════
+              WORKSPACE HEADER
+          ══════════════════════════════════════════════════════════════ */}
+          <div className="h-16 px-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-xs shadow-md shadow-red-600/30 font-display tracking-wider">
+                EX
+              </div>
+              <div>
+                <h2 className="font-black text-sm uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <span>Registro de Cartas en Colección</span>
+                  <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 text-[10px] font-mono font-black">
+                    3 Paneles
+                  </span>
+                </h2>
+                <p className="text-[10px] text-zinc-500 font-mono">
+                  Buscador • Grid de Registro • Detalle Táctico
+                </p>
+              </div>
             </div>
 
-            {activeTab === 'individual' ? (
-              <>
-                {/* Input Buscador */}
-                <form onSubmit={handleSearch} className="flex gap-2 mb-4 shrink-0">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder="ej: Dark Magician, Ash Blossom, Kuriboh..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-3 pr-10 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-purple-500 text-sm"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={searching}
-                    className="px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm transition-colors flex items-center space-x-1.5 shadow-lg shadow-purple-900/30 disabled:opacity-50"
-                  >
-                    {searching ? 'Buscando...' : 'Buscar'}
-                  </button>
-                </form>
-
-                {/* Lista de Resultados */}
-                <div className="flex-1 overflow-y-auto min-h-40 space-y-2 pr-1">
-                  {searching ? (
-                    <div className="flex flex-col items-center justify-center py-10">
-                      <Sparkles className="w-6 h-6 text-purple-400 animate-spin mb-2" />
-                      <p className="text-xs font-mono text-slate-400">Consultando base de datos...</p>
-                    </div>
-                  ) : searchResults.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {searchResults.map((card) => (
-                        <div
-                          key={card.id}
-                          onClick={() => setSelectedCard(card)}
-                          className={`cursor-pointer p-2 rounded-xl border transition-all flex flex-col items-center text-center ${
-                            selectedCard?.id === card.id
-                              ? 'bg-purple-950/40 border-purple-500 shadow-md shadow-purple-950'
-                              : 'bg-slate-950 border-slate-850 hover:border-slate-700'
-                          }`}
-                        >
-                          <img
-                            src={card.image_url_small || card.image_url}
-                            alt={card.name}
-                            className="w-full aspect-3/4 object-cover rounded-lg mb-2"
-                            loading="lazy"
-                          />
-                          <span className="text-xs font-semibold text-slate-200 line-clamp-2 w-full">
-                            {card.name}
-                          </span>
-                          <span className="text-[9px] font-mono text-slate-500 mt-1 block">
-                            {card.type}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-slate-500 text-center">
-                      <BookOpen className="w-10 h-10 mb-2 opacity-40" />
-                      <p className="text-sm font-semibold">Sin resultados aún</p>
-                      <p className="text-xs text-slate-600 mt-0.5">Escribe el nombre de la carta para buscarla.</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              // Bulk Tab UI
-              <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-                {!hasAnalyzed ? (
-                  <div className="flex-1 flex flex-col gap-2">
-                    <p className="text-xs text-slate-400">
-                      Pega una lista de cartas de Yu-Gi-Oh!, una por línea. Se detectarán automáticamente cantidades al inicio o al final (ej: <span className="font-mono text-purple-400">3 Ash Blossom</span>).
-                    </p>
-                    <textarea
-                      placeholder="3 Ash Blossom & Joyous Spring&#10;1 Nibiru, the Primal Being&#10;Raigeki&#10;3 Infinite Impermanence"
-                      value={bulkText}
-                      onChange={(e) => setBulkText(e.target.value)}
-                      className="flex-1 p-3 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-mono text-sm resize-none focus:outline-none focus:border-purple-500 min-h-60"
-                    />
-                    <button
-                      onClick={handleAnalyzeBulk}
-                      disabled={analyzingBulk || !bulkText.trim()}
-                      className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-purple-900/30 disabled:opacity-50"
-                    >
-                      {analyzingBulk ? 'Analizando lista...' : 'Analizar Lista'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-800 shrink-0">
-                      <span className="text-xs font-bold text-slate-300">Cartas Reconocidas ({parsedBulkCards.length})</span>
-                      <button
-                        onClick={() => setHasAnalyzed(false)}
-                        className="text-xs text-purple-400 hover:text-purple-300 underline font-medium cursor-pointer"
-                      >
-                        Editar lista original
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto space-y-2 py-2 pr-1">
-                      {parsedBulkCards.map((card, i) => (
-                        <div key={`${card.card_id}-${i}`} className="p-2 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            {card.image_url_small && (
-                              <img src={card.image_url_small} alt={card.name} className="w-8 rounded" />
-                            )}
-                            <div>
-                              <p className="text-xs font-semibold text-slate-200 line-clamp-1">{card.name}</p>
-                              <p className="text-[10px] text-slate-500 font-mono">{card.type}</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="1"
-                              value={card.quantity}
-                              onChange={(e) => updateParsedCardQuantity(i, parseInt(e.target.value) || 1)}
-                              className="w-12 text-center py-1 rounded bg-slate-900 border border-slate-800 text-xs font-mono"
-                            />
-                            <button
-                              onClick={() => removeParsedCard(i)}
-                              className="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-900 rounded transition-colors"
-                            >
-                              <Trash className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-
-                      {unmatchedBulkCards.length > 0 && (
-                        <div className="mt-4 p-3 rounded-lg bg-amber-950/20 border border-amber-900/30 text-amber-300">
-                          <p className="text-xs font-bold mb-1 flex items-center gap-1">
-                            <AlertCircle className="w-4 h-4 text-amber-400" />
-                            No se pudieron reconocer ({unmatchedBulkCards.length} líneas):
-                          </p>
-                          <ul className="text-[11px] list-disc list-inside font-mono space-y-0.5 opacity-80 max-h-24 overflow-y-auto">
-                            {unmatchedBulkCards.map((raw, idx) => (
-                              <li key={idx} className="truncate">{raw}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+            {/* Quick Batch Controls */}
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2 text-xs">
+                <span className="text-[10px] font-black uppercase text-zinc-400 font-mono">
+                  Destino por defecto:
+                </span>
+                <select
+                  value={defaultLocationId}
+                  onChange={(e) => handleApplyLocationToAll(e.target.value)}
+                  className="py-1 px-2.5 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-bold focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="inbox">📥 Bandeja Sin Clasificar (Inbox)</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      📦 {loc.name} ({loc.type})
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {/* Lado Derecho: Configurador e inserción */}
-          <div className="flex-1 p-6 flex flex-col max-h-[45vh] md:max-h-none overflow-y-auto bg-slate-950/40 justify-between">
-            <div>
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800 shrink-0">
-                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-cyan-400" />
-                  Detalles del Registro
-                </h2>
+          {/* ══════════════════════════════════════════════════════════════
+              3-COLUMN WORKSPACE BODY
+          ══════════════════════════════════════════════════════════════ */}
+          <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+            
+            {/* ──────────────────────────────────────────────────────────
+                PANEL IZQUIERDO: BUSCADOR / ENTRADA EN LOTE
+            ────────────────────────────────────────────────────────── */}
+            <div className="w-full lg:w-80 xl:w-96 p-4 border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-zinc-800 flex flex-col min-h-0 bg-zinc-50/50 dark:bg-zinc-950/40 shrink-0">
+              
+              {/* Left Sub-Tabs */}
+              <div className="flex border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-3 gap-2 shrink-0">
                 <button
-                  onClick={onClose}
-                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors absolute top-4 right-4"
+                  type="button"
+                  onClick={() => setActiveLeftTab('search')}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    activeLeftTab === 'search'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
                 >
-                  <X className="w-5 h-5" />
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Buscador</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLeftTab('bulk')}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    activeLeftTab === 'bulk'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>En Lote (Bulk)</span>
                 </button>
               </div>
 
-              {/* Controles del Formulario */}
-              <div className="space-y-4">
-                {activeTab === 'individual' && selectedCard && (
-                  <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center gap-4">
-                    <img
-                      src={selectedCard.image_url_small || selectedCard.image_url}
-                      alt={selectedCard.name}
-                      className="w-12 rounded shadow"
+              {activeLeftTab === 'search' ? (
+                <>
+                  {/* Search Bar */}
+                  <div className="relative mb-2 shrink-0">
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-red-500 shadow-xs"
                     />
-                    <div>
-                      <h4 className="font-bold text-sm text-purple-300 line-clamp-1">{selectedCard.name}</h4>
-                      <p className="text-xs text-slate-400 font-mono mt-0.5">{selectedCard.type}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Campos Principales */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">Idioma</label>
-                    <select
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value as 'en' | 'es')}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-sm focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="en">Inglés (EN)</option>
-                      <option value="es">Español (ES)</option>
-                    </select>
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
 
-                  {activeTab === 'individual' ? (
-                    <div>
-                      <label className="block text-xs font-mono text-slate-400 mb-1">Cantidad</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={quantity}
-                        onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-sm font-mono focus:border-purple-500 focus:outline-none"
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-xs font-mono text-slate-400 mb-1">Lote total</label>
-                      <div className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 text-sm font-mono flex items-center">
-                        {parsedBulkCards.reduce((acc, c) => acc + c.quantity, 0)} cartas
+                  {/* Fast Type Filter Pills */}
+                  <div className="flex gap-1 overflow-x-auto scrollbar-thin pb-2 mb-2 shrink-0">
+                    {(['All', 'Monster', 'Spell', 'Trap', 'Extra'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTypeFilter(t)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0 transition-all cursor-pointer ${
+                          typeFilter === t
+                            ? 'bg-red-600 text-white shadow-xs'
+                            : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+                        }`}
+                      >
+                        {t === 'All' ? 'Todos' : t}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search Results List */}
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+                    {searching ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <Loader2 className="w-6 h-6 animate-spin text-red-500 mb-2" />
+                        <span className="text-[11px] font-mono text-zinc-400">Buscando cartas...</span>
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {searchResults.map((c) => (
+                          <div
+                            key={c.id}
+                            onClick={() => handleAddCardToQueue(c)}
+                            className="group relative p-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 rounded-xl flex flex-col justify-between cursor-pointer transition-all hover:scale-102 shadow-xs"
+                          >
+                            <div className="aspect-[3/4.2] rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-900 mb-1.5">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={c.image_url_small || c.image_url}
+                                alt={c.name}
+                                className="w-full h-full object-contain"
+                                loading="lazy"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg';
+                                }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-black line-clamp-1 text-zinc-900 dark:text-zinc-100">
+                              {c.name}
+                            </span>
+                            <div className="flex items-center justify-between mt-0.5">
+                              <span className="text-[8px] font-mono text-zinc-400 truncate">
+                                {c.type}
+                              </span>
+                              <span className="text-[9px] font-black text-red-500 flex items-center">
+                                + Añadir
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-16 text-center text-zinc-400">
+                        <BookOpen className="w-8 h-8 mb-2 opacity-40" />
+                        <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
+                          {searchQuery ? 'Sin coincidencias' : 'Escribe para buscar'}
+                        </p>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5 max-w-[200px]">
+                          Escribe el nombre de la carta para añadirla a la cola.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* Bulk Tab */
+                <div className="flex-1 flex flex-col min-h-0 space-y-3">
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    Pega tu lista de cartas (una por línea con cantidad):
+                  </div>
+                  <textarea
+                    rows={8}
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder={`3 Ash Blossom & Joyous Spring\n1 Nibiru, the Primal Being\n3 Infinite Impermanence\nRaigeki x2`}
+                    className="w-full flex-1 p-3 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono focus:border-red-500 focus:outline-none resize-none leading-relaxed"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeBulk}
+                    disabled={analyzingBulk || !bulkText.trim()}
+                    className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-red-600/20 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {analyzingBulk ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Analizando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Analizar y Volcar al Grid</span>
+                      </>
+                    )}
+                  </button>
+
+                  {unmatchedBulkCards.length > 0 && (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px]">
+                      <b>No reconocidas ({unmatchedBulkCards.length}):</b>
+                      <div className="font-mono mt-1 max-h-20 overflow-y-auto">
+                        {unmatchedBulkCards.map((u, i) => (
+                          <div key={i}>• {u}</div>
+                        ))}
                       </div>
                     </div>
                   )}
                 </div>
+              )}
+            </div>
 
-                {/* Contenedor Destino */}
-                <div>
-                  <label className="block text-xs font-mono text-slate-400 mb-1">Contenedor de Destino</label>
-                  <select
-                    value={storageLocationId}
-                    onChange={(e) => setStorageLocationId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-sm focus:border-purple-500 focus:outline-none"
+            {/* ──────────────────────────────────────────────────────────
+                PANEL CENTRAL: GRID / COLA DE CARTAS A REGISTRAR
+            ────────────────────────────────────────────────────────── */}
+            <div className="flex-1 p-4 md:p-6 flex flex-col min-h-0 overflow-hidden bg-zinc-100/50 dark:bg-zinc-900/40">
+              
+              {/* Center Toolbar */}
+              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 mb-4 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="font-black text-xs sm:text-sm uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <span className="text-red-500">📋</span>
+                    <span>Cola de Registro</span>
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-mono font-black">
+                    {totalCardUnits} cartas • {queuedCards.length} tipos
+                  </span>
+                </div>
+
+                {queuedCards.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQueuedCards([]);
+                      setActiveCardId(null);
+                    }}
+                    className="text-xs text-red-500 hover:text-red-600 font-bold flex items-center gap-1 cursor-pointer transition-colors"
                   >
-                    <option value="inbox">📥 Bandeja &quot;Sin Clasificar&quot; (Inbox)</option>
-                    {locations.map((loc) => (
-                      <option key={loc.id} value={loc.id}>
-                        📦 {loc.name} ({loc.type === 'binder' ? 'Binder' : loc.type.toUpperCase()})
-                      </option>
-                    ))}
-                  </select>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Limpiar todo</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Grid of Queued Cards */}
+              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+                {queuedCards.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center py-20 text-center text-zinc-400">
+                    <div className="w-16 h-16 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-2xl mb-4 shadow-sm">
+                      📦
+                    </div>
+                    <p className="text-sm font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                      Cola de Registro Vacía
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1 max-w-sm leading-relaxed">
+                      Busca cartas en el panel izquierdo o pega un lote de texto para añadirlas a la cola.
+                      Podrás editar sus rarezas, condición y contenedor en el panel derecho antes de guardar.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {queuedCards.map((item) => {
+                      const isSelected = item.id === activeCardId;
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => setActiveCardId(item.id)}
+                          className={`relative p-2 rounded-2xl bg-white dark:bg-zinc-950 border transition-all cursor-pointer group flex flex-col justify-between ${
+                            isSelected
+                              ? 'ring-2 ring-red-500 border-red-500 shadow-lg shadow-red-500/20 scale-[1.02] z-10'
+                              : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700 shadow-xs'
+                          }`}
+                        >
+                          {/* Image Container with Badges */}
+                          <div className="relative aspect-[3/4.2] rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-900 mb-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={item.image_url_small || item.image_url}
+                              alt={item.name}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg';
+                              }}
+                            />
+
+                            {/* Quantity Badge */}
+                            <div className="absolute bottom-1 left-1 bg-black/90 text-white font-mono font-black text-[10px] px-1.5 py-0.5 rounded shadow">
+                              {item.quantity}x
+                            </div>
+
+                            {/* Proxy Badge */}
+                            {item.is_proxy && (
+                              <div className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow">
+                                PROXY
+                              </div>
+                            )}
+
+                            {/* Rarity Tag */}
+                            {item.rarity && item.rarity !== 'Common' && (
+                              <div className="absolute top-1 right-1 bg-amber-500/90 text-black text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow">
+                                {item.rarity.substring(0, 3)}
+                              </div>
+                            )}
+
+                            {/* Delete Button (hover) */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleRemoveQueuedCard(item.id, e)}
+                              className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow cursor-pointer"
+                              title="Remover de la cola"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          {/* Info footer */}
+                          <div>
+                            <span className="text-xs font-black line-clamp-1 text-zinc-900 dark:text-zinc-100">
+                              {item.name}
+                            </span>
+                            <div className="flex items-center justify-between text-[9px] text-zinc-400 mt-0.5">
+                              <span className="truncate">{item.condition}</span>
+                              <span className="font-mono">{item.language.toUpperCase()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Center Footer & Save CTA */}
+              <div className="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                {/* Feedback Alerts */}
+                <div className="flex-1 min-w-0">
+                  {errorMsg && (
+                    <div className="text-xs text-red-500 font-bold flex items-center gap-1.5 animate-in fade-in">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{errorMsg}</span>
+                    </div>
+                  )}
+                  {successMsg && (
+                    <div className="text-xs text-emerald-500 font-bold flex items-center gap-1.5 animate-in fade-in">
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{successMsg}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Rareza y Condición */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">Rareza</label>
-                    <select
-                      value={rarity}
-                      onChange={(e) => setRarity(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="Common">Común</option>
-                      <option value="Rare">Rara</option>
-                      <option value="Super Rare">Súper Rara (SR)</option>
-                      <option value="Ultra Rare">Ultra Rara (UR)</option>
-                      <option value="Secret Rare">Secreta (ScR)</option>
-                      <option value="Ultimate Rare">Ultimate Rare (UtR)</option>
-                      <option value="Collector's Rare">Collector's Rare (CR)</option>
-                      <option value="Quarter Century Secret Rare">25th Anniversary (QCSR)</option>
-                    </select>
+                <button
+                  type="button"
+                  onClick={handleSaveAllCards}
+                  disabled={submitting || queuedCards.length === 0}
+                  className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Guardando en Colección...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Registrar {totalCardUnits} Cartas en Colección</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </div>
+
+            {/* ──────────────────────────────────────────────────────────
+                PANEL DERECHO: DETALLES & EDICIÓN DE LA CARTA ACTIVA
+            ────────────────────────────────────────────────────────── */}
+            <div className="w-full lg:w-80 xl:w-96 p-4 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 flex flex-col min-h-0 bg-zinc-50/50 dark:bg-zinc-950/40 shrink-0 overflow-y-auto scrollbar-thin">
+              
+              <div className="border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-3 shrink-0">
+                <h3 className="font-black text-xs uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <span className="text-red-500">⚙️</span>
+                  <span>Detalles del Registro</span>
+                </h3>
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  Configura los atributos físicos de la carta activa
+                </span>
+              </div>
+
+              {activeCard ? (
+                <div className="space-y-4">
+                  {/* Card Mini Header */}
+                  <div className="flex gap-3 bg-white dark:bg-zinc-950 p-2.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                    <div className="w-16 shrink-0 aspect-[3/4.2] rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={activeCard.image_url_small || activeCard.image_url}
+                        alt={activeCard.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[9px] font-mono text-zinc-400">ID #{activeCard.card_id}</span>
+                        <h4 className="font-black text-xs line-clamp-2 text-zinc-900 dark:text-zinc-100">
+                          {activeCard.name}
+                        </h4>
+                        {activeCard.archetype && (
+                          <span className="inline-block mt-0.5 px-1 py-0.2 bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-[8px] font-bold rounded uppercase">
+                            {activeCard.archetype}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-zinc-500 font-medium truncate">
+                        {activeCard.type}
+                      </span>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">Condición</label>
-                    <select
-                      value={condition}
-                      onChange={(e) => setCondition(e.target.value as CardCondition)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="Near Mint">Near Mint (NM)</option>
-                      <option value="Lightly Played">Lightly Played (LP)</option>
-                      <option value="Moderately Played">Moderately Played (MP)</option>
-                      <option value="Heavily Played">Heavily Played (HP)</option>
-                      <option value="Damaged">Damaged (DMG)</option>
-                    </select>
-                  </div>
-                </div>
+                  {/* Form fields */}
+                  <div className="space-y-3 text-xs">
+                    
+                    {/* Cantidad e Idioma */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                          Cantidad
+                        </label>
+                        <div className="flex items-center bg-white dark:bg-zinc-950 rounded-lg border border-zinc-300 dark:border-zinc-800 p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateActiveCard({ quantity: Math.max(1, activeCard.quantity - 1) })}
+                            className="w-7 h-6 rounded flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-800 font-black cursor-pointer"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="flex-1 text-center font-mono font-black text-xs">
+                            {activeCard.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateActiveCard({ quantity: activeCard.quantity + 1 })}
+                            className="w-7 h-6 rounded flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-800 font-black cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
 
-                {/* Estado y Funda */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">Estado / Intención</label>
-                    <select
-                      value={statusFlag}
-                      onChange={(e) => setStatusFlag(e.target.value as CardStatusFlag)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="collection">Colección Personal</option>
-                      <option value="trade_sale">Para Venta / Trade</option>
-                      <option value="workshop">Material de Talleres</option>
-                      <option value="bulk">Bulk / Sobrante</option>
-                    </select>
-                  </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                          Idioma
+                        </label>
+                        <select
+                          value={activeCard.language}
+                          onChange={(e) => handleUpdateActiveCard({ language: e.target.value as any })}
+                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
+                        >
+                          <option value="en">Inglés (EN)</option>
+                          <option value="es">Español (ES)</option>
+                          <option value="jp">Japonés (JP)</option>
+                        </select>
+                      </div>
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-mono text-slate-400 mb-1">Funda</label>
-                    <select
-                      value={sleeveType}
-                      onChange={(e) => setSleeveType(e.target.value as SleeveType)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="none">Sin Funda</option>
-                      <option value="single">Funda Simple</option>
-                      <option value="double">Funda Doble</option>
-                      <option value="triple">Funda Triple</option>
-                    </select>
-                  </div>
-                </div>
+                    {/* Contenedor de Destino */}
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                        Contenedor de Destino
+                      </label>
+                      <select
+                        value={activeCard.storage_location_id}
+                        onChange={(e) => handleUpdateActiveCard({ storage_location_id: e.target.value })}
+                        className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
+                      >
+                        <option value="inbox">📥 Bandeja "Sin Clasificar" (Inbox)</option>
+                        {locations.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            📦 {loc.name} ({loc.type})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                {activeTab === 'individual' && (
-                  <>
-                    <div className="flex items-center">
-                      <label className="text-xs font-medium text-slate-350 flex items-center space-x-2 cursor-pointer">
+                    {/* Rareza y Condición */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                          Rareza
+                        </label>
+                        <select
+                          value={activeCard.rarity}
+                          onChange={(e) => handleUpdateActiveCard({ rarity: e.target.value })}
+                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
+                        >
+                          {RARITIES.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                          Condición
+                        </label>
+                        <select
+                          value={activeCard.condition}
+                          onChange={(e) => handleUpdateActiveCard({ condition: e.target.value as any })}
+                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
+                        >
+                          {CONDITIONS.map((cond) => (
+                            <option key={cond} value={cond}>
+                              {cond}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Estado / Intención y Funda */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                          Estado / Intención
+                        </label>
+                        <select
+                          value={activeCard.status_flag}
+                          onChange={(e) => handleUpdateActiveCard({ status_flag: e.target.value as any })}
+                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
+                        >
+                          {STATUS_FLAGS.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                          Funda
+                        </label>
+                        <select
+                          value={activeCard.sleeve_type}
+                          onChange={(e) => handleUpdateActiveCard({ sleeve_type: e.target.value as any })}
+                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
+                        >
+                          <option value="none">Sin Funda</option>
+                          <option value="single">Single Sleeve</option>
+                          <option value="double">Double Sleeve</option>
+                          <option value="triple">Triple Sleeve</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Switch de Proxy */}
+                    <div className="p-2.5 rounded-xl bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40">
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>¿Es una carta Proxy / Impresa?</span>
+                        </span>
                         <input
                           type="checkbox"
-                          checked={isProxy}
-                          onChange={(e) => setIsProxy(e.target.checked)}
-                          className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-purple-600 focus:ring-0 focus:ring-offset-0"
+                          checked={activeCard.is_proxy}
+                          onChange={(e) => handleUpdateActiveCard({ is_proxy: e.target.checked })}
+                          className="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
                         />
-                        <span>¿Es una carta Proxy (Impresa/Placeholder)?</span>
                       </label>
                     </div>
 
+                    {/* Notas Adicionales */}
                     <div>
-                      <label className="block text-xs font-mono text-slate-400 mb-1">Notas Adicionales</label>
-                      <textarea
+                      <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
+                        Notas Adicionales
+                      </label>
+                      <input
+                        type="text"
                         placeholder="Edición especial, firma, caja de procedencia..."
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        rows={2}
-                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs resize-none focus:border-purple-500 focus:outline-none"
+                        value={activeCard.notes}
+                        onChange={(e) => handleUpdateActiveCard({ notes: e.target.value })}
+                        className="w-full text-xs py-1.5 px-2.5 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 focus:border-red-500 focus:outline-none placeholder:text-zinc-400"
                       />
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
 
-            {/* Acciones de envío */}
-            <div className="pt-4 border-t border-slate-800 flex flex-col gap-2 mt-4">
-              {errorMsg && (
-                <div className="p-2.5 rounded-lg bg-red-950/40 border border-red-900/40 text-red-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400" />
-                  <span>{errorMsg}</span>
+                  </div>
                 </div>
-              )}
-
-              {successMsg && (
-                <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-900/40 text-emerald-300 text-xs flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span>{successMsg}</span>
-                </div>
-              )}
-
-              {activeTab === 'individual' ? (
-                <button
-                  onClick={handleRegisterCard}
-                  disabled={submitting || !selectedCard}
-                  className="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-sm transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-900/20 disabled:opacity-50"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{submitting ? 'Registrando...' : 'Registrar Carta en Colección'}</span>
-                </button>
               ) : (
-                <button
-                  onClick={handleSaveBulk}
-                  disabled={submitting || parsedBulkCards.length === 0}
-                  className="w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-purple-900/20 disabled:opacity-50"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>{submitting ? 'Registrando lote...' : 'Registrar Lote en Colección'}</span>
-                </button>
+                <div className="flex-1 flex flex-col items-center justify-center py-20 text-center text-zinc-400">
+                  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-xl mb-3 shadow-inner">
+                    👆
+                  </div>
+                  <p className="text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                    Selecciona una carta
+                  </p>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1 max-w-45 leading-relaxed">
+                    Toca cualquier carta del grid central para ajustar su rareza, condición o contenedor.
+                  </p>
+                </div>
               )}
             </div>
+
           </div>
+
         </motion.div>
       </div>
     </AnimatePresence>

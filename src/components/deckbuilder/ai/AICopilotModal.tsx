@@ -231,7 +231,7 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => setSynthMode(m.id as any)}
+                        onClick={() => setSynthMode(m.id as 'scratch' | 'collection' | 'meta_align' | 'budget')}
                         className={`p-3 rounded-xl border text-left transition-all ${
                           isSelected
                             ? 'border-red-600 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-bold shadow-sm'

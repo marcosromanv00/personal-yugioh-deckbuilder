@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, FileText, Check, AlertCircle } from 'lucide-react';
+import { X, Upload, FileText, Check, AlertCircle, Loader2 } from 'lucide-react';
 
 interface YdkUploadModalProps {
   isOpen: boolean;
@@ -58,7 +58,7 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
       setTimeout(() => {
         onSuccess();
         onClose();
-      }, 1500);
+      }, 1200);
 
     } catch (err: unknown) {
       const errorObj = err as Error;
@@ -70,26 +70,29 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 text-slate-100 shadow-2xl relative"
+          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-zinc-900 dark:text-zinc-100 shadow-2xl relative"
         >
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <Upload className="w-5 h-5 text-purple-400" />
-              Importar Colección (.ydk)
+          <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800 mb-4">
+            <h2 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+              <Upload className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span>Importar Colección (.ydk)</span>
             </h2>
-            <button onClick={onClose} className="p-1 rounded hover:bg-slate-800 text-slate-400">
-              <X className="w-5 h-5" />
+            <button 
+              onClick={onClose} 
+              className="p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* File Dropzone */}
-            <div className="border-2 border-dashed border-slate-700 hover:border-purple-500 rounded-xl p-6 text-center bg-slate-950/50 transition-colors">
+            <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-cyan-500 rounded-2xl p-6 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
               <input
                 type="file"
                 accept=".ydk,.txt"
@@ -98,53 +101,56 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
                 className="hidden"
               />
               <label htmlFor="ydk-file-input" className="cursor-pointer flex flex-col items-center">
-                <FileText className="w-10 h-10 text-purple-400 mb-2" />
-                <span className="text-sm font-medium text-slate-200">
+                <FileText className="w-8 h-8 text-cyan-600 dark:text-cyan-400 mb-2" />
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
                   {fileName ? fileName : 'Haz clic para seleccionar tu archivo .ydk'}
                 </span>
-                <span className="text-xs text-slate-500 mt-1">Soporta formatos estándar .ydk de YGOPRODeck</span>
+                <span className="text-[10px] text-zinc-400 mt-1">Soporta formatos estándar .ydk de YGOPRODeck</span>
               </label>
             </div>
 
             {/* Paste Text Fallback */}
             <div>
-              <label className="block text-xs font-mono text-slate-400 mb-1">O pega el texto .ydk aquí:</label>
+              <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
+                O pega el contenido .ydk aquí:
+              </label>
               <textarea
-                rows={5}
+                rows={4}
                 placeholder="#main&#10;46986414&#10;#extra&#10;44508094&#10;!side"
                 value={ydkText}
                 onChange={(e) => setYdkText(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 resize-none focus:outline-none focus:border-purple-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
               />
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400" />
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
             {resultMessage && (
-              <div className="p-3 rounded-lg bg-emerald-950/60 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400" />
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{resultMessage}</span>
               </div>
             )}
 
-            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+            <div className="flex justify-end space-x-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg border border-slate-700 text-xs text-slate-300 hover:bg-slate-800"
+                className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-black uppercase tracking-wider hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs transition-colors flex items-center space-x-1.5 shadow-lg shadow-purple-900/30"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center space-x-1.5 shadow-md shadow-red-600/25 cursor-pointer"
               >
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 <span>{loading ? 'Importando...' : 'Cargar a Bandeja Sin Clasificar'}</span>
               </button>
             </div>

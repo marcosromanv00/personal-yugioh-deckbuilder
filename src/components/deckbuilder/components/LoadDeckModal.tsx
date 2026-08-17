@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FolderOpen, Loader2, Trash } from 'lucide-react';
-import { Deck } from '@/types/collection';
+import { FolderOpen, Loader2, Trash, X } from 'lucide-react';
+import { Deck, DeckCardDetail } from '@/types/collection';
 
 interface LoadDeckModalProps {
   isOpen: boolean;
@@ -28,73 +28,72 @@ export const LoadDeckModal: React.FC<LoadDeckModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-end md:items-center justify-center md:p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="bg-slate-900 border border-slate-800 md:rounded-2xl rounded-t-3xl w-full md:max-w-2xl shadow-2xl p-5 overflow-hidden flex flex-col max-h-[85vh] md:max-h-[80vh]"
-            style={{ paddingBottom: 'calc(1.25rem + var(--sab))' }}
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full md:max-w-2xl shadow-2xl p-5 overflow-hidden flex flex-col max-h-[85vh] md:max-h-[80vh] text-zinc-900 dark:text-zinc-100"
           >
             {/* Header */}
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800 shrink-0">
+            <div className="flex justify-between items-center pb-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
               <div>
-                <h3 className="font-bold text-lg text-slate-100 flex items-center gap-1.5">
-                  <FolderOpen className="w-5 h-5 text-purple-400" />
-                  Cargar Baraja Guardada
+                <h3 className="font-black text-sm uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <FolderOpen className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span>Cargar Baraja Guardada</span>
                 </h3>
-                <p className="text-xs text-slate-400">Selecciona una baraja de tu base de datos para cargarla al constructor.</p>
+                <p className="text-[10px] text-zinc-500 font-mono">Selecciona una baraja para cargarla al constructor.</p>
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center cursor-pointer"
+                className="p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Decks Listing */}
-            <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1">
+            <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1 scrollbar-thin">
               {loadingDecks ? (
-                <div className="text-center py-10">
-                  <Loader2 className="w-8 h-8 animate-spin text-purple-400 mx-auto mb-2" />
-                  <p className="text-xs font-mono text-slate-500">Cargando lista de barajas...</p>
+                <div className="text-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+                  <p className="text-xs font-mono text-zinc-400">Cargando lista de barajas...</p>
                 </div>
               ) : savedDecks.length === 0 ? (
-                <div className="text-center py-12 text-zinc-550 text-sm">
+                <div className="text-center py-16 text-zinc-400 text-xs font-bold font-mono">
                   No tienes ninguna baraja guardada en la base de datos todavía.
                 </div>
               ) : (
                 savedDecks.map((deck) => (
                   <div
                     key={deck.id}
-                    className="p-4 bg-slate-950 border border-slate-850 hover:border-purple-500/40 rounded-xl flex items-center justify-between gap-4 transition-all group"
+                    className="p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-purple-500 rounded-2xl flex items-center justify-between gap-4 transition-all group"
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-sm text-slate-200 group-hover:text-purple-300 transition-colors">{deck.name}</h4>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-400 font-mono">
+                        <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{deck.name}</h4>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 font-mono font-bold">
                           {deck.format}
                         </span>
                       </div>
                       {deck.description && (
-                        <p className="text-xs text-slate-550 mt-1 line-clamp-1">{deck.description}</p>
+                        <p className="text-xs text-zinc-500 mt-1 line-clamp-1">{deck.description}</p>
                       )}
-                      <p className="text-[10px] text-slate-500 font-mono mt-1.5">
-                        {deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0} cartas • Creado el {new Date(deck.created_at).toLocaleDateString()}
+                      <p className="text-[10px] text-zinc-400 font-mono mt-1">
+                        {deck.cards?.reduce((acc: number, c: DeckCardDetail) => acc + c.count, 0) || 0} cartas • Creado el {new Date(deck.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => handleLoadDeck(deck)}
-                        className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-bold transition-all cursor-pointer"
+                        className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
                       >
                         Cargar
                       </button>
                       <button
                         onClick={() => handleDeleteDeck(deck.id)}
-                        className="p-1.5 bg-slate-900 border border-slate-800 text-slate-500 hover:text-red-400 hover:bg-red-950/20 hover:border-red-900/40 rounded transition-all cursor-pointer"
+                        className="p-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all cursor-pointer"
                         title="Eliminar deck"
                       >
                         <Trash className="w-3.5 h-3.5" />
@@ -103,6 +102,17 @@ export const LoadDeckModal: React.FC<LoadDeckModalProps> = ({
                   </div>
                 ))
               )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
             </div>
           </motion.div>
         </div>

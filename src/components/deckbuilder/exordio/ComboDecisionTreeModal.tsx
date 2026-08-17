@@ -1,22 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   GitFork,
   X,
-  Sparkles,
   ChevronRight,
   ChevronLeft,
   AlertTriangle,
-  ShieldCheck,
   Play,
   Bot,
   Loader2,
-  CheckCircle2,
-  Layers,
-  ArrowRight,
 } from 'lucide-react';
 import { DeckCard } from '@/components/deckbuilder/types';
 import { SAMPLE_COMBO_PLAYBOOKS, ComboPlaybookItem } from '@/lib/engines/comboEngine';
@@ -34,7 +28,7 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
   deckCards,
   inferredArchetype = 'Snake-Eye',
 }) => {
-  const [combos, setCombos] = useState<ComboPlaybookItem[]>(SAMPLE_COMBO_PLAYBOOKS);
+  const [combos] = useState<ComboPlaybookItem[]>(SAMPLE_COMBO_PLAYBOOKS);
   const [selectedCombo, setSelectedCombo] = useState<ComboPlaybookItem>(SAMPLE_COMBO_PLAYBOOKS[0]);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [activeBranchIndex, setActiveBranchIndex] = useState<number | null>(null);
@@ -98,10 +92,8 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
               alternativeSteps: [
                 {
                   stepNumber: 1,
-                  action: 'Pivot Táctico',
-                  cardName: 'Plan B',
-                  sourceZone: 'hand',
-                  targetZone: 'field',
+                  action: 'Pivote Estratégico',
+                  cardName: b.recommendedPivot,
                   details: b.recommendedPivot,
                 },
               ],
@@ -110,8 +102,6 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
             })
           ),
         };
-
-        setCombos((prev) => [generated, ...prev]);
         setSelectedCombo(generated);
         setCurrentStepIndex(0);
         setActiveBranchIndex(null);
@@ -126,43 +116,39 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
   if (!isOpen) return null;
 
   const currentStep = selectedCombo.steps[currentStepIndex];
-  const activeBranch =
-    activeBranchIndex !== null
-      ? selectedCombo.decisionBranches[activeBranchIndex]
-      : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-5xl h-[88vh] bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white"
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        className="w-full max-w-5xl h-[88vh] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/60">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/60">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-red-600/20 text-red-500 border border-red-500/30">
+            <div className="p-2 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30">
               <GitFork className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black uppercase tracking-tight flex items-center gap-2">
-                Árboles de Decisión &amp; Playbook de Combos
-                <span className="text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-mono">
+              <h2 className="text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                <span>Árboles de Decisión &amp; Playbook de Combos</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-red-600 text-white font-mono font-bold">
                   Gemini 3.1
                 </span>
               </h2>
-              <p className="text-xs text-zinc-400">
-                Rutas óptimas paso a paso, simulador interactivo y ramas de contingencia ante interrupciones
+              <p className="text-[11px] text-zinc-500 font-medium">
+                Rutas paso a paso, simulador interactivo y ramas de contingencia ante interrupciones
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={handleGenerateAICombo}
               disabled={isGeneratingWithAI}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/20 transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isGeneratingWithAI ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -174,9 +160,9 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              className="p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -184,8 +170,8 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
         {/* Contenido en 2 Columnas */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
           {/* Lista de Combos */}
-          <div className="md:col-span-4 p-4 border-r border-zinc-800/80 bg-zinc-900/20 overflow-y-auto space-y-2.5 scrollbar-thin">
-            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block mb-2">
+          <div className="md:col-span-4 p-4 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/20 overflow-y-auto space-y-2.5 scrollbar-thin">
+            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">
               Líneas Disponibles ({combos.length})
             </span>
 
@@ -199,30 +185,30 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
                     setCurrentStepIndex(0);
                     setActiveBranchIndex(null);
                   }}
-                  className={`cursor-pointer p-3 rounded-xl border transition-all ${
+                  className={`cursor-pointer p-3.5 rounded-2xl border transition-all ${
                     isSelected
-                      ? 'border-red-500 bg-red-950/30 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
-                      : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
+                      ? 'border-red-500 bg-red-50 dark:bg-red-950/30 shadow-xs'
+                      : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-bold uppercase">
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold uppercase">
                       {c.comboType}
                     </span>
                     <span
-                      className={`text-[10px] font-bold uppercase ${
+                      className={`text-[9px] font-black uppercase ${
                         c.interruptionTolerance === 'high'
-                          ? 'text-emerald-400'
+                          ? 'text-emerald-600 dark:text-emerald-400'
                           : c.interruptionTolerance === 'medium'
-                          ? 'text-amber-400'
-                          : 'text-red-400'
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-red-600 dark:text-red-400'
                       }`}
                     >
                       Resiliencia: {c.interruptionTolerance}
                     </span>
                   </div>
-                  <h4 className="text-xs font-black text-white">{c.title}</h4>
-                  <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2">
+                  <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100">{c.title}</h4>
+                  <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">
                     {c.endboardDescription}
                   </p>
                 </div>
@@ -231,37 +217,37 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
           </div>
 
           {/* Reproductor de Pasos & Ramas de Decisión */}
-          <div className="md:col-span-8 p-6 overflow-y-auto scrollbar-thin space-y-6">
+          <div className="md:col-span-8 p-6 overflow-y-auto scrollbar-thin space-y-5 bg-white dark:bg-zinc-950">
             {/* Header del Combo */}
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 space-y-2">
+            <div className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 space-y-1.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-white">{selectedCombo.title}</h3>
-                <span className="text-xs font-mono text-amber-400 font-bold">
-                  Mano requerida: {selectedCombo.requiredCards.join(' + ')}
+                <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100">{selectedCombo.title}</h3>
+                <span className="text-xs font-mono text-amber-600 dark:text-amber-400 font-bold">
+                  Mano: {selectedCombo.requiredCards.join(' + ')}
                 </span>
               </div>
-              <p className="text-xs text-zinc-300">
-                <span className="font-bold text-red-400">Tablero Final: </span>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                <span className="font-bold text-red-600 dark:text-red-400">Tablero Final: </span>
                 {selectedCombo.endboardDescription}
               </p>
             </div>
 
             {/* Reproductor Interactivo de Pasos */}
-            <div className="p-4 rounded-xl border border-red-500/30 bg-red-950/20 space-y-3">
+            <div className="p-4 rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-950/20 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Play className="w-4 h-4 text-red-400" />
-                  <span className="text-xs font-black uppercase text-white">
+                  <Play className="w-4 h-4 text-red-600 dark:text-red-400" />
+                  <span className="text-xs font-black uppercase text-zinc-900 dark:text-zinc-100">
                     Paso {currentStepIndex + 1} de {selectedCombo.steps.length}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() =>
                       setCurrentStepIndex((prev) => Math.max(0, prev - 1))
                     }
                     disabled={currentStepIndex === 0}
-                    className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-xs font-bold transition-colors flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 disabled:opacity-30 text-xs font-black uppercase transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                     <span>Anterior</span>
@@ -273,7 +259,7 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
                       )
                     }
                     disabled={currentStepIndex === selectedCombo.steps.length - 1}
-                    className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white text-xs font-bold transition-colors flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white text-xs font-black uppercase transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
                   >
                     <span>Siguiente</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -287,21 +273,21 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
                   key={currentStep.stepNumber}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="p-3.5 rounded-lg bg-black/60 border border-zinc-800 flex items-start gap-3"
+                  className="p-3.5 rounded-xl bg-white dark:bg-black/60 border border-zinc-200 dark:border-zinc-800 flex items-start gap-3 shadow-xs"
                 >
-                  <div className="w-8 h-8 rounded-full bg-red-600 text-white font-black font-mono text-xs flex items-center justify-center shrink-0 shadow">
+                  <div className="w-8 h-8 rounded-full bg-red-600 text-white font-black font-mono text-xs flex items-center justify-center shrink-0 shadow-md">
                     {currentStep.stepNumber}
                   </div>
                   <div className="flex-1 text-xs space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-black text-amber-300">
+                      <span className="font-black text-amber-600 dark:text-amber-300">
                         {currentStep.action}:
                       </span>
-                      <span className="font-bold text-white">
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
                         {currentStep.cardName}
                       </span>
                     </div>
-                    <p className="text-zinc-300 leading-relaxed">
+                    <p className="text-zinc-600 dark:text-zinc-300 leading-relaxed">
                       {currentStep.details}
                     </p>
                   </div>
@@ -311,7 +297,7 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
 
             {/* Secuencia Completa */}
             <div>
-              <span className="text-xs font-black uppercase tracking-wider text-zinc-400 block mb-3">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-2.5">
                 Secuencia Completa ({selectedCombo.steps.length} Pasos)
               </span>
 
@@ -322,31 +308,31 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
                     <div
                       key={step.stepNumber}
                       onClick={() => setCurrentStepIndex(idx)}
-                      className={`cursor-pointer p-3 rounded-xl border transition-all flex items-start gap-3 ${
+                      className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-start gap-3 ${
                         isActive
-                          ? 'border-red-500 bg-red-950/40 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
-                          : 'border-zinc-800 bg-zinc-900/30 hover:border-zinc-700'
+                          ? 'border-red-500 bg-red-50 dark:bg-red-950/40 shadow-xs'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 hover:border-zinc-300 dark:hover:border-zinc-700'
                       }`}
                     >
                       <div
                         className={`w-6 h-6 rounded-full font-mono text-xs flex items-center justify-center shrink-0 ${
                           isActive
-                            ? 'bg-red-600 text-white font-black shadow'
-                            : 'bg-zinc-800 text-zinc-400 font-bold'
+                            ? 'bg-red-600 text-white font-black shadow-xs'
+                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold'
                         }`}
                       >
                         {step.stepNumber}
                       </div>
                       <div className="flex-1 text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="font-black text-white">
+                          <span className="font-black text-zinc-900 dark:text-zinc-100">
                             {step.action}:
                           </span>
-                          <span className="font-bold text-amber-300">
+                          <span className="font-bold text-amber-600 dark:text-amber-400">
                             {step.cardName}
                           </span>
                         </div>
-                        <p className="text-zinc-400 text-[11px] mt-0.5">
+                        <p className="text-zinc-500 text-[11px] mt-0.5">
                           {step.details}
                         </p>
                       </div>
@@ -358,8 +344,8 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
 
             {/* Ramas de Mitigación ante Interrupciones */}
             {selectedCombo.decisionBranches.length > 0 && (
-              <div className="pt-4 border-t border-zinc-800">
-                <span className="text-xs font-black uppercase tracking-wider text-red-400 flex items-center gap-1.5 mb-3">
+              <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                <span className="text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5 mb-2.5">
                   <AlertTriangle className="w-4 h-4 text-red-500" />
                   Árboles de Decisión / Contingencia ante Handtraps
                 </span>
@@ -373,41 +359,41 @@ export const ComboDecisionTreeModal: React.FC<ComboDecisionTreeModalProps> = ({
                         onClick={() =>
                           setActiveBranchIndex(isSelected ? null : idx)
                         }
-                        className={`cursor-pointer p-4 rounded-xl border transition-all space-y-2 text-xs ${
+                        className={`cursor-pointer p-4 rounded-2xl border transition-all space-y-2 text-xs ${
                           isSelected
-                            ? 'border-amber-400 bg-amber-950/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
-                            : 'border-amber-500/30 bg-amber-950/15 hover:border-amber-500/50'
+                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 shadow-xs'
+                            : 'border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/15 hover:border-amber-400'
                         }`}
                       >
-                        <div className="flex items-center justify-between text-amber-300 font-black">
+                        <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 font-black">
                           <div className="flex items-center gap-2">
-                            <GitFork className="w-4 h-4 text-amber-400" />
+                            <GitFork className="w-4 h-4 text-amber-500" />
                             <span>Escenario: {branch.trigger}</span>
                           </div>
-                          <span className="text-[10px] text-amber-400 uppercase font-mono">
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 uppercase font-mono font-bold">
                             {isSelected ? 'Ocultar Plan' : 'Ver Plan B →'}
                           </span>
                         </div>
 
-                        <div className="p-3 rounded-lg bg-black/40 border border-zinc-800 space-y-1.5">
-                          <span className="font-bold text-emerald-400 block">
+                        <div className="p-3 rounded-xl bg-white dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 space-y-1">
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 block">
                             Plan B / Línea Alternativa:
                           </span>
                           {branch.alternativeSteps.map((alt, aIdx) => (
-                            <p key={aIdx} className="text-zinc-300 text-[11px]">
+                            <p key={aIdx} className="text-zinc-700 dark:text-zinc-300 text-[11px]">
                               • {alt.action} ({alt.cardName}): {alt.details}
                             </p>
                           ))}
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 pt-1">
+                        <div className="flex items-center justify-between text-[11px] font-mono text-zinc-500 pt-1">
                           <span>
                             Tablero de Emergencia:{' '}
-                            <strong className="text-white">
+                            <strong className="text-zinc-900 dark:text-zinc-100">
                               {branch.resultingEndboard}
                             </strong>
                           </span>
-                          <span className="text-amber-400 font-bold">
+                          <span className="text-amber-600 dark:text-amber-400 font-bold">
                             Resiliencia: {branch.resilienceScore}/5 ★
                           </span>
                         </div>

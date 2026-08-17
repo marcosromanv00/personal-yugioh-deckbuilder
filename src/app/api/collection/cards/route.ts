@@ -256,10 +256,98 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// POST: Registrar una nueva carta manualmente en la colección
+// POST: Registrar una o varias cartas manualmente en la colección
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // Caso 1: Inserción en lote (Batch)
+    if (Array.isArray(body.cards) && body.cards.length > 0) {
+      const cardsList = body.cards;
+
+      if (!isSupabaseConfigured) {
+        const mockCreated = cardsList.map((c: any, index: number) => ({
+          id: `demo-${Date.now()}-${index}`,
+          card_id: c.card_id,
+          storage_location_id: c.storage_location_id || null,
+          quantity: c.quantity || 1,
+          rarity: c.rarity || 'Common',
+          condition: c.condition || 'Near Mint',
+          language: c.language || 'en',
+          status_flag: c.status_flag || 'collection',
+          sleeve_type: c.sleeve_type || 'none',
+          is_proxy: !!c.is_proxy,
+          notes: c.notes || '',
+        }));
+        return NextResponse.json({ success: true, count: mockCreated.length, data: mockCreated });
+      }
+
+      // Asegurar que las cartas existan en yg_cards
+      for (const c of cardsList) {
+        const { data: existingCard } = await supabase
+          .from('yg_cards')
+          .select('id')
+          .eq('id', c.card_id)
+          .maybeSingle();
+
+        if (!existingCard) {
+          try {
+            const response = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${c.card_id}`);
+            if (response.ok) {
+              const result = await response.json();
+              const cardData = result.data?.[0];
+              if (cardData) {
+                const img = cardData.card_images?.[0];
+                await supabase.from('yg_cards').upsert({
+                  id: cardData.id,
+                  name: cardData.name,
+                  type: cardData.type,
+                  desc: cardData.desc || '',
+                  atk: cardData.atk !== undefined ? cardData.atk : null,
+                  def: cardData.def !== undefined ? cardData.def : null,
+                  level: cardData.level !== undefined ? cardData.level : null,
+                  race: cardData.race || null,
+                  attribute: cardData.attribute || null,
+                  archetype: cardData.archetype || null,
+                  image_url: img ? img.image_url : null,
+                  image_url_small: img ? img.image_url_small : null,
+                  ban_master_duel: cardData.banlist_info?.ban_md || 'Unlimited',
+                  ban_tcg: cardData.banlist_info?.ban_tcg || 'Unlimited',
+                  ban_ocg: cardData.banlist_info?.ban_ocg || 'Unlimited',
+                  ban_duel_links: cardData.banlist_info?.ban_goat || 'Unlimited',
+                });
+              }
+            }
+          } catch (err) {
+            console.warn('Error al precargar carta faltante en lote:', err);
+          }
+        }
+      }
+
+      const insertPayload = cardsList.map((c: any) => ({
+        card_id: c.card_id,
+        storage_location_id: c.storage_location_id || null,
+        quantity: c.quantity || 1,
+        rarity: c.rarity || 'Common',
+        condition: c.condition || 'Near Mint',
+        language: c.language || 'en',
+        status_flag: c.status_flag || 'collection',
+        sleeve_type: c.sleeve_type || 'none',
+        is_proxy: !!c.is_proxy,
+        notes: c.notes || '',
+      }));
+
+      const { data, error } = await supabase
+        .from('yg_user_cards')
+        .insert(insertPayload)
+        .select('*, card_details:yg_cards(name, image_url, image_url_small)');
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, count: data?.length || 0, data });
+    }
+
+    // Caso 2: Inserción individual
     const {
       card_id,
       storage_location_id,
@@ -276,8 +364,6 @@ export async function POST(req: NextRequest) {
     if (!card_id) {
       return NextResponse.json({ error: 'ID de carta es obligatorio' }, { status: 400 });
     }
-
-    const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!isSupabaseConfigured) {
       return NextResponse.json({ 
