@@ -70,6 +70,9 @@ export interface UserCard {
   sleeve_condition?: SleeveCondition;
   is_proxy?: boolean;
   is_favorite?: boolean;
+  is_grayscale_shared?: boolean;
+  shared_notes?: string;
+  reorganization_reason?: string;
   sale_price?: number;
   notes?: string;
   created_at: string;
@@ -91,6 +94,39 @@ export interface UserCard {
     name: string;
   };
 }
+
+export interface MovedCardInfo {
+  card_id: number;
+  name: string;
+  image_url?: string;
+  rarity: string;
+  from_location: string;
+  to_location: string;
+}
+
+export interface DeckCardPreviewInfo {
+  card_id: number;
+  name: string;
+  count: number;
+  section: string;
+  image_url?: string;
+}
+
+export interface IdealSyncLog {
+  id: string;
+  category: 'deck_created' | 'card_promoted' | 'bulk_sorted' | 'staple_organized';
+  title: string;
+  description: string;
+  impact_level: 'high' | 'medium' | 'low';
+  source_location_name?: string;
+  target_location_name?: string;
+  card_count: number;
+  is_applied_to_physical?: boolean;
+  moved_cards?: MovedCardInfo[];
+  deck_cards_preview?: DeckCardPreviewInfo[];
+  created_at: string;
+}
+
 
 export type StorageRuleType = 'rarity' | 'status_flag' | 'archetype' | 'is_staple' | 'deck_completion';
 
