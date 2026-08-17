@@ -26,6 +26,7 @@ import { StorageLocation, UserCard, SleeveInventory, Deck } from '@/types/collec
 import { Card, HoverCardBase } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { SearchPanel } from '@/components/deckbuilder/components/SearchPanel';
+import { PhysicalCardPickerModal } from './PhysicalCardPickerModal';
 import { getSleeveColorHex } from '@/lib/sleeves';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -64,6 +65,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   // Drag & Drop
   const [draggedCard, setDraggedCard] = useState<Card | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const [isDragOverCenter, setIsDragOverCenter] = useState(false);
+
+  // Selector de Copia Física Modal State
+  const [pickerCard, setPickerCard] = useState<Card | null>(null);
+  const [pickerUserCards, setPickerUserCards] = useState<UserCard[]>([]);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [pendingBinderTarget, setPendingBinderTarget] = useState<{ page?: number; slot?: number } | null>(null);
 
   // Modo del panel izquierdo: 'search' | 'import'
   const [leftTab, setLeftTab] = useState<'search' | 'import'>('search');
@@ -228,22 +236,38 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       if (res.ok) {
         const json = await res.json();
         const data = json.data || [];
-        const mapped: Card[] = scope === 'collection'
-          ? data.map((uc: UserCard) => ({
-              id: uc.card_id,
-              name: uc.card_details?.name || 'Carta',
-              type: uc.card_details?.type || 'Monster',
-              desc: uc.card_details?.desc || '',
-              race: uc.card_details?.race,
-              attribute: uc.card_details?.attribute,
-              atk: uc.card_details?.atk,
-              def: uc.card_details?.def,
-              level: uc.card_details?.level,
-              image_url: uc.card_details?.image_url || '',
-              image_url_small: uc.card_details?.image_url_small || '',
-              archetype: uc.card_details?.archetype,
-            }))
-          : data;
+        let mapped: Card[] = [];
+        if (scope === 'collection') {
+          const groupedMap = new Map<number, { first: UserCard; items: UserCard[] }>();
+          for (const uc of (data as UserCard[])) {
+            if (!uc.card_id) continue;
+            if (!groupedMap.has(uc.card_id)) {
+              groupedMap.set(uc.card_id, { first: uc, items: [uc] });
+            } else {
+              groupedMap.get(uc.card_id)!.items.push(uc);
+            }
+          }
+
+          groupedMap.forEach(({ first, items }, cardId) => {
+            mapped.push({
+              id: cardId,
+              name: first.card_details?.name || 'Carta',
+              type: first.card_details?.type || 'Monster',
+              desc: first.card_details?.desc || '',
+              race: first.card_details?.race,
+              attribute: first.card_details?.attribute,
+              atk: first.card_details?.atk,
+              def: first.card_details?.def,
+              level: first.card_details?.level,
+              image_url: first.card_details?.image_url || '',
+              image_url_small: first.card_details?.image_url_small || '',
+              archetype: first.card_details?.archetype,
+              userCardsGroup: items,
+            });
+          });
+        } else {
+          mapped = data;
+        }
         setSearchResults(mapped);
       }
     } catch (err) {
@@ -288,9 +312,107 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cards, toast]);
 
+  const handleDropCardToBox = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverCenter(false);
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    let card: Card;
+    try { card = JSON.parse(raw) as Card; } catch { return; }
+    await handleAddCardToContainer(card);
+    setDraggedCard(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, containerId, isInbox, activeCompartment, toast]);
+
+  // Seleccionar copia física única (desde el modal o selección directa)
+  const handleSelectPhysicalCopy = async (
+    userCard: UserCard,
+    action: 'move' | 'proxy' = 'move',
+    page?: number,
+    slot?: number
+  ) => {
+    try {
+      if (action === 'proxy' && userCard.deck_id) {
+        // Crear marcador proxy en el deck original
+        await fetch('/api/collection/cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            card_id: userCard.card_id,
+            deck_id: userCard.deck_id,
+            deck_section: userCard.deck_section || 'main',
+            is_proxy: true,
+            quantity: 1,
+            rarity: userCard.rarity || 'Common',
+            condition: userCard.condition || 'Near Mint',
+            status_flag: 'in_deck',
+          }),
+        });
+      }
+
+      // Mover la carta física a este contenedor
+      const payload: Record<string, unknown> = {
+        id: userCard.id,
+        storage_location_id: isInbox ? null : containerId,
+        deck_id: null,
+        deck_section: null,
+        compartment_index: activeCompartment,
+      };
+
+      if (containerType === 'binder') {
+        if (page && slot) {
+          payload.binder_page = page;
+          payload.binder_slot = slot;
+        } else {
+          payload.binder_page = currentBinderViewIndex === 0 ? 1 : currentBinderViewIndex * 2;
+          payload.binder_slot = 1;
+        }
+      }
+
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toast.success(
+          action === 'proxy'
+            ? `${userCard.card_details?.name || 'Carta física'} movida a ${isInbox ? 'Inbox' : location?.name || 'este contenedor'} (marcador proxy dejado en deck)`
+            : `${userCard.card_details?.name || 'Carta física'} ubicada en ${isInbox ? 'Inbox' : location?.name || 'este contenedor'}`,
+          { title: '¡Copia asignada!' }
+        );
+        setHasMutated(true);
+        fetchCards();
+      } else {
+        toast.error('Error al actualizar la ubicación de la carta física', { title: 'Error' });
+      }
+    } catch (err) {
+      console.error('Error al mover la copia física:', err);
+      toast.error('Error de conexión al procesar la selección', { title: 'Error' });
+    }
+  };
+
   // Añadir carta al contenedor (o asignar posición si ya existe sin ubicación en binder)
   const handleAddCardToContainer = async (card: Card | HoverCardBase, page?: number, slot?: number) => {
     try {
+      const cardObj = card as Card;
+      // Si la carta proviene de "MI COLECCIÓN" y tiene un grupo de copias físicas
+      if (cardObj.userCardsGroup && cardObj.userCardsGroup.length > 0) {
+        // Si hay más de 1 copia física O si alguna copia está asignada a un deck, abrir el selector
+        if (cardObj.userCardsGroup.length > 1 || cardObj.userCardsGroup.some(uc => uc.deck_id || uc.deck_details)) {
+          setPickerCard(cardObj);
+          setPickerUserCards(cardObj.userCardsGroup);
+          setPendingBinderTarget(page && slot ? { page, slot } : null);
+          setIsPickerOpen(true);
+          return;
+        } else if (cardObj.userCardsGroup.length === 1) {
+          await handleSelectPhysicalCopy(cardObj.userCardsGroup[0], 'move', page, slot);
+          return;
+        }
+      }
+
       // Para binders: verificar si la carta ya está en el contenedor sin posición asignada
       if (containerType === 'binder' && page && slot) {
         const existingUnplaced = cards.find(
@@ -865,7 +987,47 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         )}
 
         {/* ─── PANEL CENTRAL: VISUALIZADOR DE CONTENEDOR (GRID / BINDER) ─── */}
-        <main className={`${mobileTab === 'center' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden relative`}>
+        <main 
+          onDragOver={(e) => {
+            if (containerType !== 'binder') {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+              if (!isDragOverCenter) setIsDragOverCenter(true);
+            }
+          }}
+          onDragLeave={(e) => {
+            if (containerType !== 'binder') {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setIsDragOverCenter(false);
+              }
+            }
+          }}
+          onDrop={(e) => {
+            if (containerType !== 'binder') {
+              handleDropCardToBox(e);
+            }
+          }}
+          className={`${mobileTab === 'center' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden relative transition-colors ${
+            isDragOverCenter && containerType !== 'binder' ? 'ring-2 ring-red-500/80 bg-red-500/5' : ''
+          }`}
+        >
+          {/* Overlay Drag & Drop para Contenedores Tipo Caja / Inbox */}
+          <AnimatePresence>
+            {isDragOverCenter && containerType !== 'binder' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="absolute inset-0 z-50 bg-zinc-950/85 backdrop-blur-xs border-2 border-dashed border-red-500 rounded-2xl flex flex-col items-center justify-center text-red-200 pointer-events-none p-6 text-center m-2 shadow-2xl"
+              >
+                <Plus className="w-12 h-12 text-red-500 animate-bounce mb-3" />
+                <p className="text-sm font-black uppercase tracking-wider text-zinc-100">
+                  Soltar carta para añadir a {isInbox ? 'Sin Clasificar' : location?.name || 'este contenedor'}
+                </p>
+                <p className="text-xs text-zinc-400 mt-1 font-mono">Se agregará una copia automáticamente a tu caja</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
           
           {/* Barra Superior de Filtros y Compartimentos */}
           <div className="p-3 sm:px-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -1410,8 +1572,29 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
       </div>
 
-      </motion.div>
+      {/* Modal de Selección de Copias Físicas */}
+      <PhysicalCardPickerModal
+        isOpen={isPickerOpen}
+        onClose={() => {
+          setIsPickerOpen(false);
+          setPickerCard(null);
+          setPickerUserCards([]);
+          setPendingBinderTarget(null);
+        }}
+        card={pickerCard}
+        userCards={pickerUserCards}
+        targetContainerName={isInbox ? 'Sin Clasificar (Inbox)' : location?.name}
+        onSelectCopy={(uc, action) => {
+          handleSelectPhysicalCopy(
+            uc,
+            action,
+            pendingBinderTarget?.page,
+            pendingBinderTarget?.slot
+          );
+        }}
+      />
 
+      </motion.div>
     </div>
   );
 };

@@ -34,6 +34,7 @@ export interface Card {
   level?: number | null;
   race?: string | null;
   attribute?: string | null;
+  userCardsGroup?: import('@/types/collection').UserCard[];
 }
 
 export interface DeckCard {

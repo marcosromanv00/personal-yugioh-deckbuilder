@@ -87,9 +87,9 @@ const SearchResultsList = React.memo(({
   if (searchViewMode === 'grid') {
     return (
       <div className={`grid gap-x-1.5 gap-y-2.5 ${isMobile ? 'grid-cols-4' : 'grid-cols-4 xl:grid-cols-5'}`}>
-        {searchResults.map(card => (
+        {searchResults.map((card, idx) => (
           <div 
-            key={card.id}
+            key={`${card.id}-${idx}`}
             draggable={!isMobile}
             onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype }) : undefined}
             onClick={() => addCardToDeck(card)}
@@ -111,6 +111,11 @@ const SearchResultsList = React.memo(({
                 onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
               />
               {getBanlistBadge(card)}
+              {card.userCardsGroup && card.userCardsGroup.length > 0 && (
+                <div className="absolute top-1 right-1 bg-purple-950/90 text-purple-300 font-mono text-[9px] px-1.5 py-0.5 rounded border border-purple-500/40 font-black shadow-xs">
+                  {card.userCardsGroup.length}x
+                </div>
+              )}
             </div>
             <div className="mt-1 transition-all text-center min-w-0 px-0.5">
               <p className="text-[9px] font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors truncate leading-tight">{card.name}</p>
@@ -123,9 +128,9 @@ const SearchResultsList = React.memo(({
 
   return (
     <div className="flex flex-col gap-2">
-      {searchResults.map(card => (
+      {searchResults.map((card, idx) => (
         <div 
-          key={card.id}
+          key={`${card.id}-${idx}`}
           draggable
           onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
           onClick={() => addCardToDeck(card)}
@@ -147,7 +152,14 @@ const SearchResultsList = React.memo(({
           />
           <div className="flex-1 flex flex-col justify-between min-w-0">
             <div>
-              <p className="text-xs font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-500 transition-colors">{card.name}</p>
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-500 transition-colors">{card.name}</p>
+                {card.userCardsGroup && card.userCardsGroup.length > 0 && (
+                  <span className="text-[10px] font-mono font-bold text-purple-400 shrink-0">
+                    {card.userCardsGroup.length}x
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] text-zinc-500 font-mono font-bold truncate">
                 {card.type} • {card.archetype || 'Genérica'}
               </p>
