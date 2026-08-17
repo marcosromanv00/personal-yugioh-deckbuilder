@@ -33,6 +33,7 @@ import { SmartOrganizeModal } from '@/components/collection/SmartOrganizeModal';
 import { SleevingAdvisorModal } from '@/components/collection/SleevingAdvisorModal';
 import { SleeveInventoryFormModal } from '@/components/collection/SleeveInventoryFormModal';
 import { DeckDetailsModal } from '@/components/collection/DeckDetailsModal';
+import { EnvironmentSwitcher } from '@/components/collection/EnvironmentSwitcher';
 import { Deck } from '@/types/collection';
 
 /**
@@ -115,6 +116,9 @@ export default function CollectionPage() {
               <span>Nuevo Contenedor</span>
             </button>
 
+            {/* Switcher de Ambiente Colección Ideal */}
+            <EnvironmentSwitcher />
+
             {/* Toggle Global de Tema */}
             <button
               onClick={toggleTheme}
@@ -130,6 +134,7 @@ export default function CollectionPage() {
           </div>
         </div>
       </header>
+
 
       {/* CORE CONTENT */}
       <main className="flex-1 p-6 sm:p-8 max-w-[1600px] mx-auto w-full space-y-8">

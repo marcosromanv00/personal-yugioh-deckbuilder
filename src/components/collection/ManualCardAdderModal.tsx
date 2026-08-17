@@ -13,11 +13,7 @@ import {
   FileText,
   Check,
   AlertCircle,
-  Layers,
   Printer,
-  Shield,
-  Box,
-  Globe,
   Loader2,
 } from 'lucide-react';
 import { StorageLocation, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
@@ -137,14 +133,16 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
   // Reset form on open
   useEffect(() => {
     if (isOpen) {
-      setSearchQuery('');
-      setSearchResults([]);
-      setQueuedCards([]);
-      setActiveCardId(null);
-      setBulkText('');
-      setUnmatchedBulkCards([]);
-      setErrorMsg('');
-      setSuccessMsg('');
+      queueMicrotask(() => {
+        setSearchQuery('');
+        setSearchResults([]);
+        setQueuedCards([]);
+        setActiveCardId(null);
+        setBulkText('');
+        setUnmatchedBulkCards([]);
+        setErrorMsg('');
+        setSuccessMsg('');
+      });
     }
   }, [isOpen]);
 
@@ -211,7 +209,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
     } else {
       // Create new queue item
       const newItem: QueuedCardItem = {
-        id: `queue-${card.id}-${Date.now()}`,
+        id: `queue-${card.id}-${Math.random().toString(36).substring(2, 9)}`,
         card_id: card.id,
         name: card.name,
         type: card.type,
@@ -262,8 +260,18 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
         setUnmatchedBulkCards(unmatched);
 
         if (parsed.length > 0) {
-          const newItems: QueuedCardItem[] = parsed.map((p: any) => ({
-            id: `queue-${p.card_id}-${Math.random()}`,
+          type ParsedItem = {
+            card_id: number;
+            name: string;
+            type?: string;
+            desc?: string;
+            image_url?: string;
+            image_url_small?: string;
+            archetype?: string;
+            quantity?: number;
+          };
+          const newItems: QueuedCardItem[] = parsed.map((p: ParsedItem) => ({
+            id: `queue-${p.card_id}-${Math.random().toString(36).substring(2, 9)}`,
             card_id: p.card_id,
             name: p.name,
             type: p.type || 'Monster',
@@ -579,7 +587,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
                           {searchQuery ? 'Sin coincidencias' : 'Escribe para buscar'}
                         </p>
-                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5 max-w-[200px]">
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5 max-w-50">
                           Escribe el nombre de la carta para añadirla a la cola.
                         </p>
                       </div>
@@ -874,7 +882,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         </label>
                         <select
                           value={activeCard.language}
-                          onChange={(e) => handleUpdateActiveCard({ language: e.target.value as any })}
+                          onChange={(e) => handleUpdateActiveCard({ language: e.target.value as 'en' | 'es' | 'jp' })}
                           className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
                         >
                           <option value="en">Inglés (EN)</option>
@@ -894,7 +902,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         onChange={(e) => handleUpdateActiveCard({ storage_location_id: e.target.value })}
                         className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
                       >
-                        <option value="inbox">📥 Bandeja "Sin Clasificar" (Inbox)</option>
+                        <option value="inbox">📥 Bandeja &quot;Sin Clasificar&quot; (Inbox)</option>
                         {locations.map((loc) => (
                           <option key={loc.id} value={loc.id}>
                             📦 {loc.name} ({loc.type})
@@ -928,7 +936,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         </label>
                         <select
                           value={activeCard.condition}
-                          onChange={(e) => handleUpdateActiveCard({ condition: e.target.value as any })}
+                          onChange={(e) => handleUpdateActiveCard({ condition: e.target.value as CardCondition })}
                           className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
                         >
                           {CONDITIONS.map((cond) => (
@@ -948,7 +956,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         </label>
                         <select
                           value={activeCard.status_flag}
-                          onChange={(e) => handleUpdateActiveCard({ status_flag: e.target.value as any })}
+                          onChange={(e) => handleUpdateActiveCard({ status_flag: e.target.value as CardStatusFlag })}
                           className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
                         >
                           {STATUS_FLAGS.map((s) => (
@@ -965,7 +973,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         </label>
                         <select
                           value={activeCard.sleeve_type}
-                          onChange={(e) => handleUpdateActiveCard({ sleeve_type: e.target.value as any })}
+                          onChange={(e) => handleUpdateActiveCard({ sleeve_type: e.target.value as SleeveType })}
                           className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
                         >
                           <option value="none">Sin Funda</option>

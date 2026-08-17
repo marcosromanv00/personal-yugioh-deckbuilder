@@ -142,7 +142,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 {getIcon(toast.type)}
                 <div className="min-w-0 flex-1">
                   {toast.title && <h4 className="font-bold text-slate-100 mb-0.5">{toast.title}</h4>}
-                  <p className="text-slate-300 leading-relaxed break-words">{toast.message}</p>
+                  <p className="text-slate-300 leading-relaxed wrap-break-word">{toast.message}</p>
                 </div>
               </div>
 

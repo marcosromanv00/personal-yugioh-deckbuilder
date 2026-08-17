@@ -6,20 +6,16 @@ import {
   X, 
   Search, 
   Upload, 
-  BookOpen, 
   Box, 
-  Shield, 
   Layers, 
   Sparkles, 
   Trash2, 
-  MinusCircle, 
   ArrowLeft, 
   Info, 
   Check, 
   Loader2, 
   ChevronLeft, 
   ChevronRight,
-  Filter,
   Plus,
   AlertCircle,
   ArrowUpDown
@@ -33,6 +29,8 @@ import { getSleeveColorHex } from '@/lib/sleeves';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePanelResize } from '@/components/deckbuilder/hooks/usePanelResize';
+import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
+
 
 interface UniversalContainerWorkspaceModalProps {
   isOpen: boolean;
@@ -51,9 +49,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   location,
   locations = [],
   onSelectLocation,
-  sleeves = [],
-  decks = [],
-  onDeckClick,
 }) => {
   const { theme } = useTheme();
   const toast = useToast();
@@ -77,8 +72,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
   // Modo del panel izquierdo: 'search' | 'import'
   const [leftTab, setLeftTab] = useState<'search' | 'import'>('search');
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [leftPanelWidth] = useState(380);
 
   // Estados de Búsqueda
   const [searchQuery, setSearchQuery] = useState('');
@@ -121,17 +114,18 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   const [ydkText, setYdkText] = useState('');
   const [ydkFileName, setYdkFileName] = useState('');
   const [importSubTab, setImportSubTab] = useState<'ydk' | 'id_list'>('ydk');
-  const [splitCopiesImport, setSplitCopiesImport] = useState<boolean>(true);
+  const [splitCopiesImport] = useState<boolean>(true);
   const [targetCompartmentForImport, setTargetCompartmentForImport] = useState<number>(0);
   const [importLoading, setImportLoading] = useState(false);
   const [importSuccessMsg, setImportSuccessMsg] = useState('');
   const [importError, setImportError] = useState('');
 
-  useEffect(() => {
-    if (activeCompartment !== -1) {
-      setTargetCompartmentForImport(activeCompartment);
+  const handleSelectCompartment = (compIndex: number) => {
+    setActiveCompartment(compIndex);
+    if (compIndex !== -1) {
+      setTargetCompartmentForImport(compIndex);
     }
-  }, [activeCompartment]);
+  };
 
   // Parser para listas numéricas de cantidad + ID (ej: "1 61280937" o "3 89631139")
   const parseQuantityIdList = (text: string): number[] => {
@@ -191,11 +185,33 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   const containerId = isInbox ? 'inbox' : location?.id;
   const containerType = isInbox ? 'box' : (location?.type || 'box');
 
+  const { isIdealMode, syncData } = useIdealEnvironment();
+
   // Cargar cartas de este contenedor específico
   const fetchCards = useCallback(async () => {
     if (!isOpen) return;
     setLoading(true);
     try {
+      if (isIdealMode && syncData?.idealCards) {
+        const physicalLocId = (location as any)?.physical_storage_location_id;
+        const targetId = location?.id;
+
+        const filtered = (syncData.idealCards as UserCard[]).filter(c => {
+          if (isInbox) return !c.storage_location_id;
+          return (
+            c.storage_location_id === targetId ||
+            (physicalLocId && c.storage_location_id === physicalLocId)
+          );
+        });
+
+        setCards(filtered);
+        if (selectedUserCard) {
+          const fresh = filtered.find(c => c.id === selectedUserCard.id);
+          if (fresh) setSelectedUserCard(fresh);
+        }
+        return;
+      }
+
       const url = isInbox 
         ? '/api/collection/inbox' 
         : `/api/collection/cards?location_id=${containerId}`;
@@ -214,18 +230,21 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     } finally {
       setLoading(false);
     }
-  }, [isOpen, isInbox, containerId, selectedUserCard]);
+  }, [isOpen, isInbox, containerId, selectedUserCard, isIdealMode, syncData, location]);
+
 
   useEffect(() => {
     if (isOpen) {
-      fetchCards();
-      setHasMutated(false);
-      setSelectedUserCard(null);
-      setSelectedSearchCard(null);
-      setCurrentGridPage(1);
-      setCurrentBinderViewIndex(0);
+      queueMicrotask(() => {
+        setHasMutated(false);
+        setSelectedUserCard(null);
+        setSelectedSearchCard(null);
+        setCurrentGridPage(1);
+        setCurrentBinderViewIndex(0);
+        fetchCards();
+      });
     }
-  }, [isOpen, location?.id]);
+  }, [isOpen, location?.id, fetchCards]);
 
   // Ejecutar búsqueda en panel izquierdo
   const executeSearch = useCallback(async (
@@ -340,45 +359,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       return () => clearTimeout(timer);
     }
   }, [leftTab, searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit, executeSearch, isOpen]);
-
-  // Drag & Drop handlers
-  const handleDragCardStart = useCallback((e: React.DragEvent, card: Card) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(card));
-    e.dataTransfer.effectAllowed = 'copy';
-    setDraggedCard(card);
-  }, []);
-
-  const handleDropCardToBinderSlot = useCallback(async (e: React.DragEvent, page: number, slot: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverSlot(null);
-    const raw = e.dataTransfer.getData('application/json');
-    if (!raw) return;
-    let card: Card;
-    try { card = JSON.parse(raw) as Card; } catch { return; }
-    // Check if slot already has a card
-    const existing = cards.find(c => c.binder_page === page && c.binder_slot === slot);
-    if (existing) {
-      toast.warning(`Slot ${slot} (Pág. ${page}) ya está ocupado. Selecciónalo para moverlo.`, { title: 'Slot ocupado' });
-      return;
-    }
-    await handleAddCardToContainer(card, page, slot);
-    setDraggedCard(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, toast]);
-
-  const handleDropCardToBox = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOverCenter(false);
-    const raw = e.dataTransfer.getData('application/json');
-    if (!raw) return;
-    let card: Card;
-    try { card = JSON.parse(raw) as Card; } catch { return; }
-    await handleAddCardToContainer(card);
-    setDraggedCard(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, containerId, isInbox, activeCompartment, toast]);
 
   // Seleccionar copia física única (desde el modal o selección directa)
   const handleSelectPhysicalCopy = async (
@@ -544,6 +524,45 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       toast.error('Error de conexión al añadir la carta', { title: 'Error' });
     }
   };
+
+  // Drag & Drop handlers
+  const handleDragCardStart = useCallback((e: React.DragEvent, card: Card) => {
+    e.dataTransfer.setData('application/json', JSON.stringify(card));
+    e.dataTransfer.effectAllowed = 'copy';
+    setDraggedCard(card);
+  }, []);
+
+  const handleDropCardToBinderSlot = useCallback(async (e: React.DragEvent, page: number, slot: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverSlot(null);
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    let card: Card;
+    try { card = JSON.parse(raw) as Card; } catch { return; }
+    // Check if slot already has a card
+    const existing = cards.find(c => c.binder_page === page && c.binder_slot === slot);
+    if (existing) {
+      toast.warning(`Slot ${slot} (Pág. ${page}) ya está ocupado. Selecciónalo para moverlo.`, { title: 'Slot ocupado' });
+      return;
+    }
+    await handleAddCardToContainer(card, page, slot);
+    setDraggedCard(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, toast]);
+
+  const handleDropCardToBox = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverCenter(false);
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    let card: Card;
+    try { card = JSON.parse(raw) as Card; } catch { return; }
+    await handleAddCardToContainer(card);
+    setDraggedCard(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, containerId, isInbox, activeCompartment, toast]);
 
   // Actualizar propiedades de la carta en tiempo real
   const handleUpdateCard = async (updatedFields: Partial<UserCard>) => {
@@ -746,53 +765,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     }
   };
 
-  // Desglosar 1 registro agrupado (ej: 6x Alubers) en copias físicas individuales (1x c/u)
-  const handleSplitCopies = async () => {
-    if (!selectedUserCard || selectedUserCard.quantity <= 1) return;
-
-    const count = selectedUserCard.quantity;
-    if (!confirm(`¿Desglosar esta entrada de ${count} copias en ${count} cartas físicas individuales (1x cada una)? Esto te permitirá asignar rareza, estado o funda diferente a cada carta.`)) return;
-
-    try {
-      // 1. Actualizar el registro actual a quantity: 1
-      await fetch('/api/collection/cards', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedUserCard.id,
-          quantity: 1,
-        }),
-      });
-
-      // 2. Insertar (count - 1) nuevas filas individuales
-      const baseTime = selectedUserCard.created_at ? new Date(selectedUserCard.created_at).getTime() : Date.now();
-      for (let i = 1; i < count; i++) {
-        await fetch('/api/collection/cards', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            card_id: selectedUserCard.card_id,
-            storage_location_id: selectedUserCard.storage_location_id,
-            compartment_index: selectedUserCard.compartment_index || 0,
-            quantity: 1,
-            rarity: selectedUserCard.rarity || 'Common',
-            condition: selectedUserCard.condition || 'Near Mint',
-            status_flag: selectedUserCard.status_flag || 'collection',
-            sleeve_type: selectedUserCard.sleeve_type || 'none',
-            created_at: new Date(baseTime + i * 500).toISOString(),
-          }),
-        });
-      }
-
-      toast.success(`Desglosado en ${count} copias individuales`, { title: '¡Cartas desglosadas!' });
-      setHasMutated(true);
-      await fetchCards();
-    } catch (err) {
-      console.error('Error al desglosar copias:', err);
-      toast.error('Error al desglosar copias', { title: 'Error' });
-    }
-  };
-
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -988,7 +960,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         onClick={(e) => e.stopPropagation()}
-        className={`${theme === 'dark' ? 'dark' : ''} w-full max-w-[82vw] xl:max-w-[1440px] 2xl:max-w-[1520px] h-[92vh] max-h-[960px] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10 select-auto text-zinc-900 dark:text-zinc-100`}
+        className={`${theme === 'dark' ? 'dark' : ''} w-full max-w-[82vw] xl:max-w-360 2xl:max-w-380 h-[92vh] max-h-240 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10 select-auto text-zinc-900 dark:text-zinc-100`}
       >
         {/* BOTÓN NAVEGACIÓN ANTERIOR (FLECHA IZQUIERDA) — posicionada dentro para heredar z-context */}
         {prevContainer && (
@@ -997,7 +969,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               e.stopPropagation();
               handleNavigatePrev();
             }}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full z-50 ml-[-12px] p-3 rounded-2xl bg-zinc-900 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-zinc-200 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full z-50 -ml-3 p-3 rounded-2xl bg-zinc-900 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-zinc-200 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
             title={`Anterior: ${prevContainer.name} (←)`}
             aria-label="Contenedor anterior"
           >
@@ -1015,7 +987,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               e.stopPropagation();
               handleNavigateNext();
             }}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-50 mr-[-12px] p-3 rounded-2xl bg-zinc-900 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-zinc-200 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-50 -mr-3 p-3 rounded-2xl bg-zinc-900 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-zinc-200 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
             title={`Siguiente: ${nextContainer.name} (→)`}
             aria-label="Siguiente contenedor"
           >
@@ -1226,7 +1198,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 {/* Selector de Carril de Destino (Si el contenedor tiene varios compartimentos) */}
                 {location?.compartments && location.compartments.count > 1 && (
                   <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-1.5 shadow-2xs">
-                    <label className="block text-[10.5px] font-mono font-black uppercase text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
+                    <label className="text-[10.5px] font-mono font-black uppercase text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                       <span>Carril / Compartimento de Destino:</span>
                     </label>
@@ -1307,17 +1279,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                     />
                   </div>
                 )}
-
-                {/* Opción para registrar cada copia como ítem físico independiente */}
-                <label className="flex items-center gap-2 cursor-pointer text-[11px] font-bold text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-2xs">
-                  <input
-                    type="checkbox"
-                    checked={splitCopiesImport}
-                    onChange={(e) => setSplitCopiesImport(e.target.checked)}
-                    className="rounded border-zinc-400 text-cyan-600 focus:ring-cyan-500 w-4 h-4 cursor-pointer"
-                  />
-                  <span>Registrar cada copia como ítem físico independiente (1x)</span>
-                </label>
 
                 {importError && (
                   <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-900 dark:text-red-300 font-semibold rounded-xl flex items-start gap-2 shadow-2xs">
@@ -1466,7 +1427,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
               <button
                 type="button"
-                onClick={() => setActiveCompartment(-1)}
+                onClick={() => handleSelectCompartment(-1)}
                 className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
                   activeCompartment === -1
                     ? 'bg-red-600 text-white shadow-xs'
@@ -1483,7 +1444,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => setActiveCompartment(idx)}
+                    onClick={() => handleSelectCompartment(idx)}
                     className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
                       isActive
                         ? 'bg-purple-600 text-white shadow-xs'
@@ -1578,6 +1539,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                           >
                             {cardInSlot?.card_details ? (
                               <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={cardInSlot.card_details.image_url_small || cardInSlot.card_details.image_url}
                                   alt={cardInSlot.card_details.name}
@@ -1642,6 +1604,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                           >
                             {cardInSlot?.card_details ? (
                               <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={cardInSlot.card_details.image_url_small || cardInSlot.card_details.image_url}
                                   alt={cardInSlot.card_details.name}
@@ -1730,6 +1693,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                         >
                           <div className="aspect-3/4 rounded-lg overflow-hidden relative bg-zinc-950">
                             {uc.card_details && (
+                              /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={uc.card_details.image_url_small || uc.card_details.image_url}
                                 alt={uc.card_details.name}
@@ -1821,6 +1785,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
               {/* Vista previa de carta */}
               <div className="flex gap-3.5 items-start bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={selectedUserCard.card_details.image_url_small || selectedUserCard.card_details.image_url}
                   alt={selectedUserCard.card_details.name}
@@ -1904,7 +1869,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                             <option value="Ultimate Rare">Ultimate Rare</option>
                             <option value="Ghost Rare">Ghost Rare</option>
                             <option value="Starlight Rare">Starlight Rare</option>
-                            <option value="Collector's Rare">Collector's Rare</option>
+                            <option value="Collector's Rare">Collector&apos;s Rare</option>
                             <option value="Quarter Century Secret Rare">25th Quarter Century</option>
                           </select>
                         </div>
@@ -1918,7 +1883,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                           </label>
                           <select
                             value={v.condition || 'Near Mint'}
-                            onChange={(e) => handleUpdateVariantById(v.id, { condition: e.target.value as any })}
+                            onChange={(e) => handleUpdateVariantById(v.id, { condition: e.target.value as UserCard['condition'] })}
                             className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
                           >
                             <option value="Near Mint">Near Mint (NM)</option>
@@ -1935,7 +1900,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                           </label>
                           <select
                             value={v.sleeve_type || 'none'}
-                            onChange={(e) => handleUpdateVariantById(v.id, { sleeve_type: e.target.value as any })}
+                            onChange={(e) => handleUpdateVariantById(v.id, { sleeve_type: e.target.value as UserCard['sleeve_type'] })}
                             className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
                           >
                             <option value="none">Sin Funda</option>
@@ -1966,7 +1931,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   </label>
                   <select
                     value={selectedUserCard.status_flag || 'collection'}
-                    onChange={(e) => handleUpdateCard({ status_flag: e.target.value as any })}
+                    onChange={(e) => handleUpdateCard({ status_flag: e.target.value as UserCard['status_flag'] })}
                     className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="collection">Colección Permanente</option>
@@ -1979,7 +1944,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 {/* Carril / Compartimento */}
                 {location?.compartments && location.compartments.count > 1 && (
                   <div>
-                    <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <label className="text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                       <Layers className="w-3 h-3 text-purple-400" />
                       <span>Carril / Compartimento</span>
                     </label>

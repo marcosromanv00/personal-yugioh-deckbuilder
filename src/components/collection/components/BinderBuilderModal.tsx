@@ -29,7 +29,7 @@ export const BinderBuilderModal: React.FC<BinderBuilderModalProps> = ({
             animate={{ y: 0, scale: 1 }}
             exit={{ y: 20, scale: 0.98 }}
             transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-            className="relative w-full max-w-7xl h-full md:h-[90vh] max-h-[100vh] md:max-h-[90vh] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none md:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100"
+            className="relative w-full max-w-7xl h-full md:h-[90vh] max-h-screen md:max-h-[90vh] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none md:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100"
           >
             <BinderBuilder binderId={binderId} onClose={onClose} />
           </motion.div>

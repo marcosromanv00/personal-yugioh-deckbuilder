@@ -33,7 +33,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ydkText, cardIds, rarity, status_flag, storage_location_id, compartment_index, split_individual } = body;
+    const { ydkText, cardIds, rarity, status_flag, storage_location_id, compartment_index } = body;
     const targetLocationId = (storage_location_id === 'inbox' || !storage_location_id) ? null : storage_location_id;
 
     let targetCardIds: number[] = [];
@@ -137,20 +137,6 @@ export async function POST(req: NextRequest) {
     const now = Date.now();
     let rowsToInsert: Array<Record<string, unknown>> = [];
 
-    if (split_individual) {
-      // Registrar cada copia como fila individual de quantity: 1
-      rowsToInsert = validTargetCardIds.map((cardId, idx) => ({
-        card_id: cardId,
-        storage_location_id: targetLocationId,
-        compartment_index: typeof compartment_index === 'number' ? compartment_index : 0,
-        quantity: 1,
-        rarity: rarity || 'Common',
-        status_flag: status_flag || 'collection',
-        sleeve_type: 'none',
-        condition: 'Near Mint',
-        created_at: new Date(now + idx * 1000).toISOString(),
-      }));
-    } else {
       // Agrupar apariciones consecutivas idénticas
       const itemsSequence: Array<{ card_id: number; quantity: number }> = [];
       for (const id of validTargetCardIds) {
@@ -173,7 +159,6 @@ export async function POST(req: NextRequest) {
         condition: 'Near Mint',
         created_at: new Date(now + idx * 1000).toISOString(),
       }));
-    }
 
     const { data: inserted, error: insertError } = await supabase
       .from('yg_user_cards')
