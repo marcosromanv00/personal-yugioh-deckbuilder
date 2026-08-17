@@ -296,3 +296,72 @@ export const AddContainerCard: React.FC<{ onClick: () => void }> = ({ onClick })
     </motion.div>
   );
 };
+
+export const UnclassifiedContainerCard: React.FC<{
+  inboxCount: number;
+  onClick: () => void;
+  onOrganizeClick?: () => void;
+}> = ({ inboxCount, onClick, onOrganizeClick }) => {
+  return (
+    <motion.div
+      whileHover={{ 
+        y: -4,
+        borderColor: '#f59e0b',
+        boxShadow: '0 10px 30px -10px rgba(245, 158, 11, 0.25)'
+      }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className="relative cursor-pointer group rounded-2xl p-5 border transition-all duration-300 shadow-sm overflow-hidden border-amber-300 dark:border-amber-900/50 bg-linear-to-br from-amber-50/80 via-white to-amber-50/40 dark:from-amber-950/20 dark:via-zinc-900 dark:to-amber-950/10 hover:border-amber-500"
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="p-3 rounded-xl flex items-center justify-center border border-amber-200 dark:border-amber-900/60 bg-amber-100/70 dark:bg-amber-950/50 shadow-xs text-amber-600 dark:text-amber-400">
+            <Box className="w-8 h-8" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-black text-base text-zinc-900 dark:text-zinc-100 group-hover:text-amber-500 transition-colors">
+                Sin Clasificar
+              </h3>
+              <div 
+                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs bg-amber-500" 
+                title="Bandeja de entrada (Inbox)"
+              />
+            </div>
+            <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-mono font-bold mt-1.5 bg-amber-100/80 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+              {inboxCount} {inboxCount === 1 ? 'Carta pendiente' : 'Cartas pendientes'}
+            </span>
+          </div>
+        </div>
+
+        {onOrganizeClick && inboxCount > 0 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOrganizeClick();
+            }}
+            className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-[10px] uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1 shrink-0"
+            title="Distribuir automáticamente las cartas del inbox"
+          >
+            <span>✨</span>
+            <span className="hidden sm:inline">Auto</span>
+          </button>
+        )}
+      </div>
+
+      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-3.5 line-clamp-2 font-medium">
+        Bandeja de entrada para cartas importadas o sueltas pendientes de ser asignadas a un contenedor físico.
+      </p>
+
+      {/* Estado visual inferior */}
+      <div className="mt-4 pt-3 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between">
+        <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-400">
+          {inboxCount > 0 ? 'Requiere asignación' : 'Bandeja vacía'}
+        </span>
+        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 group-hover:text-amber-500 transition-colors">
+          Abrir visor →
+        </span>
+      </div>
+    </motion.div>
+  );
+};

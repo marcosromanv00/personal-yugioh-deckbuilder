@@ -1,0 +1,1311 @@
+'use client';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  X, 
+  Search, 
+  Upload, 
+  BookOpen, 
+  Box, 
+  Shield, 
+  Layers, 
+  Sparkles, 
+  Trash2, 
+  MinusCircle, 
+  ArrowLeft, 
+  Info, 
+  Check, 
+  Loader2, 
+  ChevronLeft, 
+  ChevronRight,
+  Filter,
+  Plus
+} from 'lucide-react';
+import { StorageLocation, UserCard, SleeveInventory, Deck } from '@/types/collection';
+import { Card, HoverCardBase } from '@/components/deckbuilder/types';
+import { FilterState } from '@/components/deckbuilder/CardFilters';
+import { SearchPanel } from '@/components/deckbuilder/components/SearchPanel';
+import { getSleeveColorHex } from '@/lib/sleeves';
+
+interface UniversalContainerWorkspaceModalProps {
+  isOpen: boolean;
+  onClose: (hasMutated?: boolean) => void;
+  location: StorageLocation | null;
+  locations?: StorageLocation[];
+  onSelectLocation?: (location: StorageLocation) => void;
+  sleeves?: SleeveInventory[];
+  decks?: Deck[];
+  onDeckClick?: (deck: Deck) => void;
+}
+
+export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorkspaceModalProps> = ({
+  isOpen,
+  onClose,
+  location,
+  locations = [],
+  onSelectLocation,
+  sleeves = [],
+  decks = [],
+  onDeckClick,
+}) => {
+  // Estado local de cartas del contenedor
+  const [cards, setCards] = useState<UserCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMutated, setHasMutated] = useState(false);
+
+  // Modo del panel izquierdo: 'search' | 'import'
+  const [leftTab, setLeftTab] = useState<'search' | 'import'>('search');
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [leftPanelWidth] = useState(380);
+
+  // Estados de Búsqueda
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchType, setSearchType] = useState<'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra'>('All');
+  const [searchScope, setSearchScope] = useState<'global' | 'collection' | 'staged'>('global');
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [searchResults, setSearchResults] = useState<Card[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchViewMode, setSearchViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchLimit, setSearchLimit] = useState(45);
+  const [advancedFilters, setAdvancedFilters] = useState<FilterState>({
+    type: '',
+    attribute: '',
+    race: '',
+    level: '',
+    atkMin: '',
+    atkMax: '',
+    defMin: '',
+    defMax: '',
+    archetype: '',
+    rarity: '',
+    status: '',
+  });
+
+  // Click-to-place / Selected search card
+  const [selectedSearchCard, setSelectedSearchCard] = useState<Card | null>(null);
+
+  // Panel derecho: Carta activa para edición/inspección
+  const [selectedUserCard, setSelectedUserCard] = useState<UserCard | null>(null);
+
+  // Paginación y filtros internos del contenedor (panel central)
+  const [containerSearch, setContainerSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activeCompartment, setActiveCompartment] = useState(0);
+  const [currentGridPage, setCurrentGridPage] = useState(1);
+  const [currentBinderViewIndex, setCurrentBinderViewIndex] = useState(0);
+
+  // Importación YDK / Bulk
+  const [ydkText, setYdkText] = useState('');
+  const [ydkFileName, setYdkFileName] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSuccessMsg, setImportSuccessMsg] = useState('');
+  const [importError, setImportError] = useState('');
+
+  // Mobile Tabs
+  const [mobileTab, setMobileTab] = useState<'left' | 'center' | 'right'>('center');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isInbox = !location || location.id === 'inbox';
+  const containerId = isInbox ? 'inbox' : location?.id;
+  const containerType = isInbox ? 'box' : (location?.type || 'box');
+
+  // Cargar cartas de este contenedor específico
+  const fetchCards = useCallback(async () => {
+    if (!isOpen) return;
+    setLoading(true);
+    try {
+      const url = isInbox 
+        ? '/api/collection/inbox' 
+        : `/api/collection/cards?location_id=${containerId}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        const data: UserCard[] = json.data || [];
+        setCards(data);
+        if (selectedUserCard) {
+          const fresh = data.find(c => c.id === selectedUserCard.id);
+          if (fresh) setSelectedUserCard(fresh);
+        }
+      }
+    } catch (err) {
+      console.error('Error al cargar cartas del contenedor:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [isOpen, isInbox, containerId, selectedUserCard]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchCards();
+      setHasMutated(false);
+      setSelectedUserCard(null);
+      setSelectedSearchCard(null);
+      setCurrentGridPage(1);
+      setCurrentBinderViewIndex(0);
+    }
+  }, [isOpen, location?.id]);
+
+  // Ejecutar búsqueda en panel izquierdo
+  const executeSearch = useCallback(async (
+    query: string,
+    type: string,
+    adv: FilterState,
+    scope: 'global' | 'collection' | 'staged',
+    favs: boolean,
+    limitVal: number
+  ) => {
+    setIsSearching(true);
+    try {
+      if (scope === 'staged') {
+        const rawList = cards.filter(uc => !uc.binder_page || !uc.binder_slot);
+        let filtered = rawList;
+        if (query) {
+          const qLower = query.toLowerCase();
+          filtered = filtered.filter(uc => uc.card_details?.name.toLowerCase().includes(qLower));
+        }
+        const seen = new Set<number>();
+        const mappedCards: Card[] = [];
+        for (const uc of filtered) {
+          if (!uc.card_id || seen.has(uc.card_id)) continue;
+          seen.add(uc.card_id);
+          mappedCards.push({
+            id: uc.card_id,
+            name: uc.card_details?.name || 'Carta Yu-Gi-Oh!',
+            type: uc.card_details?.type || 'Monster',
+            desc: uc.card_details?.desc || '',
+            race: uc.card_details?.race,
+            attribute: uc.card_details?.attribute,
+            atk: uc.card_details?.atk,
+            def: uc.card_details?.def,
+            level: uc.card_details?.level,
+            image_url: uc.card_details?.image_url || '',
+            image_url_small: uc.card_details?.image_url_small || '',
+            archetype: uc.card_details?.archetype,
+          });
+        }
+        setSearchResults(mappedCards);
+        setIsSearching(false);
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (query) params.append('q', query);
+      if (type !== 'All') params.append('type', type);
+      if (adv.type) params.append('type', adv.type);
+      if (adv.attribute) params.append('attribute', adv.attribute);
+      if (adv.race) params.append('race', adv.race);
+      if (adv.level) params.append('level', adv.level);
+      if (adv.atkMin) params.append('atkMin', adv.atkMin);
+      if (adv.atkMax) params.append('atkMax', adv.atkMax);
+      if (adv.defMin) params.append('defMin', adv.defMin);
+      if (adv.defMax) params.append('defMax', adv.defMax);
+      if (adv.archetype) params.append('archetype', adv.archetype);
+      if (adv.rarity) params.append('rarity', adv.rarity);
+      if (favs) params.append('favorites', 'true');
+      params.append('limit', String(limitVal));
+
+      const endpoint = scope === 'collection' ? '/api/collection/cards?' : '/api/cards?';
+      const res = await fetch(endpoint + params.toString());
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || [];
+        const mapped: Card[] = scope === 'collection'
+          ? data.map((uc: UserCard) => ({
+              id: uc.card_id,
+              name: uc.card_details?.name || 'Carta',
+              type: uc.card_details?.type || 'Monster',
+              desc: uc.card_details?.desc || '',
+              race: uc.card_details?.race,
+              attribute: uc.card_details?.attribute,
+              atk: uc.card_details?.atk,
+              def: uc.card_details?.def,
+              level: uc.card_details?.level,
+              image_url: uc.card_details?.image_url || '',
+              image_url_small: uc.card_details?.image_url_small || '',
+              archetype: uc.card_details?.archetype,
+            }))
+          : data;
+        setSearchResults(mapped);
+      }
+    } catch (err) {
+      console.error('Error al buscar cartas:', err);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [cards]);
+
+  useEffect(() => {
+    if (leftTab === 'search' && isOpen) {
+      const timer = setTimeout(() => {
+        executeSearch(searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [leftTab, searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit, executeSearch, isOpen]);
+
+  // Añadir carta al contenedor
+  const handleAddCardToContainer = async (card: Card | HoverCardBase, page?: number, slot?: number) => {
+    try {
+      const payload: Record<string, unknown> = {
+        card_id: card.id,
+        storage_location_id: isInbox ? null : containerId,
+        quantity: 1,
+        rarity: 'Common',
+        condition: 'Near Mint',
+        status_flag: 'collection',
+        sleeve_type: 'none',
+        compartment_index: activeCompartment,
+      };
+
+      if (containerType === 'binder') {
+        if (page && slot) {
+          payload.binder_page = page;
+          payload.binder_slot = slot;
+        } else {
+          // Asignar primer slot disponible
+          payload.binder_page = currentBinderViewIndex === 0 ? 1 : currentBinderViewIndex * 2;
+          payload.binder_slot = 1;
+        }
+      }
+
+      const res = await fetch('/api/collection/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const insertedCard: UserCard = json.data;
+        setCards(prev => [insertedCard, ...prev]);
+        setSelectedUserCard(insertedCard);
+        setHasMutated(true);
+        if (isMobile) setMobileTab('right');
+      }
+    } catch (err) {
+      console.error('Error al agregar carta al contenedor:', err);
+    }
+  };
+
+  // Actualizar propiedades de la carta en tiempo real
+  const handleUpdateCard = async (updatedFields: Partial<UserCard>) => {
+    if (!selectedUserCard) return;
+
+    // Actualización optimista inmediata
+    const updated = { ...selectedUserCard, ...updatedFields };
+    setSelectedUserCard(updated);
+    setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
+    setHasMutated(true);
+
+    try {
+      await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedUserCard.id,
+          ...updatedFields,
+        }),
+      });
+    } catch (err) {
+      console.error('Error al guardar cambios de la carta:', err);
+    }
+  };
+
+  // Mover carta a otro contenedor o inbox
+  const handleMoveCard = async (newLocationId: string | null) => {
+    if (!selectedUserCard) return;
+    const targetLoc = newLocationId === 'inbox' ? null : newLocationId;
+    await handleUpdateCard({ storage_location_id: targetLoc, binder_page: undefined, binder_slot: undefined });
+    setCards(prev => prev.filter(c => c.id !== selectedUserCard.id));
+    setSelectedUserCard(null);
+  };
+
+  // Eliminar carta de la colección
+  const handleDeleteCard = async () => {
+    if (!selectedUserCard) return;
+    if (!confirm(`¿Eliminar "${selectedUserCard.card_details?.name || 'esta carta'}" de la colección?`)) return;
+
+    const cardIdToDelete = selectedUserCard.id;
+    setSelectedUserCard(null);
+    setCards(prev => prev.filter(c => c.id !== cardIdToDelete));
+    setHasMutated(true);
+
+    try {
+      await fetch(`/api/collection/cards?id=${cardIdToDelete}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      console.error('Error al eliminar carta:', err);
+    }
+  };
+
+  // Importación YDK / Bulk Handler
+  const handleYdkImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ydkText.trim()) {
+      setImportError('Por favor selecciona un archivo .ydk o pega el listado de cartas');
+      return;
+    }
+
+    setImportLoading(true);
+    setImportError('');
+    setImportSuccessMsg('');
+
+    try {
+      const res = await fetch('/api/collection/inbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ydkText,
+          storage_location_id: isInbox ? null : containerId,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Error al procesar la importación');
+      }
+
+      setImportSuccessMsg(`¡Éxito! Se importaron ${json.insertedCount || json.parsedCount || 0} cartas.`);
+      setHasMutated(true);
+      setYdkText('');
+      setYdkFileName('');
+      await fetchCards();
+    } catch (err: unknown) {
+      const e = err as Error;
+      setImportError(e.message || 'Error al importar cartas');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setYdkFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setYdkText(evt.target?.result as string || '');
+    };
+    reader.readAsText(file);
+  };
+
+  // Filtrado de cartas en el panel central
+  const filteredCards = useMemo(() => {
+    return cards.filter(c => {
+      const nameMatch = !containerSearch || (c.card_details?.name.toLowerCase().includes(containerSearch.toLowerCase()) ?? false);
+      const statusMatch = statusFilter === 'all' || c.status_flag === statusFilter;
+      const compMatch = containerType !== 'box' || !location?.compartments || location.compartments.count <= 1 || c.compartment_index === activeCompartment;
+      return nameMatch && statusMatch && compMatch;
+    });
+  }, [cards, containerSearch, statusFilter, activeCompartment, containerType, location]);
+
+  // Paginación para Box / Tin / Inbox
+  const CARDS_PER_GRID_PAGE = 30;
+  const totalGridPages = Math.max(1, Math.ceil(filteredCards.length / CARDS_PER_GRID_PAGE));
+  const paginatedGridCards = useMemo(() => {
+    const start = (currentGridPage - 1) * CARDS_PER_GRID_PAGE;
+    return filteredCards.slice(start, start + CARDS_PER_GRID_PAGE);
+  }, [filteredCards, currentGridPage]);
+
+  // Configuración de Binder
+  const rows = location?.grid_layout?.rows || 3;
+  const cols = location?.grid_layout?.cols || 3;
+  const pocketsPerPage = rows * cols;
+  const totalBinderPages = location?.grid_layout?.total_pages || 40;
+  const totalBinderViews = Math.ceil(totalBinderPages / 2);
+  const leftPageNum = currentBinderViewIndex === 0 ? null : currentBinderViewIndex * 2;
+  const rightPageNum = currentBinderViewIndex * 2 + 1 <= totalBinderPages ? currentBinderViewIndex * 2 + 1 : null;
+
+  const leftPageCards = useMemo(() => {
+    if (!leftPageNum) return [];
+    return cards.filter(c => c.binder_page === leftPageNum);
+  }, [cards, leftPageNum]);
+
+  const rightPageCards = useMemo(() => {
+    if (!rightPageNum) return [];
+    return cards.filter(c => c.binder_page === rightPageNum);
+  }, [cards, rightPageNum]);
+
+  // Lista de todos los contenedores disponibles incluyendo el Inbox para navegación
+  const allContainers = useMemo<StorageLocation[]>(() => {
+    const inboxLoc: StorageLocation = {
+      id: 'inbox',
+      name: 'Sin Clasificar',
+      type: 'box',
+      sub_type: 'standard',
+      color_code: '#f59e0b',
+      dimensions: { width: 0, height: 0, depth: 0 },
+      capacity: 9999,
+      grid_layout: { rows: 3, cols: 3, pockets_per_page: 9, total_pages: 1 },
+      compartments: { count: 1, names: ['Inbox'] },
+      render_style: 'grid',
+      created_at: '',
+    };
+    return [inboxLoc, ...locations];
+  }, [locations]);
+
+  const currentContainerIndex = useMemo(() => {
+    if (isInbox) return 0;
+    if (!location) return 0;
+    const idx = allContainers.findIndex(c => c.id === location.id);
+    return idx >= 0 ? idx : 0;
+  }, [allContainers, isInbox, location]);
+
+  const prevContainer = useMemo(() => {
+    if (allContainers.length <= 1) return null;
+    const prevIdx = (currentContainerIndex - 1 + allContainers.length) % allContainers.length;
+    return allContainers[prevIdx];
+  }, [allContainers, currentContainerIndex]);
+
+  const nextContainer = useMemo(() => {
+    if (allContainers.length <= 1) return null;
+    const nextIdx = (currentContainerIndex + 1) % allContainers.length;
+    return allContainers[nextIdx];
+  }, [allContainers, currentContainerIndex]);
+
+  const handleNavigatePrev = useCallback(() => {
+    if (prevContainer && onSelectLocation) {
+      onSelectLocation(prevContainer);
+    }
+  }, [prevContainer, onSelectLocation]);
+
+  const handleNavigateNext = useCallback(() => {
+    if (nextContainer && onSelectLocation) {
+      onSelectLocation(nextContainer);
+    }
+  }, [nextContainer, onSelectLocation]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (e.key === 'Escape') {
+        onClose(hasMutated);
+      } else if (e.key === 'ArrowLeft') {
+        handleNavigatePrev();
+      } else if (e.key === 'ArrowRight') {
+        handleNavigateNext();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, hasMutated, onClose, handleNavigatePrev, handleNavigateNext]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
+      onClick={() => onClose(hasMutated)}
+    >
+      {/* BOTÓN NAVEGACIÓN ANTERIOR (FLECHA IZQUIERDA) */}
+      {prevContainer && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNavigatePrev();
+          }}
+          className="fixed left-2 sm:left-4 top-1/2 -translate-y-1/2 z-60 p-3 rounded-2xl bg-zinc-900/90 hover:bg-red-600 border border-zinc-800 hover:border-red-500 text-zinc-400 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
+          title={`Anterior: ${prevContainer.name} (←)`}
+          aria-label="Contenedor anterior"
+        >
+          <ChevronLeft className="w-5 h-5 shrink-0" />
+          <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-40 transition-all duration-300 text-xs font-bold font-mono">
+            {prevContainer.name}
+          </span>
+        </button>
+      )}
+
+      {/* BOTÓN NAVEGACIÓN SIGUIENTE (FLECHA DERECHA) */}
+      {nextContainer && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNavigateNext();
+          }}
+          className="fixed right-2 sm:right-4 top-1/2 -translate-y-1/2 z-60 p-3 rounded-2xl bg-zinc-900/90 hover:bg-red-600 border border-zinc-800 hover:border-red-500 text-zinc-400 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
+          title={`Siguiente: ${nextContainer.name} (→)`}
+          aria-label="Siguiente contenedor"
+        >
+          <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-40 transition-all duration-300 text-xs font-bold font-mono">
+            {nextContainer.name}
+          </span>
+          <ChevronRight className="w-5 h-5 shrink-0" />
+        </button>
+      )}
+
+      {/* VENTANA FLOTANTE DEL WORKSPACE */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 15 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[96vw] xl:max-w-[1580px] h-[92vh] max-h-[960px] bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10 select-auto"
+      >
+        {/* ═══ HEADER DEL ESPACIO DE TRABAJO ═══ */}
+        <header className="h-16 shrink-0 border-b border-zinc-800 bg-zinc-900/95 px-4 lg:px-6 flex items-center justify-between gap-4 z-30 shadow-md">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => onClose(hasMutated)}
+              className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer shrink-0"
+              title="Volver a la colección (Esc)"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div 
+              className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs"
+              style={{ backgroundColor: isInbox ? '#f59e0b' : (location?.color_code || '#dc2626') }}
+            />
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-base font-black text-white truncate flex items-center gap-2">
+                <span>{isInbox ? 'Sin Clasificar (Inbox)' : location?.name}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300 font-mono uppercase tracking-wider font-bold">
+                  {isInbox ? 'Bandeja Inbox' : containerType.toUpperCase()}
+                </span>
+              </h1>
+              <p className="text-[10px] text-zinc-400 font-mono truncate hidden sm:block">
+                {cards.length} {cards.length === 1 ? 'carta registrada' : 'cartas registradas'} • Capacidad: {isInbox ? 'Ilimitada' : `${location?.capacity || 0} slots`}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* NAVEGADOR DE PESTAÑAS PARA MÓVIL */}
+        <div className="flex lg:hidden bg-zinc-800 p-1 rounded-xl border border-zinc-700 shrink-0 text-xs font-black">
+          <button
+            onClick={() => setMobileTab('left')}
+            className={`px-2.5 py-1 rounded-lg transition-colors ${mobileTab === 'left' ? 'bg-red-600 text-white' : 'text-zinc-400'}`}
+          >
+            Buscador
+          </button>
+          <button
+            onClick={() => setMobileTab('center')}
+            className={`px-2.5 py-1 rounded-lg transition-colors ${mobileTab === 'center' ? 'bg-red-600 text-white' : 'text-zinc-400'}`}
+          >
+            Cartas ({cards.length})
+          </button>
+          <button
+            onClick={() => setMobileTab('right')}
+            className={`px-2.5 py-1 rounded-lg transition-colors ${mobileTab === 'right' ? 'bg-red-600 text-white' : 'text-zinc-400'}`}
+          >
+            Detalles
+          </button>
+        </div>
+
+        {/* BOTÓN CERRAR */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onClose(hasMutated)}
+            className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+            title="Cerrar modal"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* ═══ CUERPO PRINCIPAL DE 3 PANELES ═══ */}
+      <div className="flex-1 flex overflow-hidden relative">
+
+        {/* ─── PANEL IZQUIERDO: BUSCADOR & IMPORTADOR ─── */}
+        <div className={`${mobileTab === 'left' ? 'flex w-full' : 'hidden'} lg:flex w-85 xl:w-95 shrink-0 border-r border-zinc-800 bg-zinc-900/60 flex-col h-full overflow-hidden z-20`}>
+          
+          {/* Switch de Modo: Buscar vs Importar */}
+          <div className="p-3 border-b border-zinc-800 bg-zinc-900/90 shrink-0">
+            <div className="flex items-center bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setLeftTab('search')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  leftTab === 'search'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Buscar Carta</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeftTab('import')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  leftTab === 'import'
+                    ? 'bg-cyan-600 text-white shadow-xs'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Importar YDK</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Contenido según el switch */}
+          {leftTab === 'search' ? (
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <SearchPanel
+                leftPanelOpen={leftPanelOpen}
+                setLeftPanelOpen={setLeftPanelOpen}
+                leftPanelWidth={leftPanelWidth}
+                isMobile={isMobile}
+                showStagedTab={containerType === 'binder'}
+                stagedCardsCount={cards.filter(c => !c.binder_page || !c.binder_slot).length}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                searchScope={searchScope}
+                setSearchScope={setSearchScope}
+                onlyFavorites={onlyFavorites}
+                setOnlyFavorites={setOnlyFavorites}
+                searchType={searchType}
+                setSearchType={setSearchType}
+                advancedFilters={advancedFilters}
+                setAdvancedFilters={setAdvancedFilters}
+                searchResults={searchResults}
+                isSearching={isSearching}
+                searchViewMode={searchViewMode}
+                setSearchViewMode={setSearchViewMode}
+                searchLimit={searchLimit}
+                setSearchLimit={setSearchLimit}
+                format="Master Duel"
+                addCardToDeck={(card) => {
+                  if (containerType === 'binder') {
+                    setSelectedSearchCard(card);
+                  } else {
+                    handleAddCardToContainer(card);
+                  }
+                }}
+                openPreviewForCard={(card) => {
+                  const existing = cards.find(c => c.card_id === card.id);
+                  if (existing) {
+                    setSelectedUserCard(existing);
+                  } else {
+                    handleAddCardToContainer(card);
+                  }
+                  if (isMobile) setMobileTab('right');
+                }}
+                handleDragCardStart={(e, cardData) => {
+                  e.dataTransfer.setData('application/json', JSON.stringify(cardData));
+                  e.dataTransfer.setData('text/plain', String(cardData.id));
+                }}
+                handleCardMouseEnter={() => {}}
+                handleCardMouseLeave={() => {}}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 p-4 overflow-y-auto space-y-4">
+              <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 space-y-2">
+                <h3 className="text-xs font-black uppercase text-cyan-400 flex items-center gap-1.5">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Importar a este Contenedor</span>
+                </h3>
+                <p className="text-[11px] text-zinc-400">
+                  Sube un archivo <strong>.ydk</strong> o pega una lista de texto con cartas para agregarlas directamente a <strong>{isInbox ? 'Sin Clasificar' : location?.name}</strong>.
+                </p>
+              </div>
+
+              <form onSubmit={handleYdkImport} className="space-y-4">
+                <div className="border-2 border-dashed border-zinc-700 hover:border-cyan-500 rounded-2xl p-4 text-center bg-zinc-950 transition-colors">
+                  <input
+                    type="file"
+                    accept=".ydk,.txt"
+                    onChange={handleFileUpload}
+                    id="workspace-ydk-file"
+                    className="hidden"
+                  />
+                  <label htmlFor="workspace-ydk-file" className="cursor-pointer flex flex-col items-center gap-2">
+                    <Upload className="w-6 h-6 text-cyan-400" />
+                    <span className="text-xs font-bold text-zinc-300">
+                      {ydkFileName ? ydkFileName : 'Haz clic para seleccionar archivo .ydk'}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-mono">Formatos: .ydk, .txt</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    O pega el texto / receta:
+                  </label>
+                  <textarea
+                    value={ydkText}
+                    onChange={(e) => setYdkText(e.target.value)}
+                    placeholder="3 Ash Blossom & Joyous Spring&#10;1 Nibiru, the Primal Being&#10;2 Triple Tactics Talent"
+                    rows={6}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-100 font-mono focus:border-cyan-500 focus:outline-none resize-none"
+                  />
+                </div>
+
+                {importError && (
+                  <div className="p-3 bg-red-950/40 border border-red-800 rounded-xl text-xs text-red-400">
+                    {importError}
+                  </div>
+                )}
+
+                {importSuccessMsg && (
+                  <div className="p-3 bg-emerald-950/40 border border-emerald-800 rounded-xl text-xs text-emerald-400 flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>{importSuccessMsg}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={importLoading || !ydkText.trim()}
+                  className="w-full py-2.5 bg-linear-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {importLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Procesando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>Importar a {isInbox ? 'Inbox' : location?.name}</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+
+        {/* ─── PANEL CENTRAL: VISUALIZADOR DE CONTENEDOR (GRID / BINDER) ─── */}
+        <main className={`${mobileTab === 'center' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col h-full bg-zinc-950 overflow-hidden relative`}>
+          
+          {/* Barra Superior de Filtros y Compartimentos */}
+          <div className="p-3 sm:px-6 border-b border-zinc-800 bg-zinc-900/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            
+            {/* Buscador dentro del contenedor */}
+            <div className="relative min-w-48 flex-1 max-w-xs">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                value={containerSearch}
+                onChange={(e) => setContainerSearch(e.target.value)}
+                placeholder="Filtrar cartas en este contenedor..."
+                className="w-full pl-8.5 pr-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Selector de Estado */}
+            <div className="flex items-center gap-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 focus:border-red-500 focus:outline-none"
+              >
+                <option value="all">Todos los estados</option>
+                <option value="collection">En Colección</option>
+                <option value="trade_sale">Venta / Trade</option>
+                <option value="bulk">Bulk</option>
+                <option value="workshop">Taller / Activo</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Banner de Click to Place para Binders */}
+          <AnimatePresence>
+            {selectedSearchCard && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="m-3 p-3 bg-purple-950/80 border border-purple-500/40 rounded-xl flex items-center justify-between text-xs text-purple-200 shadow-md shrink-0"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+                  <span>
+                    Colocando <strong>{selectedSearchCard.name}</strong>. Haz clic en una casilla para ubicarla.
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedSearchCard(null)}
+                  className="px-2.5 py-1 rounded bg-purple-900 hover:bg-purple-800 text-purple-100 font-bold"
+                >
+                  Cancelar
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Contenido Visual: Grid estándar vs Binder Book */}
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+            {loading ? (
+              <div className="h-full flex flex-col items-center justify-center py-20 text-zinc-500">
+                <Loader2 className="w-8 h-8 animate-spin text-red-500 mb-2" />
+                <p className="text-xs font-mono">Cargando cartas del contenedor...</p>
+              </div>
+            ) : containerType === 'binder' ? (
+              /* VISTA BINDER POCKETS */
+              <div className="h-full flex flex-col items-center justify-between">
+                <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 items-center justify-center">
+                  {/* Página Izquierda */}
+                  <div className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800">
+                    <div className="text-[10px] font-mono text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
+                      {leftPageNum ? `Página ${leftPageNum}` : 'Portada Interior'}
+                    </div>
+                    <div
+                      className="grid gap-2 aspect-3/4"
+                      style={{
+                        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {Array.from({ length: pocketsPerPage }).map((_, idx) => {
+                        const slotNum = idx + 1;
+                        const cardInSlot = leftPageCards.find(c => c.binder_slot === slotNum);
+                        return (
+                          <div
+                            key={slotNum}
+                            onClick={() => {
+                              if (selectedSearchCard && leftPageNum) {
+                                handleAddCardToContainer(selectedSearchCard, leftPageNum, slotNum);
+                                setSelectedSearchCard(null);
+                              } else if (cardInSlot) {
+                                setSelectedUserCard(cardInSlot);
+                                if (isMobile) setMobileTab('right');
+                              }
+                            }}
+                            className={`rounded-lg border aspect-3/4 relative flex items-center justify-center p-1 cursor-pointer transition-all ${
+                              cardInSlot
+                                ? 'bg-zinc-950 border-zinc-700 hover:border-red-500 shadow-xs'
+                                : selectedSearchCard
+                                ? 'border-dashed border-purple-500/60 bg-purple-950/20 hover:bg-purple-950/40 animate-pulse'
+                                : 'border-dashed border-zinc-800 bg-zinc-950/30'
+                            }`}
+                          >
+                            {cardInSlot?.card_details ? (
+                              <>
+                                <img
+                                  src={cardInSlot.card_details.image_url_small || cardInSlot.card_details.image_url}
+                                  alt={cardInSlot.card_details.name}
+                                  className="w-full h-full object-cover rounded"
+                                />
+                                <div className="absolute top-1 right-1 bg-zinc-950/90 text-purple-300 font-mono text-[9px] px-1 rounded border border-purple-500/30 font-bold">
+                                  {cardInSlot.quantity}x
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-[9px] font-mono text-zinc-600">
+                                {selectedSearchCard ? 'Colocar' : slotNum}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Página Derecha */}
+                  <div className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800">
+                    <div className="text-[10px] font-mono text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
+                      {rightPageNum ? `Página ${rightPageNum}` : 'Contraportada'}
+                    </div>
+                    <div
+                      className="grid gap-2 aspect-3/4"
+                      style={{
+                        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {Array.from({ length: pocketsPerPage }).map((_, idx) => {
+                        const slotNum = idx + 1;
+                        const cardInSlot = rightPageCards.find(c => c.binder_slot === slotNum);
+                        return (
+                          <div
+                            key={slotNum}
+                            onClick={() => {
+                              if (selectedSearchCard && rightPageNum) {
+                                handleAddCardToContainer(selectedSearchCard, rightPageNum, slotNum);
+                                setSelectedSearchCard(null);
+                              } else if (cardInSlot) {
+                                setSelectedUserCard(cardInSlot);
+                                if (isMobile) setMobileTab('right');
+                              }
+                            }}
+                            className={`rounded-lg border aspect-3/4 relative flex items-center justify-center p-1 cursor-pointer transition-all ${
+                              cardInSlot
+                                ? 'bg-zinc-950 border-zinc-700 hover:border-red-500 shadow-xs'
+                                : selectedSearchCard
+                                ? 'border-dashed border-purple-500/60 bg-purple-950/20 hover:bg-purple-950/40 animate-pulse'
+                                : 'border-dashed border-zinc-800 bg-zinc-950/30'
+                            }`}
+                          >
+                            {cardInSlot?.card_details ? (
+                              <>
+                                <img
+                                  src={cardInSlot.card_details.image_url_small || cardInSlot.card_details.image_url}
+                                  alt={cardInSlot.card_details.name}
+                                  className="w-full h-full object-cover rounded"
+                                />
+                                <div className="absolute top-1 right-1 bg-zinc-950/90 text-purple-300 font-mono text-[9px] px-1 rounded border border-purple-500/30 font-bold">
+                                  {cardInSlot.quantity}x
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-[9px] font-mono text-zinc-600">
+                                {selectedSearchCard ? 'Colocar' : slotNum}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controles de página para Binder */}
+                <div className="flex items-center gap-4 mt-4">
+                  <button
+                    disabled={currentBinderViewIndex <= 0}
+                    onClick={() => setCurrentBinderViewIndex(p => Math.max(0, p - 1))}
+                    className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Anterior</span>
+                  </button>
+                  <span className="text-xs font-mono text-zinc-400">
+                    Vista {currentBinderViewIndex + 1} de {totalBinderViews}
+                  </span>
+                  <button
+                    disabled={currentBinderViewIndex >= totalBinderViews - 1}
+                    onClick={() => setCurrentBinderViewIndex(p => Math.min(totalBinderViews - 1, p + 1))}
+                    className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Siguiente</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* VISTA GRID RESPONSIVA (BOX, TIN, DRAWER, INBOX) */
+              filteredCards.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-zinc-800 rounded-3xl">
+                  <Box className="w-12 h-12 text-zinc-600 mb-3" />
+                  <h3 className="text-sm font-black uppercase text-zinc-300">
+                    No hay cartas en este contenedor
+                  </h3>
+                  <p className="text-xs text-zinc-500 max-w-sm mt-1">
+                    Usa el panel izquierdo para buscar cartas individuales o importar un archivo .YDK / lista en bloque.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
+                    {paginatedGridCards.map((uc) => {
+                      const isSelected = selectedUserCard?.id === uc.id;
+                      const sleeveColor = uc.sleeve_type !== 'none' && uc.sleeve_color ? getSleeveColorHex(uc.sleeve_color) : undefined;
+                      return (
+                        <motion.div
+                          key={uc.id}
+                          whileHover={{ y: -3, scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setSelectedUserCard(uc);
+                            if (isMobile) setMobileTab('right');
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setSelectedUserCard(uc);
+                            if (isMobile) setMobileTab('right');
+                          }}
+                          className={`relative rounded-xl p-1.5 border transition-all cursor-pointer overflow-hidden group shadow-sm ${
+                            isSelected
+                              ? 'border-red-500 bg-red-950/20 ring-2 ring-red-500/50 shadow-md'
+                              : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-900'
+                          }`}
+                          style={{
+                            borderColor: isSelected ? undefined : sleeveColor,
+                          }}
+                        >
+                          <div className="aspect-3/4 rounded-lg overflow-hidden relative bg-zinc-950">
+                            {uc.card_details && (
+                              <img
+                                src={uc.card_details.image_url_small || uc.card_details.image_url}
+                                alt={uc.card_details.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            )}
+                            <div className="absolute top-1 right-1 bg-zinc-950/90 text-white font-mono text-[9px] px-1.5 py-0.5 rounded border border-zinc-700 font-black shadow-xs">
+                              {uc.quantity}x
+                            </div>
+                            {uc.is_proxy && (
+                              <div className="absolute top-1 left-1 bg-red-600 text-white font-mono text-[8px] px-1 py-0.5 rounded font-black uppercase shadow-xs">
+                                Proxy
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-1.5 px-1">
+                            <h4 className="text-[11px] font-black text-zinc-200 truncate group-hover:text-red-400 transition-colors">
+                              {uc.card_details?.name || 'Carta'}
+                            </h4>
+                            <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500 mt-0.5">
+                              <span className="truncate">{uc.rarity || 'Common'}</span>
+                              <span className="uppercase text-zinc-400">{uc.condition?.replace('Played', 'P') || 'NM'}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Paginación de la grid */}
+                  {totalGridPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 pt-4 border-t border-zinc-800 font-mono text-xs">
+                      <button
+                        disabled={currentGridPage <= 1}
+                        onClick={() => setCurrentGridPage(p => Math.max(1, p - 1))}
+                        className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg disabled:opacity-40 cursor-pointer"
+                      >
+                        ← Anterior
+                      </button>
+                      <span className="text-zinc-400">
+                        Página {currentGridPage} de {totalGridPages}
+                      </span>
+                      <button
+                        disabled={currentGridPage >= totalGridPages}
+                        onClick={() => setCurrentGridPage(p => Math.min(totalGridPages, p + 1))}
+                        className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg disabled:opacity-40 cursor-pointer"
+                      >
+                        Siguiente →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+        </main>
+
+        {/* ─── PANEL DERECHO: INSPECTOR Y EDICIÓN DE CARTA ─── */}
+        <div className={`${mobileTab === 'right' ? 'flex w-full' : 'hidden'} lg:flex w-80 xl:w-90 shrink-0 border-l border-zinc-800 bg-zinc-900/80 flex-col h-full overflow-y-auto p-4 z-20`}>
+          {selectedUserCard && selectedUserCard.card_details ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <h3 className="text-xs font-black uppercase text-zinc-200 flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-red-500" />
+                  <span>Detalles de Carta</span>
+                </h3>
+                <button
+                  onClick={() => setSelectedUserCard(null)}
+                  className="p-1 rounded-lg text-zinc-500 hover:text-white transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Vista previa de carta */}
+              <div className="flex gap-3 items-start bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+                <img
+                  src={selectedUserCard.card_details.image_url_small || selectedUserCard.card_details.image_url}
+                  alt={selectedUserCard.card_details.name}
+                  className="w-20 rounded-lg shadow-md shrink-0 border border-zinc-800"
+                />
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-black text-white leading-tight">
+                    {selectedUserCard.card_details.name}
+                  </h4>
+                  <p className="text-[10px] text-zinc-400 font-mono mt-1 uppercase">
+                    {selectedUserCard.card_details.type}
+                  </p>
+                  {selectedUserCard.card_details.archetype && (
+                    <span className="inline-block text-[9px] font-mono text-purple-400 bg-purple-950/40 border border-purple-900/50 px-1.5 py-0.5 rounded mt-1.5">
+                      {selectedUserCard.card_details.archetype}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Formulario de propiedades */}
+              <div className="space-y-3">
+                
+                {/* Rareza */}
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    Rareza
+                  </label>
+                  <select
+                    value={selectedUserCard.rarity || 'Common'}
+                    onChange={(e) => handleUpdateCard({ rarity: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="Common">Common (Común)</option>
+                    <option value="Rare">Rare (Rara)</option>
+                    <option value="Super Rare">Super Rare</option>
+                    <option value="Ultra Rare">Ultra Rare</option>
+                    <option value="Secret Rare">Secret Rare</option>
+                    <option value="Ultimate Rare">Ultimate Rare</option>
+                    <option value="Ghost Rare">Ghost Rare</option>
+                    <option value="Starlight Rare">Starlight Rare</option>
+                    <option value="Collector's Rare">Collector's Rare</option>
+                    <option value="Quarter Century Secret Rare">25th Quarter Century</option>
+                  </select>
+                </div>
+
+                {/* Condición */}
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    Condición Física
+                  </label>
+                  <select
+                    value={selectedUserCard.condition || 'Near Mint'}
+                    onChange={(e) => handleUpdateCard({ condition: e.target.value as any })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="Near Mint">Near Mint (NM - Impecable)</option>
+                    <option value="Lightly Played">Lightly Played (LP - Uso leve)</option>
+                    <option value="Moderately Played">Moderately Played (MP - Uso moderado)</option>
+                    <option value="Heavily Played">Heavily Played (HP - Muy jugada)</option>
+                    <option value="Damaged">Damaged (DMG - Dañada)</option>
+                  </select>
+                </div>
+
+                {/* Funda / Sleeve */}
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    Funda / Sleeving
+                  </label>
+                  <select
+                    value={selectedUserCard.sleeve_type || 'none'}
+                    onChange={(e) => handleUpdateCard({ sleeve_type: e.target.value as any })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="none">Sin Funda</option>
+                    <option value="single">Funda Simple</option>
+                    <option value="double">Funda Doble (Inner + Outer)</option>
+                    <option value="triple">Funda Triple</option>
+                  </select>
+                </div>
+
+                {/* Cantidad y Proxy */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                      Copias
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      value={selectedUserCard.quantity || 1}
+                      onChange={(e) => handleUpdateCard({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 font-mono focus:border-red-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                      Estado Proxy
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateCard({ is_proxy: !selectedUserCard.is_proxy })}
+                      className={`w-full py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        selectedUserCard.is_proxy
+                          ? 'bg-red-950/40 text-red-400 border-red-500'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {selectedUserCard.is_proxy ? 'Es Proxy' : 'Original'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Destino / Status flag */}
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    Destino / Clasificación
+                  </label>
+                  <select
+                    value={selectedUserCard.status_flag || 'collection'}
+                    onChange={(e) => handleUpdateCard({ status_flag: e.target.value as any })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="collection">Colección Permanente</option>
+                    <option value="trade_sale">Venta / Trade</option>
+                    <option value="bulk">Bulk (Sobrantes)</option>
+                    <option value="workshop">Taller / Decks Activos</option>
+                  </select>
+                </div>
+
+                {/* Mover de Contenedor */}
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    Mover a Contenedor
+                  </label>
+                  <select
+                    value={selectedUserCard.storage_location_id || 'inbox'}
+                    onChange={(e) => handleMoveCard(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="inbox">📥 Bandeja Sin Clasificar (Inbox)</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        📦 {loc.name} ({loc.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Notas */}
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    Notas adicionales
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedUserCard.notes || ''}
+                    onChange={(e) => handleUpdateCard({ notes: e.target.value })}
+                    placeholder="1st edition, foil bleed, etc."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Botón Eliminar */}
+              <div className="pt-3 border-t border-zinc-800">
+                <button
+                  onClick={handleDeleteCard}
+                  className="w-full py-2 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar de Colección</span>
+                </button>
+              </div>
+
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-500">
+              <Sparkles className="w-8 h-8 mb-2 opacity-40 text-red-500" />
+              <h4 className="text-xs font-black uppercase text-zinc-400">
+                Ninguna carta seleccionada
+              </h4>
+              <p className="text-[11px] mt-1">
+                Haz clic en una carta de la grid o añade una nueva para inspeccionar y editar sus propiedades.
+              </p>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      </motion.div>
+
+    </div>
+  );
+};

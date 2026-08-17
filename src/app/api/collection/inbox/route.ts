@@ -29,11 +29,12 @@ export async function GET() {
   }
 }
 
-// POST: Parsear archivo .ydk o lista de IDs y registrarlos en la bandeja "Sin Clasificar"
+// POST: Parsear archivo .ydk o lista de IDs y registrarlos en la bandeja "Sin Clasificar" o en un contenedor específico
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ydkText, cardIds, rarity, status_flag } = body;
+    const { ydkText, cardIds, rarity, status_flag, storage_location_id } = body;
+    const targetLocationId = (storage_location_id === 'inbox' || !storage_location_id) ? null : storage_location_id;
 
     let targetCardIds: number[] = [];
 
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Insertar registros en yg_user_cards con storage_location_id = NULL
+    // 2. Insertar registros en yg_user_cards con storage_location_id correspondiente
     const cardCountsMap: Record<number, number> = {};
     for (const id of targetCardIds) {
       cardCountsMap[id] = (cardCountsMap[id] || 0) + 1;
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
 
     const rowsToInsert = Object.entries(cardCountsMap).map(([idStr, qty]) => ({
       card_id: parseInt(idStr, 10),
-      storage_location_id: null,
+      storage_location_id: targetLocationId,
       quantity: qty,
       rarity: rarity || 'Common',
       status_flag: status_flag || 'collection',

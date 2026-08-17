@@ -40,7 +40,7 @@ export function useCollectionState() {
 
   // Modales
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<StorageLocation | null>(null);
   const [editingLocation, setEditingLocation] = useState<StorageLocation | null>(null);
   const [isManualCardOpen, setIsManualCardOpen] = useState(false);
@@ -48,9 +48,10 @@ export function useCollectionState() {
   const [isOrganizeOpen, setIsOrganizeOpen] = useState(false);
   const [isSleevesOpen, setIsSleevesOpen] = useState(false);
 
-  // Estados para Constructor de Binders como Modal
+  // Estados anteriores conservados por compatibilidad
   const [isBinderBuilderOpen, setIsBinderBuilderOpen] = useState(false);
   const [selectedBinderId, setSelectedBinderId] = useState<string | null>(null);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
 
   // Fundas (Sleeves)
   const [sleeves, setSleeves] = useState<SleeveInventory[]>([]);
@@ -58,9 +59,8 @@ export function useCollectionState() {
   const [isSleeveFormOpen, setIsSleeveFormOpen] = useState(false);
   const [editingSleeve, setEditingSleeve] = useState<SleeveInventory | null>(null);
 
-  // 1. Obtener contenedores, inbox y decks
-  const fetchCollectionData = async () => {
-    setLoading(true);
+  // 1. Obtener contenedores, inbox y decks en segundo plano (silencioso)
+  const fetchCollectionDataSilently = useCallback(async () => {
     try {
       const locRes = await fetch('/api/collection/storage');
       if (locRes.ok) {
@@ -80,11 +80,19 @@ export function useCollectionState() {
         setDecks(decksJson.data || []);
       }
     } catch (err) {
-      console.error('Error al cargar datos de colección:', err);
+      console.error('Error al sincronizar datos de colección silenciosamente:', err);
+    }
+  }, []);
+
+  // 1.1 Carga inicial con estado loading
+  const fetchCollectionData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await fetchCollectionDataSilently();
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchCollectionDataSilently]);
 
   // 2. Cargar cartas filtradas (Colección Completa / Favoritas)
   const fetchAllCards = useCallback(async (query: string, filters: FilterState, favoritesOnly = false, locFilter = '', deckId = '') => {
@@ -340,19 +348,34 @@ export function useCollectionState() {
   };
 
   const handleOpenContainer = (loc: StorageLocation) => {
-    if (loc.type === 'binder') {
-      setSelectedBinderId(loc.id);
-      setIsBinderBuilderOpen(true);
-    } else {
-      setSelectedLocation(loc);
-      setIsInventoryOpen(true);
-    }
+    setSelectedLocation(loc);
+    setIsWorkspaceOpen(true);
   };
 
-  const handleCloseBinderBuilder = () => {
-    setIsBinderBuilderOpen(false);
-    setSelectedBinderId(null);
-    fetchCollectionData();
+  const handleOpenInbox = () => {
+    const virtualInboxLocation: StorageLocation = {
+      id: 'inbox',
+      name: 'Sin Clasificar (Inbox)',
+      type: 'box',
+      sub_type: 'standard',
+      color_code: '#f59e0b',
+      dimensions: { width: 0, height: 0, depth: 0 },
+      capacity: 9999,
+      grid_layout: { rows: 3, cols: 3, pockets_per_page: 9, total_pages: 1 },
+      compartments: { count: 1, names: ['Inbox'] },
+      render_style: 'grid',
+      created_at: new Date().toISOString(),
+    };
+    setSelectedLocation(virtualInboxLocation);
+    setIsWorkspaceOpen(true);
+  };
+
+  const handleCloseWorkspace = (hasMutated?: boolean) => {
+    setIsWorkspaceOpen(false);
+    setSelectedLocation(null);
+    if (hasMutated) {
+      fetchCollectionDataSilently();
+    }
   };
 
   // Drag and Drop reubicar baraja
@@ -383,7 +406,7 @@ export function useCollectionState() {
   // Carga inicial
   useEffect(() => {
     fetchCollectionData();
-  }, []);
+  }, [fetchCollectionData]);
 
   return {
     locations,
@@ -407,6 +430,8 @@ export function useCollectionState() {
     setIsFormOpen,
     isInventoryOpen,
     setIsInventoryOpen,
+    isWorkspaceOpen,
+    setIsWorkspaceOpen,
     selectedLocation,
     setSelectedLocation,
     editingLocation,
@@ -426,6 +451,7 @@ export function useCollectionState() {
     editingSleeve,
     setEditingSleeve,
     fetchCollectionData,
+    fetchCollectionDataSilently,
     fetchAllCards,
     fetchSleeves,
     handleDeleteCard,
@@ -438,11 +464,13 @@ export function useCollectionState() {
     handleDeleteStorage,
     handleCopyStorage,
     handleOpenContainer,
+    handleOpenInbox,
+    handleCloseWorkspace,
     handleDropDeck,
     isBinderBuilderOpen,
     setIsBinderBuilderOpen,
     selectedBinderId,
     setSelectedBinderId,
-    handleCloseBinderBuilder
+    handleCloseBinderBuilder: () => handleCloseWorkspace(true)
   };
 }

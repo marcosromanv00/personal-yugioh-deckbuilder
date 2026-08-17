@@ -23,17 +23,20 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
   onDeckClick,
 }) => {
   return (
-    <div className="lg:col-span-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-4 shadow-sm transition-colors">
-      <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3 flex flex-col gap-2">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm transition-colors max-h-[calc(100vh-6.5rem)] flex flex-col w-full">
+      <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3 flex flex-col gap-2 shrink-0 mb-3">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-xs uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
             <Layers className="w-4 h-4 text-red-500" />
             <span>Mis Barajas</span>
           </h2>
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">
+            {decks.length} {decks.length === 1 ? 'baraja' : 'barajas'}
+          </span>
         </div>
         <p className="text-[11px] text-zinc-600 dark:text-zinc-400 flex items-center gap-1 font-medium">
-          <HelpCircle className="w-3.5 h-3.5 text-cyan-500" />
-          Arrastra una baraja activa y suéltala sobre un Deckbox o haz clic para ver detalle.
+          <HelpCircle className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+          <span>Arrastra una baraja y suéltala en un Deckbox o haz clic para verla.</span>
         </p>
       </div>
 
@@ -42,7 +45,7 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
           No tienes barajas guardadas en la base de datos. Crea una en el taller.
         </div>
       ) : (
-        <div className="space-y-2.5 max-h-130 overflow-y-auto pr-1 scrollbar-thin">
+        <div className="space-y-2.5 overflow-y-auto min-h-0 pr-1 flex-1 scrollbar-thin">
           {decks.map((deck) => {
             const storedIn = locations.find(l => l.id === deck.storage_location_id);
             const isActive = deck.is_active !== false;
