@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory } from '@/types/collection';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
+import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 
 /**
  * Hook personalizado useCollectionState
@@ -10,10 +11,13 @@ import { FilterState } from '@/components/deckbuilder/CardFilters';
  */
 export function useCollectionState() {
   const router = useRouter();
+  const { isIdealMode, syncData } = useIdealEnvironment();
+
   const [locations, setLocations] = useState<StorageLocation[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [inboxCards, setInboxCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(true);
+
 
   // Tab activo y listado de cartas de la colección completa
   const [activeTab, setActiveTab] = useState<'containers' | 'sleeves' | 'decks' | 'complete' | 'favorites'>('containers');
@@ -408,15 +412,20 @@ export function useCollectionState() {
     fetchCollectionData();
   }, [fetchCollectionData]);
 
+  const effectiveLocations = isIdealMode && syncData?.idealContainers ? (syncData.idealContainers as StorageLocation[]) : locations;
+  const effectiveAllCards = isIdealMode && syncData?.idealCards ? (syncData.idealCards as UserCard[]) : allCollectionCards;
+  const effectiveInboxCards = isIdealMode && syncData?.idealCards ? (syncData.idealCards.filter(c => !c.storage_location_id) as UserCard[]) : inboxCards;
+  const effectiveDecks = isIdealMode && syncData?.idealDecks ? (syncData.idealDecks as Deck[]) : decks;
+
   return {
-    locations,
-    decks,
+    locations: effectiveLocations,
+    decks: effectiveDecks,
     setDecks,
-    inboxCards,
+    inboxCards: effectiveInboxCards,
     loading,
     activeTab,
     setActiveTab,
-    allCollectionCards,
+    allCollectionCards: effectiveAllCards,
     loadingAllCards,
     allCollectionFilters,
     setAllCollectionFilters,

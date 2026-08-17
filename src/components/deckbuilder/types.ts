@@ -35,6 +35,7 @@ export interface Card {
   race?: string | null;
   attribute?: string | null;
   userCardsGroup?: import('@/types/collection').UserCard[];
+  is_grayscale_shared?: boolean;
 }
 
 export interface DeckCard {
@@ -58,6 +59,8 @@ export interface DeckCard {
   attribute?: string | null;
   rarity?: string;
   condition?: string;
+  is_grayscale_shared?: boolean;
+
   notes?: string;
   sleeve_id?: string;
   sleeve_color_hex?: string;
