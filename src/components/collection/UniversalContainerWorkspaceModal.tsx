@@ -27,6 +27,9 @@ import { Card, HoverCardBase } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { SearchPanel } from '@/components/deckbuilder/components/SearchPanel';
 import { getSleeveColorHex } from '@/lib/sleeves';
+import { useTheme } from '@/components/ui/ThemeProvider';
+import { useToast } from '@/components/ui/ToastProvider';
+import { usePanelResize } from '@/components/deckbuilder/hooks/usePanelResize';
 
 interface UniversalContainerWorkspaceModalProps {
   isOpen: boolean;
@@ -49,10 +52,18 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   decks = [],
   onDeckClick,
 }) => {
+  const { theme } = useTheme();
+  const toast = useToast();
+  const panelResize = usePanelResize(422, 384);
+
   // Estado local de cartas del contenedor
   const [cards, setCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMutated, setHasMutated] = useState(false);
+
+  // Drag & Drop
+  const [draggedCard, setDraggedCard] = useState<Card | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
 
   // Modo del panel izquierdo: 'search' | 'import'
   const [leftTab, setLeftTab] = useState<'search' | 'import'>('search');
@@ -251,9 +262,57 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     }
   }, [leftTab, searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit, executeSearch, isOpen]);
 
-  // Añadir carta al contenedor
+  // Drag & Drop handlers
+  const handleDragCardStart = useCallback((e: React.DragEvent, card: Card) => {
+    e.dataTransfer.setData('application/json', JSON.stringify(card));
+    e.dataTransfer.effectAllowed = 'copy';
+    setDraggedCard(card);
+  }, []);
+
+  const handleDropCardToBinderSlot = useCallback(async (e: React.DragEvent, page: number, slot: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverSlot(null);
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    let card: Card;
+    try { card = JSON.parse(raw) as Card; } catch { return; }
+    // Check if slot already has a card
+    const existing = cards.find(c => c.binder_page === page && c.binder_slot === slot);
+    if (existing) {
+      toast.warning(`Slot ${slot} (Pág. ${page}) ya está ocupado. Selecciónalo para moverlo.`, { title: 'Slot ocupado' });
+      return;
+    }
+    await handleAddCardToContainer(card, page, slot);
+    setDraggedCard(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, toast]);
+
+  // Añadir carta al contenedor (o asignar posición si ya existe sin ubicación en binder)
   const handleAddCardToContainer = async (card: Card | HoverCardBase, page?: number, slot?: number) => {
     try {
+      // Para binders: verificar si la carta ya está en el contenedor sin posición asignada
+      if (containerType === 'binder' && page && slot) {
+        const existingUnplaced = cards.find(
+          c => c.card_id === card.id && (!c.binder_page || !c.binder_slot)
+        );
+        if (existingUnplaced) {
+          // Actualizar la posición de la carta existente en lugar de duplicar
+          const updated = { ...existingUnplaced, binder_page: page, binder_slot: slot };
+          setCards(prev => prev.map(c => c.id === existingUnplaced.id ? updated : c));
+          setSelectedUserCard(updated);
+          setHasMutated(true);
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: existingUnplaced.id, binder_page: page, binder_slot: slot }),
+          });
+          fetchCards();
+          toast.success(`${card.name} ubicada en Pág. ${page}, Slot ${slot}`, { title: '¡Posición asignada!' });
+          return;
+        }
+      }
+
       const payload: Record<string, unknown> = {
         card_id: card.id,
         storage_location_id: isInbox ? null : containerId,
@@ -270,7 +329,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           payload.binder_page = page;
           payload.binder_slot = slot;
         } else {
-          // Asignar primer slot disponible
           payload.binder_page = currentBinderViewIndex === 0 ? 1 : currentBinderViewIndex * 2;
           payload.binder_slot = 1;
         }
@@ -289,9 +347,20 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         setSelectedUserCard(insertedCard);
         setHasMutated(true);
         if (isMobile) setMobileTab('right');
+        // Refetch para obtener card_details completo
+        fetchCards();
+        if (page && slot) {
+          toast.success(`${card.name} colocada en Pág. ${page}, Slot ${slot}`, { title: '¡Carta añadida!' });
+        } else {
+          toast.success(`${card.name} añadida al contenedor`, { title: '¡Carta añadida!' });
+        }
+      } else {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.error || 'Error al añadir la carta', { title: 'Error' });
       }
     } catch (err) {
       console.error('Error al agregar carta al contenedor:', err);
+      toast.error('Error de conexión al añadir la carta', { title: 'Error' });
     }
   };
 
@@ -374,7 +443,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         throw new Error(json.error || 'Error al procesar la importación');
       }
 
-      setImportSuccessMsg(`¡Éxito! Se importaron ${json.insertedCount || json.parsedCount || 0} cartas.`);
+      const count = json.insertedCount || json.parsedCount || 0;
+      setImportSuccessMsg(`¡Éxito! Se importaron ${count} cartas.`);
+      toast.success(`${count} cartas importadas correctamente`, { title: '¡Importación completada!' });
       setHasMutated(true);
       setYdkText('');
       setYdkFileName('');
@@ -382,6 +453,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     } catch (err: unknown) {
       const e = err as Error;
       setImportError(e.message || 'Error al importar cartas');
+      toast.error(e.message || 'Error al importar cartas', { title: 'Error de importación' });
     } finally {
       setImportLoading(false);
     }
@@ -507,60 +579,59 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center py-2 sm:py-4 px-6 sm:px-12 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
       onClick={() => onClose(hasMutated)}
     >
-      {/* BOTÓN NAVEGACIÓN ANTERIOR (FLECHA IZQUIERDA) */}
-      {prevContainer && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleNavigatePrev();
-          }}
-          className="fixed left-2 sm:left-4 top-1/2 -translate-y-1/2 z-60 p-3 rounded-2xl bg-zinc-900/90 hover:bg-red-600 border border-zinc-800 hover:border-red-500 text-zinc-400 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
-          title={`Anterior: ${prevContainer.name} (←)`}
-          aria-label="Contenedor anterior"
-        >
-          <ChevronLeft className="w-5 h-5 shrink-0" />
-          <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-40 transition-all duration-300 text-xs font-bold font-mono">
-            {prevContainer.name}
-          </span>
-        </button>
-      )}
-
-      {/* BOTÓN NAVEGACIÓN SIGUIENTE (FLECHA DERECHA) */}
-      {nextContainer && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleNavigateNext();
-          }}
-          className="fixed right-2 sm:right-4 top-1/2 -translate-y-1/2 z-60 p-3 rounded-2xl bg-zinc-900/90 hover:bg-red-600 border border-zinc-800 hover:border-red-500 text-zinc-400 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
-          title={`Siguiente: ${nextContainer.name} (→)`}
-          aria-label="Siguiente contenedor"
-        >
-          <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-40 transition-all duration-300 text-xs font-bold font-mono">
-            {nextContainer.name}
-          </span>
-          <ChevronRight className="w-5 h-5 shrink-0" />
-        </button>
-      )}
-
-      {/* VENTANA FLOTANTE DEL WORKSPACE */}
+      {/* VENTANA FLOTANTE — hereda tema del sistema (dark/light) con ancho ajustado */}
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[96vw] xl:max-w-[1580px] h-[92vh] max-h-[960px] bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10 select-auto"
+        className={`${theme === 'dark' ? 'dark' : ''} w-full max-w-[82vw] xl:max-w-[1440px] 2xl:max-w-[1520px] h-[92vh] max-h-[960px] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10 select-auto text-zinc-900 dark:text-zinc-100`}
       >
+        {/* BOTÓN NAVEGACIÓN ANTERIOR (FLECHA IZQUIERDA) — posicionada dentro para heredar z-context */}
+        {prevContainer && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNavigatePrev();
+            }}
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full z-50 ml-[-12px] p-3 rounded-2xl bg-zinc-900 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-zinc-200 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
+            title={`Anterior: ${prevContainer.name} (←)`}
+            aria-label="Contenedor anterior"
+          >
+            <ChevronLeft className="w-5 h-5 shrink-0" />
+            <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-40 transition-all duration-300 text-xs font-bold font-mono">
+              {prevContainer.name}
+            </span>
+          </button>
+        )}
+
+        {/* BOTÓN NAVEGACIÓN SIGUIENTE (FLECHA DERECHA) */}
+        {nextContainer && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNavigateNext();
+            }}
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-50 mr-[-12px] p-3 rounded-2xl bg-zinc-900 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-zinc-200 hover:text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group flex items-center gap-2"
+            title={`Siguiente: ${nextContainer.name} (→)`}
+            aria-label="Siguiente contenedor"
+          >
+            <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-40 transition-all duration-300 text-xs font-bold font-mono">
+              {nextContainer.name}
+            </span>
+            <ChevronRight className="w-5 h-5 shrink-0" />
+          </button>
+        )}
         {/* ═══ HEADER DEL ESPACIO DE TRABAJO ═══ */}
-        <header className="h-16 shrink-0 border-b border-zinc-800 bg-zinc-900/95 px-4 lg:px-6 flex items-center justify-between gap-4 z-30 shadow-md">
+        <header className="h-16 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 px-4 lg:px-6 flex items-center justify-between gap-4 z-30 shadow-sm">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => onClose(hasMutated)}
-              className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer shrink-0"
+              className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
               title="Volver a la colección (Esc)"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -572,13 +643,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               style={{ backgroundColor: isInbox ? '#f59e0b' : (location?.color_code || '#dc2626') }}
             />
             <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-black text-white truncate flex items-center gap-2">
+              <h1 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white truncate flex items-center gap-2">
                 <span>{isInbox ? 'Sin Clasificar (Inbox)' : location?.name}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300 font-mono uppercase tracking-wider font-bold">
+                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 font-mono uppercase tracking-wider font-bold">
                   {isInbox ? 'Bandeja Inbox' : containerType.toUpperCase()}
                 </span>
               </h1>
-              <p className="text-[10px] text-zinc-400 font-mono truncate hidden sm:block">
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono truncate hidden sm:block">
                 {cards.length} {cards.length === 1 ? 'carta registrada' : 'cartas registradas'} • Capacidad: {isInbox ? 'Ilimitada' : `${location?.capacity || 0} slots`}
               </p>
             </div>
@@ -586,7 +657,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         </div>
 
         {/* NAVEGADOR DE PESTAÑAS PARA MÓVIL */}
-        <div className="flex lg:hidden bg-zinc-800 p-1 rounded-xl border border-zinc-700 shrink-0 text-xs font-black">
+        <div className="flex lg:hidden bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200 dark:border-zinc-700 shrink-0 text-xs font-black">
           <button
             onClick={() => setMobileTab('left')}
             className={`px-2.5 py-1 rounded-lg transition-colors ${mobileTab === 'left' ? 'bg-red-600 text-white' : 'text-zinc-400'}`}
@@ -622,19 +693,22 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       {/* ═══ CUERPO PRINCIPAL DE 3 PANELES ═══ */}
       <div className="flex-1 flex overflow-hidden relative">
 
-        {/* ─── PANEL IZQUIERDO: BUSCADOR & IMPORTADOR ─── */}
-        <div className={`${mobileTab === 'left' ? 'flex w-full' : 'hidden'} lg:flex w-85 xl:w-95 shrink-0 border-r border-zinc-800 bg-zinc-900/60 flex-col h-full overflow-hidden z-20`}>
+        {/* ─── PANEL IZQUIERDO: BUSCADOR & IMPORTADOR (REDIMENSIONABLE) ─── */}
+        <div 
+          style={!isMobile ? { width: `${panelResize.leftPanelWidth}px` } : {}}
+          className={`${mobileTab === 'left' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/60 flex-col h-full overflow-hidden z-20`}
+        >
           
           {/* Switch de Modo: Buscar vs Importar */}
-          <div className="p-3 border-b border-zinc-800 bg-zinc-900/90 shrink-0">
-            <div className="flex items-center bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+          <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/90 shrink-0">
+            <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
               <button
                 type="button"
                 onClick={() => setLeftTab('search')}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   leftTab === 'search'
                     ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-200'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                 }`}
               >
                 <Search className="w-3.5 h-3.5" />
@@ -646,7 +720,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   leftTab === 'import'
                     ? 'bg-cyan-600 text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-200'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                 }`}
               >
                 <Upload className="w-3.5 h-3.5" />
@@ -659,9 +733,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           {leftTab === 'search' ? (
             <div className="flex-1 overflow-hidden flex flex-col">
               <SearchPanel
-                leftPanelOpen={leftPanelOpen}
-                setLeftPanelOpen={setLeftPanelOpen}
-                leftPanelWidth={leftPanelWidth}
+                leftPanelOpen={true}
+                setLeftPanelOpen={() => {}}
+                leftPanelWidth={panelResize.leftPanelWidth}
                 isMobile={isMobile}
                 showStagedTab={containerType === 'binder'}
                 stagedCardsCount={cards.filter(c => !c.binder_page || !c.binder_slot).length}
@@ -698,28 +772,25 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   }
                   if (isMobile) setMobileTab('right');
                 }}
-                handleDragCardStart={(e, cardData) => {
-                  e.dataTransfer.setData('application/json', JSON.stringify(cardData));
-                  e.dataTransfer.setData('text/plain', String(cardData.id));
-                }}
+                handleDragCardStart={(e, cardData) => handleDragCardStart(e, cardData as Card)}
                 handleCardMouseEnter={() => {}}
                 handleCardMouseLeave={() => {}}
               />
             </div>
           ) : (
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
-              <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 space-y-2">
-                <h3 className="text-xs font-black uppercase text-cyan-400 flex items-center gap-1.5">
+              <div className="p-3 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
+                <h3 className="text-xs font-black uppercase text-cyan-500 dark:text-cyan-400 flex items-center gap-1.5">
                   <Upload className="w-3.5 h-3.5" />
                   <span>Importar a este Contenedor</span>
                 </h3>
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
                   Sube un archivo <strong>.ydk</strong> o pega una lista de texto con cartas para agregarlas directamente a <strong>{isInbox ? 'Sin Clasificar' : location?.name}</strong>.
                 </p>
               </div>
 
               <form onSubmit={handleYdkImport} className="space-y-4">
-                <div className="border-2 border-dashed border-zinc-700 hover:border-cyan-500 rounded-2xl p-4 text-center bg-zinc-950 transition-colors">
+                <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-cyan-500 rounded-2xl p-4 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
                   <input
                     type="file"
                     accept=".ydk,.txt"
@@ -729,15 +800,15 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   />
                   <label htmlFor="workspace-ydk-file" className="cursor-pointer flex flex-col items-center gap-2">
                     <Upload className="w-6 h-6 text-cyan-400" />
-                    <span className="text-xs font-bold text-zinc-300">
+                    <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300">
                       {ydkFileName ? ydkFileName : 'Haz clic para seleccionar archivo .ydk'}
                     </span>
-                    <span className="text-[10px] text-zinc-500 font-mono">Formatos: .ydk, .txt</span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Formatos: .ydk, .txt</span>
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
                     O pega el texto / receta:
                   </label>
                   <textarea
@@ -745,7 +816,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                     onChange={(e) => setYdkText(e.target.value)}
                     placeholder="3 Ash Blossom & Joyous Spring&#10;1 Nibiru, the Primal Being&#10;2 Triple Tactics Talent"
                     rows={6}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-100 font-mono focus:border-cyan-500 focus:outline-none resize-none"
+                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:border-cyan-500 focus:outline-none resize-none"
                   />
                 </div>
 
@@ -784,21 +855,30 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           )}
         </div>
 
+        {/* DIVIDER REDIMENSIONABLE IZQUIERDO */}
+        {!isMobile && (
+          <div
+            onMouseDown={panelResize.startResizeLeft}
+            className="w-1.5 hover:w-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-red-500 dark:hover:bg-red-500 cursor-col-resize self-stretch shrink-0 transition-all z-30 opacity-70 hover:opacity-100"
+            title="Arrastra para cambiar el ancho del panel izquierdo"
+          />
+        )}
+
         {/* ─── PANEL CENTRAL: VISUALIZADOR DE CONTENEDOR (GRID / BINDER) ─── */}
-        <main className={`${mobileTab === 'center' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col h-full bg-zinc-950 overflow-hidden relative`}>
+        <main className={`${mobileTab === 'center' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden relative`}>
           
           {/* Barra Superior de Filtros y Compartimentos */}
-          <div className="p-3 sm:px-6 border-b border-zinc-800 bg-zinc-900/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="p-3 sm:px-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-900/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
             
             {/* Buscador dentro del contenedor */}
             <div className="relative min-w-48 flex-1 max-w-xs">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
               <input
                 type="text"
                 value={containerSearch}
                 onChange={(e) => setContainerSearch(e.target.value)}
                 placeholder="Filtrar cartas en este contenedor..."
-                className="w-full pl-8.5 pr-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+                className="w-full pl-8.5 pr-3 py-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
               />
             </div>
 
@@ -807,7 +887,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 focus:border-red-500 focus:outline-none"
+                className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 focus:border-red-500 focus:outline-none"
               >
                 <option value="all">Todos los estados</option>
                 <option value="collection">En Colección</option>
@@ -855,8 +935,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               <div className="h-full flex flex-col items-center justify-between">
                 <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 items-center justify-center">
                   {/* Página Izquierda */}
-                  <div className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800">
-                    <div className="text-[10px] font-mono text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
+                  <div className="bg-zinc-100 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                    <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
                       {leftPageNum ? `Página ${leftPageNum}` : 'Portada Interior'}
                     </div>
                     <div
@@ -869,6 +949,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                       {Array.from({ length: pocketsPerPage }).map((_, idx) => {
                         const slotNum = idx + 1;
                         const cardInSlot = leftPageCards.find(c => c.binder_slot === slotNum);
+                        const slotKey = `L-${leftPageNum}-${slotNum}`;
+                        const isDragOver = dragOverSlot === slotKey;
                         return (
                           <div
                             key={slotNum}
@@ -881,12 +963,17 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                                 if (isMobile) setMobileTab('right');
                               }
                             }}
+                            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOverSlot(slotKey); }}
+                            onDragLeave={() => setDragOverSlot(null)}
+                            onDrop={(e) => leftPageNum ? handleDropCardToBinderSlot(e, leftPageNum, slotNum) : undefined}
                             className={`rounded-lg border aspect-3/4 relative flex items-center justify-center p-1 cursor-pointer transition-all ${
-                              cardInSlot
-                                ? 'bg-zinc-950 border-zinc-700 hover:border-red-500 shadow-xs'
+                              isDragOver
+                                ? 'border-solid border-green-400 bg-green-900/20 scale-105'
+                                : cardInSlot
+                                ? 'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700 hover:border-red-500 shadow-xs'
                                 : selectedSearchCard
                                 ? 'border-dashed border-purple-500/60 bg-purple-950/20 hover:bg-purple-950/40 animate-pulse'
-                                : 'border-dashed border-zinc-800 bg-zinc-950/30'
+                                : 'border-dashed border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30'
                             }`}
                           >
                             {cardInSlot?.card_details ? (
@@ -901,8 +988,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                                 </div>
                               </>
                             ) : (
-                              <span className="text-[9px] font-mono text-zinc-600">
-                                {selectedSearchCard ? 'Colocar' : slotNum}
+                              <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-600">
+                                {draggedCard && !cardInSlot ? '＋' : selectedSearchCard ? 'Colocar' : slotNum}
                               </span>
                             )}
                           </div>
@@ -912,8 +999,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   </div>
 
                   {/* Página Derecha */}
-                  <div className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800">
-                    <div className="text-[10px] font-mono text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
+                  <div className="bg-zinc-100 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                    <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
                       {rightPageNum ? `Página ${rightPageNum}` : 'Contraportada'}
                     </div>
                     <div
@@ -926,6 +1013,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                       {Array.from({ length: pocketsPerPage }).map((_, idx) => {
                         const slotNum = idx + 1;
                         const cardInSlot = rightPageCards.find(c => c.binder_slot === slotNum);
+                        const slotKey = `R-${rightPageNum}-${slotNum}`;
+                        const isDragOver = dragOverSlot === slotKey;
                         return (
                           <div
                             key={slotNum}
@@ -938,12 +1027,17 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                                 if (isMobile) setMobileTab('right');
                               }
                             }}
+                            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOverSlot(slotKey); }}
+                            onDragLeave={() => setDragOverSlot(null)}
+                            onDrop={(e) => rightPageNum ? handleDropCardToBinderSlot(e, rightPageNum, slotNum) : undefined}
                             className={`rounded-lg border aspect-3/4 relative flex items-center justify-center p-1 cursor-pointer transition-all ${
-                              cardInSlot
-                                ? 'bg-zinc-950 border-zinc-700 hover:border-red-500 shadow-xs'
+                              isDragOver
+                                ? 'border-solid border-green-400 bg-green-900/20 scale-105'
+                                : cardInSlot
+                                ? 'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700 hover:border-red-500 shadow-xs'
                                 : selectedSearchCard
                                 ? 'border-dashed border-purple-500/60 bg-purple-950/20 hover:bg-purple-950/40 animate-pulse'
-                                : 'border-dashed border-zinc-800 bg-zinc-950/30'
+                                : 'border-dashed border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30'
                             }`}
                           >
                             {cardInSlot?.card_details ? (
@@ -974,18 +1068,18 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   <button
                     disabled={currentBinderViewIndex <= 0}
                     onClick={() => setCurrentBinderViewIndex(p => Math.max(0, p - 1))}
-                    className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     <span>Anterior</span>
                   </button>
-                  <span className="text-xs font-mono text-zinc-400">
+                  <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
                     Vista {currentBinderViewIndex + 1} de {totalBinderViews}
                   </span>
                   <button
                     disabled={currentBinderViewIndex >= totalBinderViews - 1}
                     onClick={() => setCurrentBinderViewIndex(p => Math.min(totalBinderViews - 1, p + 1))}
-                    className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
                   >
                     <span>Siguiente</span>
                     <ChevronRight className="w-4 h-4" />
@@ -995,9 +1089,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             ) : (
               /* VISTA GRID RESPONSIVA (BOX, TIN, DRAWER, INBOX) */
               filteredCards.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-zinc-800 rounded-3xl">
-                  <Box className="w-12 h-12 text-zinc-600 mb-3" />
-                  <h3 className="text-sm font-black uppercase text-zinc-300">
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl">
+                  <Box className="w-12 h-12 text-zinc-400 dark:text-zinc-600 mb-3" />
+                  <h3 className="text-sm font-black uppercase text-zinc-600 dark:text-zinc-300">
                     No hay cartas en este contenedor
                   </h3>
                   <p className="text-xs text-zinc-500 max-w-sm mt-1">
@@ -1067,21 +1161,21 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
                   {/* Paginación de la grid */}
                   {totalGridPages > 1 && (
-                    <div className="flex items-center justify-center gap-3 pt-4 border-t border-zinc-800 font-mono text-xs">
+                    <div className="flex items-center justify-center gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-800 font-mono text-xs">
                       <button
                         disabled={currentGridPage <= 1}
                         onClick={() => setCurrentGridPage(p => Math.max(1, p - 1))}
-                        className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg disabled:opacity-40 cursor-pointer"
+                        className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg disabled:opacity-40 cursor-pointer"
                       >
                         ← Anterior
                       </button>
-                      <span className="text-zinc-400">
+                      <span className="text-zinc-500 dark:text-zinc-400">
                         Página {currentGridPage} de {totalGridPages}
                       </span>
                       <button
                         disabled={currentGridPage >= totalGridPages}
                         onClick={() => setCurrentGridPage(p => Math.min(totalGridPages, p + 1))}
-                        className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg disabled:opacity-40 cursor-pointer"
+                        className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg disabled:opacity-40 cursor-pointer"
                       >
                         Siguiente →
                       </button>
@@ -1093,57 +1187,69 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           </div>
         </main>
 
-        {/* ─── PANEL DERECHO: INSPECTOR Y EDICIÓN DE CARTA ─── */}
-        <div className={`${mobileTab === 'right' ? 'flex w-full' : 'hidden'} lg:flex w-80 xl:w-90 shrink-0 border-l border-zinc-800 bg-zinc-900/80 flex-col h-full overflow-y-auto p-4 z-20`}>
+        {/* DIVIDER REDIMENSIONABLE DERECHO */}
+        {!isMobile && (
+          <div
+            onMouseDown={panelResize.startResizeRight}
+            className="w-1.5 hover:w-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-red-500 dark:hover:bg-red-500 cursor-col-resize self-stretch shrink-0 transition-all z-30 opacity-70 hover:opacity-100"
+            title="Arrastra para cambiar el ancho del panel derecho"
+          />
+        )}
+
+        {/* ─── PANEL DERECHO: INSPECTOR Y EDICIÓN DE CARTA (REDIMENSIONABLE Y MÁS ESPACIOSO) ─── */}
+        <div 
+          style={!isMobile ? { width: `${panelResize.rightPanelWidth}px` } : {}}
+          className={`${mobileTab === 'right' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 flex-col h-full overflow-y-auto p-5 z-20`}
+        >
           {selectedUserCard && selectedUserCard.card_details ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                <h3 className="text-xs font-black uppercase text-zinc-200 flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-red-500" />
+            <div className="space-y-4.5">
+              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3.5">
+                <h3 className="text-xs font-black uppercase text-zinc-700 dark:text-zinc-200 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-red-500" />
                   <span>Detalles de Carta</span>
                 </h3>
                 <button
                   onClick={() => setSelectedUserCard(null)}
-                  className="p-1 rounded-lg text-zinc-500 hover:text-white transition-colors"
+                  className="p-1.5 rounded-lg text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Vista previa de carta */}
-              <div className="flex gap-3 items-start bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+              <div className="flex gap-3.5 items-start bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
                 <img
                   src={selectedUserCard.card_details.image_url_small || selectedUserCard.card_details.image_url}
                   alt={selectedUserCard.card_details.name}
-                  className="w-20 rounded-lg shadow-md shrink-0 border border-zinc-800"
+                  className="w-22 rounded-xl shadow-md shrink-0 border border-zinc-200 dark:border-zinc-800"
                 />
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-black text-white leading-tight">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <h4 className="text-xs font-black text-zinc-900 dark:text-white leading-snug">
                     {selectedUserCard.card_details.name}
                   </h4>
-                  <p className="text-[10px] text-zinc-400 font-mono mt-1 uppercase">
+                  <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono uppercase font-semibold">
                     {selectedUserCard.card_details.type}
                   </p>
                   {selectedUserCard.card_details.archetype && (
-                    <span className="inline-block text-[9px] font-mono text-purple-400 bg-purple-950/40 border border-purple-900/50 px-1.5 py-0.5 rounded mt-1.5">
+                    <span className="inline-block text-[9.5px] font-mono text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800/60 px-2 py-0.5 rounded-md mt-1.5 font-bold">
                       {selectedUserCard.card_details.archetype}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Formulario de propiedades */}
-              <div className="space-y-3">
+              {/* Formulario de propiedades con margen amplio */}
+              <div className="space-y-4">
                 
                 {/* Rareza */}
                 <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Rareza
                   </label>
                   <select
                     value={selectedUserCard.rarity || 'Common'}
                     onChange={(e) => handleUpdateCard({ rarity: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="Common">Common (Común)</option>
                     <option value="Rare">Rare (Rara)</option>
@@ -1160,13 +1266,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
                 {/* Condición */}
                 <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Condición Física
                   </label>
                   <select
                     value={selectedUserCard.condition || 'Near Mint'}
                     onChange={(e) => handleUpdateCard({ condition: e.target.value as any })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="Near Mint">Near Mint (NM - Impecable)</option>
                     <option value="Lightly Played">Lightly Played (LP - Uso leve)</option>
@@ -1178,13 +1284,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
                 {/* Funda / Sleeve */}
                 <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Funda / Sleeving
                   </label>
                   <select
                     value={selectedUserCard.sleeve_type || 'none'}
                     onChange={(e) => handleUpdateCard({ sleeve_type: e.target.value as any })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="none">Sin Funda</option>
                     <option value="single">Funda Simple</option>
@@ -1194,9 +1300,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 </div>
 
                 {/* Cantidad y Proxy */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                       Copias
                     </label>
                     <input
@@ -1205,20 +1311,20 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                       max="99"
                       value={selectedUserCard.quantity || 1}
                       onChange={(e) => handleUpdateCard({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 font-mono focus:border-red-500 focus:outline-none"
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 font-mono focus:border-red-500 focus:outline-none shadow-2xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                       Estado Proxy
                     </label>
                     <button
                       type="button"
                       onClick={() => handleUpdateCard({ is_proxy: !selectedUserCard.is_proxy })}
-                      className={`w-full py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      className={`w-full py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
                         selectedUserCard.is_proxy
                           ? 'bg-red-950/40 text-red-400 border-red-500'
-                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                          : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
                       }`}
                     >
                       {selectedUserCard.is_proxy ? 'Es Proxy' : 'Original'}
@@ -1228,13 +1334,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
                 {/* Destino / Status flag */}
                 <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Destino / Clasificación
                   </label>
                   <select
                     value={selectedUserCard.status_flag || 'collection'}
                     onChange={(e) => handleUpdateCard({ status_flag: e.target.value as any })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="collection">Colección Permanente</option>
                     <option value="trade_sale">Venta / Trade</option>
@@ -1245,13 +1351,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
                 {/* Mover de Contenedor */}
                 <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Mover a Contenedor
                   </label>
                   <select
                     value={selectedUserCard.storage_location_id || 'inbox'}
                     onChange={(e) => handleMoveCard(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="inbox">📥 Bandeja Sin Clasificar (Inbox)</option>
                     {locations.map((loc) => (
@@ -1264,7 +1370,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
                 {/* Notas */}
                 <div>
-                  <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Notas adicionales
                   </label>
                   <input
@@ -1272,30 +1378,30 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                     value={selectedUserCard.notes || ''}
                     onChange={(e) => handleUpdateCard({ notes: e.target.value })}
                     placeholder="1st edition, foil bleed, etc."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs"
                   />
                 </div>
               </div>
 
               {/* Botón Eliminar */}
-              <div className="pt-3 border-t border-zinc-800">
+              <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   onClick={handleDeleteCard}
-                  className="w-full py-2 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-4 h-4" />
                   <span>Eliminar de Colección</span>
                 </button>
               </div>
 
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-500">
-              <Sparkles className="w-8 h-8 mb-2 opacity-40 text-red-500" />
-              <h4 className="text-xs font-black uppercase text-zinc-400">
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 dark:text-zinc-500 space-y-2">
+              <Sparkles className="w-10 h-10 mb-1 opacity-40 text-red-500" />
+              <h4 className="text-xs font-black uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">
                 Ninguna carta seleccionada
               </h4>
-              <p className="text-[11px] mt-1">
+              <p className="text-[11.5px] leading-relaxed text-zinc-400 dark:text-zinc-500 max-w-xs">
                 Haz clic en una carta de la grid o añade una nueva para inspeccionar y editar sus propiedades.
               </p>
             </div>

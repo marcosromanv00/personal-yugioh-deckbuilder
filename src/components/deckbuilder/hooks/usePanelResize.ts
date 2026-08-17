@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * Hook personalizado para manejar el estado de redimensionamiento
  * y visibilidad colapsable de los paneles laterales.
  */
-export function usePanelResize() {
+export function usePanelResize(initialLeftWidth = 384, initialRightWidth = 384) {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [leftPanelWidth, setLeftPanelWidth] = useState(384);
-  const [rightPanelWidth, setRightPanelWidth] = useState(384);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(initialLeftWidth);
+  const [rightPanelWidth, setRightPanelWidth] = useState(initialRightWidth);
 
   const isResizingLeft = useRef(false);
   const isResizingRight = useRef(false);

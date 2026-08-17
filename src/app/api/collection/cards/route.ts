@@ -359,6 +359,9 @@ export async function POST(req: NextRequest) {
       sleeve_type,
       is_proxy,
       notes,
+      binder_page,
+      binder_slot,
+      compartment_index,
     } = body;
 
     if (!card_id) {
@@ -438,8 +441,11 @@ export async function POST(req: NextRequest) {
         sleeve_type: sleeve_type || 'none',
         is_proxy: !!is_proxy,
         notes: notes || '',
+        binder_page: binder_page || null,
+        binder_slot: binder_slot || null,
+        compartment_index: compartment_index ?? 0,
       }])
-      .select('*, card_details:yg_cards(name, image_url, image_url_small)')
+      .select('*, card_details:yg_cards(*)')
       .single();
 
     if (error) {
