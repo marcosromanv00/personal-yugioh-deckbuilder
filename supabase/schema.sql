@@ -221,3 +221,70 @@ CREATE POLICY "Public access sleeves" ON yg_sleeves FOR ALL TO public USING (tru
 ALTER TABLE yg_deck_sleeves ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public access deck sleeves" ON yg_deck_sleeves FOR ALL TO public USING (true) WITH CHECK (true);
 
+-- 15. yg_card_synergies: Sistema Experto de Inteligencia y Sinergias Implícitas
+CREATE TABLE IF NOT EXISTS yg_card_synergies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    archetype VARCHAR(100) NOT NULL,
+    card_id INTEGER REFERENCES yg_cards(id) ON DELETE SET NULL,
+    card_name VARCHAR(255) NOT NULL,
+    synergy_role VARCHAR(50) NOT NULL CONSTRAINT chk_synergy_role CHECK (synergy_role IN ('starter', 'extender', 'searcher', 'dump_target', 'boss', 'tech', 'floodgate_counter', 'engine', 'staple_synergy')),
+    weight NUMERIC(4,3) DEFAULT 0.850 CONSTRAINT chk_synergy_weight CHECK (weight >= 0.0 AND weight <= 1.0),
+    reason TEXT,
+    source VARCHAR(50) DEFAULT 'system' CONSTRAINT chk_synergy_source CHECK (source IN ('system', 'user_feedback', 'tournament_cooccurrence', 'ai_mining')),
+    user_id VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (archetype, card_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_yg_card_synergies_archetype ON yg_card_synergies (archetype);
+CREATE INDEX IF NOT EXISTS idx_yg_card_synergies_card_name ON yg_card_synergies (card_name);
+CREATE INDEX IF NOT EXISTS idx_yg_card_synergies_role ON yg_card_synergies (synergy_role);
+
+ALTER TABLE yg_card_synergies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public access card synergies" ON yg_card_synergies FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- 16. yg_card_knowledge: Base de Conocimiento Central y Cerebro del Agente
+CREATE TABLE IF NOT EXISTS yg_card_knowledge (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_id INTEGER REFERENCES yg_cards(id) ON DELETE CASCADE,
+    card_name VARCHAR(255) NOT NULL,
+    market_price NUMERIC(10,2) DEFAULT 0.00,
+    release_tcg DATE,
+    release_ocg DATE,
+    release_md DATE,
+    rulings_data JSONB DEFAULT '[]'::jsonb,
+    formats_stats JSONB DEFAULT '{}'::jsonb,
+    is_user_verified BOOLEAN DEFAULT false,
+    user_verification_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (card_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_yg_card_knowledge_card_name ON yg_card_knowledge (card_name);
+CREATE INDEX IF NOT EXISTS idx_yg_card_knowledge_verified ON yg_card_knowledge (is_user_verified);
+
+ALTER TABLE yg_card_knowledge ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public access card knowledge" ON yg_card_knowledge FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- 17. yg_knowledge_logs: Historial de Auditoría y Aprendizaje del Usuario
+CREATE TABLE IF NOT EXISTS yg_knowledge_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_id INTEGER REFERENCES yg_cards(id) ON DELETE CASCADE,
+    card_name VARCHAR(255) NOT NULL,
+    format VARCHAR(50) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    summary TEXT NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_yg_knowledge_logs_card_name ON yg_knowledge_logs (card_name);
+CREATE INDEX IF NOT EXISTS idx_yg_knowledge_logs_created_at ON yg_knowledge_logs (created_at DESC);
+
+ALTER TABLE yg_knowledge_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public access knowledge logs" ON yg_knowledge_logs FOR ALL TO public USING (true) WITH CHECK (true);
+
+
+

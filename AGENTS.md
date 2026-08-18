@@ -88,3 +88,9 @@ Para mantener el proyecto pulido para su venta, queda terminantemente prohibido 
    - **NO** uses directivas o gradientes obsoletos en v4:
      - Cambia `bg-gradient-to-*` por `bg-linear-to-*`.
 
+4. **Congruencia Estricta con el Tema Global de UI**:
+   - **Paleta Canónica**: El sistema visual utiliza una base neutra (`zinc`/`slate`) con acentos primarios en **rojo (`red-600` / `red-500`)** y acentos secundarios neutros (`zinc-800` / `zinc-200`). Queda estrictamente prohibido introducir paletas ajenas o disonantes (ej. morados, púrpuras, rosas) a menos que correspondan a mecánicas de juego específicas (ej. cartas Fusion/Synchro).
+   - **Prohibición de Glassmorphism**: No utilices fondos translúcidos con `backdrop-blur` difuminado cuando el resto de la interfaz emplee superficies sólidas y limpias (`bg-white` en claro, `bg-zinc-900`/`bg-zinc-950` en oscuro con bordes `border-zinc-200`/`border-zinc-800`).
+   - **Dropdowns & Popovers Robustos (Sin Overflow Clipping)**:
+     - Nunca encapsules menús desplegables flotantes dentro de contenedores con `overflow-hidden` o `overflow-x-auto` sin asegurar que el menú tenga visibilidad total (usar `overflow-visible` en filas de filtros o portales flotantes).
+     - Prohibido el uso de `<select>` HTML vanilla sin estilizar en modales y paneles clave; utiliza siempre el componente unificado `PremiumDropdown`.
