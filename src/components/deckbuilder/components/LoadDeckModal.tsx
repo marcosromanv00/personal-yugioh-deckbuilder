@@ -28,13 +28,13 @@ export const LoadDeckModal: React.FC<LoadDeckModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-4 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full md:max-w-2xl shadow-2xl p-5 overflow-hidden flex flex-col max-h-[85vh] md:max-h-[80vh] text-zinc-900 dark:text-zinc-100"
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none md:rounded-3xl w-full md:max-w-2xl shadow-2xl p-5 overflow-hidden flex flex-col h-dvh md:h-auto md:max-h-[80vh] text-zinc-900 dark:text-zinc-100"
           >
             {/* Header */}
             <div className="flex justify-between items-center pb-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">

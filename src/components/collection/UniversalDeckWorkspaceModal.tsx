@@ -537,7 +537,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center py-1 sm:py-2 px-2 sm:px-4 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:py-2 sm:px-4 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
       onClick={() => onClose(hasMutated)}
     >
       <motion.div
@@ -545,7 +545,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="w-[98vw] max-w-[1720px] h-[96vh] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100"
+        className="w-full sm:w-[98vw] sm:max-w-[1720px] h-dvh sm:h-[96vh] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ═══ CABECERA SUPERIOR DEL WORKSPACE ═══ */}

@@ -398,7 +398,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-hidden">
         
         {/* Backdrop click to close */}
         <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
@@ -408,7 +408,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 15 }}
           transition={{ type: 'spring', damping: 26, stiffness: 260 }}
-          className="relative w-full max-w-7xl h-[92vh] max-h-[92vh] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100 z-10"
+          className="relative w-full max-w-7xl h-dvh sm:h-[92vh] sm:max-h-[92vh] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-zinc-900 dark:text-zinc-100 z-10"
         >
           
           {/* ══════════════════════════════════════════════════════════════
