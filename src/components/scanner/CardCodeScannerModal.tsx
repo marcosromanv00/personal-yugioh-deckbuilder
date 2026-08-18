@@ -14,7 +14,6 @@ import {
   Check,
   AlertCircle,
   Loader2,
-  Layers,
   Sparkles,
   ScanLine,
   ZoomIn,
@@ -22,6 +21,8 @@ import {
 import {
   extractAndPreprocessViewfinder,
   recognizeCardPasscode,
+  hasCardVisualFeatures,
+  terminateCardOcrWorker,
   ViewfinderCropRect,
 } from '@/lib/ocr/cardOcrEngine';
 
@@ -39,6 +40,14 @@ export interface YgoDetectedCard {
   attribute?: string | null;
   race?: string | null;
 }
+
+export type ScannerStage =
+  | 'idle'
+  | 'object_detected'
+  | 'reading_ocr'
+  | 'fetching_card'
+  | 'card_found'
+  | 'not_found';
 
 interface CardCodeScannerModalProps {
   isOpen: boolean;
@@ -73,16 +82,19 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   const [maxHardwareZoom, setMaxHardwareZoom] = useState<number>(1.0);
   const [appliedHardwareZoom, setAppliedHardwareZoom] = useState<number>(1.0);
 
-  // Scanning & OCR State
-  const [isOcrProcessing, setIsOcrProcessing] = useState<boolean>(false);
+  // Scanning Stage & OCR State
+  const [scannerStage, setScannerStage] = useState<ScannerStage>('idle');
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [detectedCard, setDetectedCard] = useState<YgoDetectedCard | null>(null);
   const [loadingCard, setLoadingCard] = useState<boolean>(false);
   const [quantity, setQuantity] = useState<number>(1);
   const [lastRegisteredNotice, setLastRegisteredNotice] = useState<string | null>(null);
 
-  // Ref para debounce de estabilidad de 300ms al detectar un código nuevo
-  const pendingCodeRef = useRef<{ code: string; firstSeen: number } | null>(null);
+  // Refs para control estricto de concurrencia y descarte de tareas obsoletas (cero colas/buffer)
+  const isScanningRef = useRef<boolean>(false);
+  const currentScanIdRef = useRef<number>(0);
+  const detectedCardRef = useRef<YgoDetectedCard | null>(null);
+  detectedCardRef.current = detectedCard;
 
   // Stop camera tracks cleanly
   const stopStream = useCallback(() => {
@@ -213,10 +225,12 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     }
   };
 
-  // Fetch card details by 8-digit passcode
-  const fetchCardInfo = useCallback(async (code: string) => {
+  // Fetch card details by 8-digit passcode with generation cancellation check
+  const fetchCardInfo = useCallback(async (code: string, scanId: number) => {
     setLoadingCard(true);
     setCameraError('');
+    setScannerStage('fetching_card');
+
     try {
       const res = await fetch(`/api/cards?id=${encodeURIComponent(code)}`);
       if (!res.ok) {
@@ -225,20 +239,41 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       const json = await res.json();
       const cardData: YgoDetectedCard | undefined = json.data?.[0] || json.card;
 
+      // Si el escaneo fue cancelado o invalidado mientras se esperaba la red, no aplicar cambios
+      if (scanId !== currentScanIdRef.current) {
+        return;
+      }
+
       if (cardData && cardData.name) {
         setDetectedCard(cardData);
+        setScannerStage('card_found');
         setQuantity(1);
         // Haptic feedback
         if (typeof window !== 'undefined' && 'vibrate' in navigator) {
           navigator.vibrate([40, 50, 40]);
         }
       } else {
-        setCameraError(`Código detectado (#${code}), pero no coincide con ninguna carta en la base de datos.`);
+        setScannerStage('not_found');
+        setCameraError(`Código detectado (#${code}), pero no coincide con ninguna carta.`);
+        setTimeout(() => {
+          if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
+            setScannerStage('idle');
+          }
+        }, 2600);
       }
     } catch {
+      if (scanId !== currentScanIdRef.current) return;
+      setScannerStage('not_found');
       setCameraError(`Código (#${code}) no encontrado en el registro.`);
+      setTimeout(() => {
+        if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
+          setScannerStage('idle');
+        }
+      }, 2600);
     } finally {
-      setLoadingCard(false);
+      if (scanId === currentScanIdRef.current) {
+        setLoadingCard(false);
+      }
     }
   }, []);
 
@@ -303,9 +338,17 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     };
   }, [digitalZoomFactor]);
 
-  // Single OCR Scan Step with 300ms Debounce on new card detection
+  // Single OCR Scan Step with Strict Concurrency Lock, Presence Gate & Auto-Pause Guard
   const performScan = useCallback(async () => {
-    if (!videoRef.current || isOcrProcessing || loadingCard) return;
+    // Si ya hay carta detectada o escaneo en progreso o consulta de red activa, no ejecutar nada
+    if (
+      !videoRef.current ||
+      isScanningRef.current ||
+      loadingCard ||
+      detectedCardRef.current
+    ) {
+      return;
+    }
 
     const cropRect = getCropRect();
     if (!cropRect) return;
@@ -313,78 +356,89 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     const canvas = extractAndPreprocessViewfinder(videoRef.current, cropRect);
     if (!canvas) return;
 
-    setIsOcrProcessing(true);
-    try {
-      const match = await recognizeCardPasscode(canvas);
-      if (match && match.code) {
-        // Si es el mismo código que ya tenemos activo, reseteamos el pending y no cambiamos nada
-        if (match.code === scannedCode) {
-          pendingCodeRef.current = null;
-          return;
-        }
+    // 1. Detección Inteligente de Presencia (<1ms): descarta fondos lisos o movimiento borroso sin texto
+    const hasFeatures = hasCardVisualFeatures(canvas);
+    if (!hasFeatures) {
+      if (scannerStage !== 'idle' && !loadingCard && !detectedCardRef.current) {
+        setScannerStage('idle');
+      }
+      return;
+    }
 
-        const now = Date.now();
-        // Si no hay carta cargada actualmente, cargamos inmediatamente
-        if (!detectedCard) {
-          setScannedCode(match.code);
-          pendingCodeRef.current = null;
-          await fetchCardInfo(match.code);
-        } else {
-          // Si ya hay una carta en pantalla y leemos un código nuevo,
-          // aplicamos debounce de estabilidad de 300ms antes de cambiar
-          if (pendingCodeRef.current?.code === match.code) {
-            if (now - pendingCodeRef.current.firstSeen >= 300) {
-              setScannedCode(match.code);
-              pendingCodeRef.current = null;
-              await fetchCardInfo(match.code);
-            }
-          } else {
-            pendingCodeRef.current = { code: match.code, firstSeen: now };
-          }
-        }
+    // 2. Iniciar escaneo OCR con bloqueo single-flight y generation ID
+    const scanId = ++currentScanIdRef.current;
+    isScanningRef.current = true;
+    setScannerStage('object_detected');
+
+    try {
+      // Pequeña transición a lectura activa
+      setScannerStage('reading_ocr');
+      const match = await recognizeCardPasscode(canvas);
+
+      // Si el escaneo actual fue cancelado o invalidado por cambio de carta o registro, descartar de inmediato
+      if (scanId !== currentScanIdRef.current || detectedCardRef.current) {
+        return;
+      }
+
+      if (match && match.code) {
+        setScannedCode(match.code);
+        await fetchCardInfo(match.code, scanId);
       } else {
-        pendingCodeRef.current = null;
+        // Objeto presente pero sin dígitos claros en este fotograma
+        if (scanId === currentScanIdRef.current && !detectedCardRef.current) {
+          setScannerStage('object_detected');
+        }
       }
     } catch (e) {
       console.error('Error durante performScan:', e);
+      if (scanId === currentScanIdRef.current && !detectedCardRef.current) {
+        setScannerStage('idle');
+      }
     } finally {
-      setIsOcrProcessing(false);
+      if (scanId === currentScanIdRef.current) {
+        isScanningRef.current = false;
+      }
     }
-  }, [isOcrProcessing, loadingCard, getCropRect, scannedCode, detectedCard, fetchCardInfo]);
+  }, [loadingCard, getCropRect, fetchCardInfo, scannerStage]);
 
-  // Periodic scanner loop (continúa activo incluso si hay carta detectada para permitir detección automática de la siguiente)
+  // Bucle de escaneo periódico (SE DETIENE POR COMPLETO cuando una carta ya fue identificada o está consultando)
   useEffect(() => {
-    if (!isOpen || !stream || loadingCard) return;
+    if (!isOpen || !stream || loadingCard || detectedCard) return;
 
     const interval = setInterval(() => {
-      if (!isOcrProcessing && !loadingCard) {
+      if (!isScanningRef.current && !loadingCard && !detectedCardRef.current) {
         performScan();
       }
-    }, 400);
+    }, 500);
 
     return () => clearInterval(interval);
-  }, [isOpen, stream, loadingCard, isOcrProcessing, performScan]);
+  }, [isOpen, stream, loadingCard, detectedCard, performScan]);
 
-  // Manage open/close camera lifecycle
+  // Gestión de ciclo de vida de cámara y liberación completa de memoria de Worker al cerrar
   useEffect(() => {
     if (isOpen) {
       startCamera();
+      setScannerStage('idle');
     } else {
       stopStream();
+      terminateCardOcrWorker();
+      currentScanIdRef.current++;
+      isScanningRef.current = false;
       setDetectedCard(null);
       setScannedCode(null);
+      setScannerStage('idle');
       setCameraError('');
       setLastRegisteredNotice(null);
       setZoomLevel(1.0);
       setAppliedHardwareZoom(1.0);
-      pendingCodeRef.current = null;
     }
     return () => {
       stopStream();
+      terminateCardOcrWorker();
     };
   }, [isOpen]);
 
-  // Handle register action (mantiene el escáner activo para seguir agregando cartas)
+  // Handle register action (invalida escaneos anteriores y reanuda el escáner fresco)
   const handleRegister = () => {
     if (!detectedCard) return;
 
@@ -393,22 +447,81 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
     onCardRegistered(detectedCard, registeredQty);
 
+    // Invalidar tareas en vuelo y reiniciar estado
+    currentScanIdRef.current++;
+    isScanningRef.current = false;
     setLastRegisteredNotice(`+${registeredQty}x ${registeredName}`);
     setTimeout(() => setLastRegisteredNotice(null), 2500);
+
     setDetectedCard(null);
     setScannedCode(null);
+    setScannerStage('idle');
     setQuantity(1);
   };
 
-  // Reset to scan another card
+  // Reset/Cambiar carta para escanear otra
   const handleResetScan = () => {
+    currentScanIdRef.current++;
+    isScanningRef.current = false;
     setDetectedCard(null);
     setScannedCode(null);
     setCameraError('');
+    setScannerStage('idle');
     setQuantity(1);
   };
 
   if (!isOpen) return null;
+
+  // Clases visuales dinámicas para el visor reactivo
+  const getViewfinderStyles = () => {
+    switch (scannerStage) {
+      case 'object_detected':
+        return {
+          box: 'border-amber-500/90 bg-amber-500/10 shadow-[0_0_25px_rgba(245,158,11,0.35)]',
+          corners: 'border-amber-400',
+          laserGradient: 'via-amber-400 shadow-[0_0_8px_#fbbf24]',
+          showLaser: true,
+        };
+      case 'reading_ocr':
+        return {
+          box: 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_25px_rgba(6,182,212,0.4)]',
+          corners: 'border-cyan-400',
+          laserGradient: 'via-cyan-400 shadow-[0_0_12px_#22d3ee]',
+          showLaser: true,
+        };
+      case 'fetching_card':
+        return {
+          box: 'border-blue-500 bg-blue-500/10 shadow-[0_0_25px_rgba(59,130,246,0.35)]',
+          corners: 'border-blue-400',
+          laserGradient: 'via-blue-400',
+          showLaser: false,
+        };
+      case 'card_found':
+        return {
+          box: 'border-emerald-500 bg-emerald-500/10 shadow-[0_0_30px_rgba(16,185,129,0.4)]',
+          corners: 'border-emerald-400',
+          laserGradient: 'via-emerald-400',
+          showLaser: false,
+        };
+      case 'not_found':
+        return {
+          box: 'border-red-500 bg-red-500/10 shadow-[0_0_25px_rgba(239,68,68,0.35)]',
+          corners: 'border-red-400',
+          laserGradient: 'via-red-400',
+          showLaser: false,
+        };
+      case 'idle':
+      default:
+        return {
+          box: 'border-zinc-700/80 bg-zinc-950/20 shadow-[0_0_15px_rgba(113,113,122,0.15)]',
+          corners: 'border-zinc-500',
+          laserGradient: 'via-zinc-400/70 shadow-[0_0_8px_rgba(212,212,216,0.4)]',
+          showLaser: true,
+        };
+    }
+  };
+
+  const vfStyles = getViewfinderStyles();
 
   return (
     <AnimatePresence>
@@ -455,7 +568,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => startCamera(activeDeviceId)}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
                 >
                   Reintentar Permisos
                 </button>
@@ -483,22 +596,26 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   {/* Horizontal strip target container (+10% en cada dirección) */}
                   <div
                     ref={viewfinderRef}
-                    className="relative z-10 w-80 max-w-[90%] h-24 rounded-2xl border-2 border-red-500/80 bg-red-500/5 shadow-[0_0_25px_rgba(239,68,68,0.25)] flex items-center justify-center overflow-hidden"
+                    className={`relative z-10 w-80 max-w-[90%] h-24 rounded-2xl border-2 transition-colors duration-200 flex items-center justify-center overflow-hidden ${vfStyles.box}`}
                   >
                     {/* Laser scanning line animation */}
-                    {!detectedCard && (
+                    {vfStyles.showLaser && (
                       <motion.div
                         animate={{ y: [-42, 42, -42] }}
-                        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-                        className="absolute inset-x-0 h-0.5 bg-linear-to-r from-transparent via-red-400 to-transparent shadow-[0_0_8px_#f87171]"
+                        transition={{
+                          duration: scannerStage === 'reading_ocr' ? 1.0 : 1.8,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                        }}
+                        className={`absolute inset-x-0 h-0.5 bg-linear-to-r from-transparent ${vfStyles.laserGradient} to-transparent`}
                       />
                     )}
 
                     {/* Corner accent guides */}
-                    <div className="absolute top-1 left-1 w-3 h-3 border-t-2 border-l-2 border-red-400" />
-                    <div className="absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 border-red-400" />
-                    <div className="absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 border-red-400" />
-                    <div className="absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 border-red-400" />
+                    <div className={`absolute top-1 left-1 w-3 h-3 border-t-2 border-l-2 transition-colors ${vfStyles.corners}`} />
+                    <div className={`absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 transition-colors ${vfStyles.corners}`} />
+                    <div className={`absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 transition-colors ${vfStyles.corners}`} />
+                    <div className={`absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 transition-colors ${vfStyles.corners}`} />
                   </div>
 
                   <p className="relative z-10 text-[11px] text-zinc-300 font-medium mt-3 bg-zinc-950/80 backdrop-blur-xs px-3 py-1 rounded-full border border-zinc-800 shadow-md">
@@ -553,23 +670,38 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   )}
                 </div>
 
-                {/* Status Indicator */}
-                <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-zinc-800 text-[11px] font-mono">
-                  {loadingCard ? (
-                    <>
-                      <Loader2 className="w-3 h-3 animate-spin text-red-400" />
-                      <span className="text-red-300">Consultando carta #{scannedCode}...</span>
-                    </>
-                  ) : isOcrProcessing ? (
-                    <>
-                      <ScanLine className="w-3 h-3 animate-pulse text-cyan-400" />
-                      <span className="text-cyan-300">Analizando números...</span>
-                    </>
+                {/* Granular Reactive Status Indicator Pill */}
+                <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+                  {scannerStage === 'fetching_card' || loadingCard ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/90 border border-blue-500/50 text-[11px] font-mono text-blue-300 shadow-md">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                      <span>Consultando carta #{scannedCode || '...'}</span>
+                    </div>
+                  ) : scannerStage === 'reading_ocr' ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-500/50 text-[11px] font-mono text-cyan-300 shadow-md">
+                      <ScanLine className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
+                      <span>Leyendo código de 8 dígitos...</span>
+                    </div>
+                  ) : scannerStage === 'object_detected' ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/90 border border-amber-500/50 text-[11px] font-mono text-amber-300 shadow-md">
+                      <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                      <span>Objeto detectado • Enfocando...</span>
+                    </div>
+                  ) : scannerStage === 'card_found' ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/90 border border-emerald-500/60 text-[11px] font-mono text-emerald-300 shadow-md">
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>¡Carta identificada!</span>
+                    </div>
+                  ) : scannerStage === 'not_found' ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/90 border border-red-500/50 text-[11px] font-mono text-red-300 shadow-md">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                      <span>Código no registrado</span>
+                    </div>
                   ) : (
-                    <>
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                      <span className="text-zinc-300">Buscando código...</span>
-                    </>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-zinc-800 text-[11px] font-mono text-zinc-300 shadow-md">
+                      <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                      <span>Esperando carta en el visor...</span>
+                    </div>
                   )}
                 </div>
 
@@ -603,7 +735,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             {detectedCard ? (
               <div className="flex flex-col gap-3">
                 {/* Detected Card Details Badge */}
-                <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-zinc-950 border border-red-500/40 shadow-md">
+                <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-zinc-950 border border-emerald-500/40 shadow-md">
                   <div className="relative w-12 h-16 shrink-0 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900">
                     <Image
                       src={detectedCard.image_url_small || detectedCard.image_url}
@@ -616,7 +748,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-red-950 text-red-400 border border-red-900/60">
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-900/60">
                         #{detectedCard.id}
                       </span>
                       <span className="text-[10px] text-zinc-400 truncate">
@@ -633,7 +765,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     )}
                   </div>
 
-                  {/* Quick Reset */}
+                  {/* Quick Reset / Discard to scan another */}
                   <button
                     type="button"
                     onClick={handleResetScan}
@@ -684,15 +816,21 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             ) : (
               <div className="flex items-center justify-between gap-2 pt-1">
                 <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-mono">
-                  <Layers className="w-3.5 h-3.5 text-red-500" />
-                  <span>Escáner activo</span>
+                  <div className={`w-2 h-2 rounded-full ${scannerStage === 'idle' ? 'bg-red-500' : 'bg-emerald-500'} animate-pulse`} />
+                  <span>
+                    {scannerStage === 'reading_ocr'
+                      ? 'Procesando lectura...'
+                      : scannerStage === 'object_detected'
+                      ? 'Carta en visor'
+                      : 'Escáner en espera'}
+                  </span>
                 </div>
 
                 {/* Manual Trigger Scan button */}
                 <button
                   type="button"
                   onClick={performScan}
-                  disabled={isOcrProcessing || loadingCard}
+                  disabled={isScanningRef.current || loadingCard}
                   className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-red-400" />

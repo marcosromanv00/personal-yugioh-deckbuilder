@@ -44,6 +44,42 @@ export interface ViewfinderCropRect {
 }
 
 /**
+ * Analiza rápidamente (<1ms) si el canvas preprocesado contiene características
+ * visuales de texto/bordes (varianza de contraste suficiente) antes de invocar
+ * el motor pesado de OCR Tesseract.js.
+ */
+export function hasCardVisualFeatures(canvas: HTMLCanvasElement): boolean {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx || canvas.width <= 0 || canvas.height <= 0) return false;
+
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imgData.data;
+  const totalPixels = data.length / 4;
+  if (totalPixels === 0) return false;
+
+  // Tomamos una muestra uniforme cada 4 píxeles para máxima velocidad (<0.5ms)
+  let sum = 0;
+  let sumSq = 0;
+  let sampleCount = 0;
+
+  for (let i = 0; i < data.length; i += 16) {
+    const lum = data[i]; // Ya está en escala de grises
+    sum += lum;
+    sumSq += lum * lum;
+    sampleCount++;
+  }
+
+  if (sampleCount === 0) return false;
+
+  const mean = sum / sampleCount;
+  const variance = sumSq / sampleCount - mean * mean;
+  const stdDev = Math.sqrt(Math.max(0, variance));
+
+  // Si la desviación estándar es muy baja (<25), el área es completamente plana/uniforme sin dígitos legibles
+  return stdDev > 25;
+}
+
+/**
  * Recorta la franja del visor desde el elemento <video> y aplica un preprocesamiento
  * de estiramiento de contraste y escala de grises para maximizar la nitidez de los dígitos.
  */
@@ -64,8 +100,8 @@ export function extractAndPreprocessViewfinder(
   if (sw <= 10 || sh <= 10) return null;
 
   const canvas = document.createElement('canvas');
-  // Escalamos 2.5x para mejorar la resolución de lectura de fuentes pequeñas
-  const scale = 2.5;
+  // Escalamos 2.0x para balance óptimo entre nitidez de dígitos y consumo ligero de CPU/RAM
+  const scale = 2.0;
   canvas.width = Math.round(sw * scale);
   canvas.height = Math.round(sh * scale);
 
