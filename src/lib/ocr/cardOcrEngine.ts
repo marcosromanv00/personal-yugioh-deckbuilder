@@ -109,8 +109,8 @@ export function extractAndPreprocessViewfinder(
 }
 
 /**
- * Escanea el canvas preprocesado con Tesseract y busca un código de 8 dígitos continuo.
- * Retorna el código de 8 dígitos si se encuentra, o null si aún no coincide con confianza.
+ * Escanea el canvas preprocesado con Tesseract y busca un código de 8 dígitos continuo,
+ * ignorando automáticamente textos como '1st Edition', 'Limited Edition' y ruidos del borde.
  */
 export async function recognizeCardPasscode(
   canvas: HTMLCanvasElement
@@ -120,24 +120,35 @@ export async function recognizeCardPasscode(
     const result = await worker.recognize(canvas);
     const rawText = result.data.text || '';
 
-    // 1. Buscar coincidencia directa de 8 dígitos
-    const match8 = rawText.match(/\b\d{8}\b/);
-    if (match8) {
-      return { code: match8[0], rawText };
+    // 1. Limpieza de textos y frases comunes en el borde de cartas Yu-Gi-Oh! (1st Edition, Limited, etc.)
+    const cleanedText = rawText
+      .replace(/\b1\s*(?:st|ST|St)?\b/gi, ' ') // "1st", "1ST", "1 st"
+      .replace(/\b(?:edition|limited|unlimited|kazuki|takahashi|konami|studio|dice|shueisha|tv|tokyo)\b/gi, ' ');
+
+    // 2. Buscar un bloque exacto de 8 dígitos aislado (evita confundir el "1" de "1st")
+    const match8 = cleanedText.match(/(?:^|\D)(\d{8})(?:\D|$)/) || rawText.match(/(?:^|\D)(\d{8})(?:\D|$)/);
+    if (match8 && match8[1]) {
+      return { code: match8[1], rawText };
     }
 
-    // 2. Extraer todos los dígitos limpios
-    const digitsOnly = rawText.replace(/\D/g, '');
-    
-    // Si los dígitos limpios tienen exactamente 8 números
-    if (digitsOnly.length === 8) {
-      return { code: digitsOnly, rawText };
+    // 3. Extraer dígitos limpios tras eliminar palabras clave
+    const cleanedDigits = cleanedText.replace(/\D/g, '');
+    if (cleanedDigits.length === 8) {
+      return { code: cleanedDigits, rawText };
     }
 
-    // Si tiene entre 8 y 10 dígitos (por ruidos en los bordes)
-    if (digitsOnly.length >= 8 && digitsOnly.length <= 10) {
-      const candidate = digitsOnly.slice(0, 8);
-      return { code: candidate, rawText };
+    // 4. Si los dígitos tienen 9 caracteres y empiezan por "1" (residuo del "1" en "1st Edition")
+    const rawDigits = rawText.replace(/\D/g, '');
+    if (rawDigits.length === 9 && rawDigits.startsWith('1')) {
+      return { code: rawDigits.slice(1), rawText };
+    }
+
+    // 5. Si tiene entre 8 y 10 dígitos, tomar el bloque de 8 dígitos más coherente (preferir últimos 8 si empieza con 1)
+    if (rawDigits.length >= 8 && rawDigits.length <= 10) {
+      if (rawDigits.startsWith('1') && rawDigits.length > 8) {
+        return { code: rawDigits.slice(-8), rawText };
+      }
+      return { code: rawDigits.slice(0, 8), rawText };
     }
 
     return null;
