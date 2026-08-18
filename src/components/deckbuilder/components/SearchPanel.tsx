@@ -252,6 +252,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
 
   const [activeTab, setActiveTab] = useState<'search' | 'bulk'>('search');
+  // Sub-mode for bulk tab: ydk = file/.ydk/names, ids = raw numeric IDs
+  const [bulkMode, setBulkMode] = useState<'ydk' | 'ids'>('ydk');
   const [bulkText, setBulkText] = useState('');
   const [analyzingBulk, setAnalyzingBulk] = useState(false);
   const [bulkSuccessMsg, setBulkSuccessMsg] = useState('');
@@ -561,30 +563,66 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
           {activeTab === 'bulk' ? (
             <div className="space-y-3 p-1">
-              <div className="border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 rounded-xl p-3 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
-                <input
-                  type="file"
-                  accept=".ydk,.txt"
-                  onChange={handleFileUpload}
-                  id="search-bulk-file-input"
-                  className="hidden"
-                />
-                <label htmlFor="search-bulk-file-input" className="cursor-pointer flex flex-col items-center justify-center">
-                  <Upload className="w-5 h-5 text-red-600 dark:text-red-500 mb-1" />
-                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                    {fileName ? fileName : 'Subir archivo .ydk o .txt'}
-                  </span>
-                  <span className="text-[10px] text-zinc-400">Archivos YDK o texto con IDs/nombres</span>
-                </label>
+
+              {/* Sub-switch: .ydk/Nombre vs IDs */}
+              <div className="grid grid-cols-2 gap-0.5 p-0.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => { setBulkMode('ydk'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
+                  className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                    bulkMode === 'ydk'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-3 h-3" />
+                  <span>.YDK / Nombre</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBulkMode('ids'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
+                  className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                    bulkMode === 'ids'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <span>#</span>
+                  <span>IDs Numéricos</span>
+                </button>
               </div>
+
+              {bulkMode === 'ydk' && (
+                <div className="border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 rounded-xl p-3 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
+                  <input
+                    type="file"
+                    accept=".ydk,.txt"
+                    onChange={handleFileUpload}
+                    id="search-bulk-file-input"
+                    className="hidden"
+                  />
+                  <label htmlFor="search-bulk-file-input" className="cursor-pointer flex flex-col items-center justify-center">
+                    <Upload className="w-5 h-5 text-red-600 dark:text-red-500 mb-1" />
+                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      {fileName ? fileName : 'Subir archivo .ydk o .txt'}
+                    </span>
+                    <span className="text-[10px] text-zinc-400">Archivos YDK o texto con IDs/nombres</span>
+                  </label>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
-                  O pega lista de nombres, IDs o formato YDK:
+                  {bulkMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega lista de nombres, IDs o formato YDK:'}
                 </label>
                 <textarea
                   rows={5}
-                  placeholder="Ejemplos:&#10;3x Ash Blossom & Joyous Spring&#10;2x Infinite Impermanence&#10;89631139&#10;#main&#10;46986414"
+                  inputMode={bulkMode === 'ids' ? 'numeric' : 'text'}
+                  placeholder={
+                    bulkMode === 'ids'
+                      ? '89631139\n46986414\n24094653\n14558127'
+                      : 'Ejemplos:\n3x Ash Blossom & Joyous Spring\n2x Infinite Impermanence\n#main\n46986414'
+                  }
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
@@ -759,6 +797,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             <div className="relative flex-1">
               <input
                 type="text"
+                inputMode={/^\d+$/.test(localQuery.trim()) && localQuery.trim().length > 0 ? 'numeric' : 'search'}
                 placeholder={searchScope === 'staged' ? "Buscar por nombre o ID..." : searchScope === 'collection' ? "Buscar en mi colección (nombre o ID)..." : "Nombre o ID de carta (ej: 89631139)..."}
                 value={localQuery}
                 onChange={(e) => setLocalQuery(e.target.value)}

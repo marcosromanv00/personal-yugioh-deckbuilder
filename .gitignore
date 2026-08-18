@@ -47,4 +47,7 @@ next-env.d.ts
 # UX audit & local research (not for version control)
 /ux-audit/
 
+# Code quality audit & refactor plans (not for version control)
+/.audit/
+
 .vercel

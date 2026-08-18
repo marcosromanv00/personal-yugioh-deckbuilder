@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, FileText, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Upload, FileText, Check, AlertCircle, Loader2, Hash } from 'lucide-react';
 
 interface YdkUploadModalProps {
   isOpen: boolean;
@@ -12,6 +12,8 @@ interface YdkUploadModalProps {
 }
 
 export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose, onSuccess, onImportToDeck }) => {
+  // Sub-mode: 'ydk' = .ydk file / names, 'ids' = raw numeric IDs
+  const [importMode, setImportMode] = useState<'ydk' | 'ids'>('ydk');
   const [ydkText, setYdkText] = useState('');
   const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -99,32 +101,68 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* File Dropzone */}
-            <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-cyan-500 rounded-2xl p-6 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
-              <input
-                type="file"
-                accept=".ydk,.txt"
-                onChange={handleFileUpload}
-                id="ydk-file-input"
-                className="hidden"
-              />
-              <label htmlFor="ydk-file-input" className="cursor-pointer flex flex-col items-center">
-                <FileText className="w-8 h-8 text-cyan-600 dark:text-cyan-400 mb-2" />
-                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                  {fileName ? fileName : 'Haz clic para seleccionar tu archivo .ydk'}
-                </span>
-                <span className="text-[10px] text-zinc-400 mt-1">Soporta formatos estándar .ydk de YGOPRODeck</span>
-              </label>
+
+            {/* Sub-switch: .YDK / Nombre vs IDs Numéricos */}
+            <div className="grid grid-cols-2 gap-0.5 p-0.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => { setImportMode('ydk'); setYdkText(''); setFileName(''); }}
+                className={`py-1.5 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  importMode === 'ydk'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>.YDK / Nombre</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setImportMode('ids'); setYdkText(''); setFileName(''); }}
+                className={`py-1.5 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  importMode === 'ids'
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                <Hash className="w-3.5 h-3.5" />
+                <span>IDs Numéricos</span>
+              </button>
             </div>
+
+            {/* File Dropzone — only shown in ydk mode */}
+            {importMode === 'ydk' && (
+              <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-cyan-500 rounded-2xl p-6 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
+                <input
+                  type="file"
+                  accept=".ydk,.txt"
+                  onChange={handleFileUpload}
+                  id="ydk-file-input"
+                  className="hidden"
+                />
+                <label htmlFor="ydk-file-input" className="cursor-pointer flex flex-col items-center">
+                  <FileText className="w-8 h-8 text-cyan-600 dark:text-cyan-400 mb-2" />
+                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                    {fileName ? fileName : 'Haz clic para seleccionar tu archivo .ydk'}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 mt-1">Soporta formatos estándar .ydk de YGOPRODeck</span>
+                </label>
+              </div>
+            )}
 
             {/* Paste Text Fallback */}
             <div>
               <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
-                O pega el contenido .ydk aquí:
+                {importMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega el contenido .ydk aquí:'}
               </label>
               <textarea
                 rows={4}
-                placeholder="#main&#10;46986414&#10;#extra&#10;44508094&#10;!side"
+                inputMode={importMode === 'ids' ? 'numeric' : 'text'}
+                placeholder={
+                  importMode === 'ids'
+                    ? '89631139\n46986414\n24094653\n14558127'
+                    : '#main\n46986414\n#extra\n44508094\n!side'
+                }
                 value={ydkText}
                 onChange={(e) => setYdkText(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
