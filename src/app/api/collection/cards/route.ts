@@ -232,6 +232,38 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: true, count: updatedCards?.length || 0 });
     }
 
+    // Caso especial: Mover lote de cartas por IDs hacia un contenedor / carril específico (Pick-List / Unificación)
+    if (body.action === 'batch_move' && Array.isArray(body.card_ids) && body.card_ids.length > 0) {
+      const targetLoc = body.target_storage_location_id === undefined ? null : body.target_storage_location_id;
+      const targetComp = body.target_compartment_index ?? 0;
+      const targetStatus = body.target_status_flag;
+
+      if (!isSupabaseConfigured) {
+        return NextResponse.json({ success: true, message: 'Modo demo: Lote de cartas reubicado', count: body.card_ids.length });
+      }
+
+      const updateData: Record<string, unknown> = {
+        storage_location_id: targetLoc,
+        compartment_index: targetComp,
+        deck_id: null,
+        deck_section: null,
+        binder_page: null,
+        binder_slot: null,
+      };
+      if (targetStatus) {
+        updateData.status_flag = targetStatus;
+      }
+
+      const { data: updatedCards, error: batchError } = await supabase
+        .from('yg_user_cards')
+        .update(updateData)
+        .in('id', body.card_ids)
+        .select('id');
+
+      if (batchError) throw batchError;
+      return NextResponse.json({ success: true, count: updatedCards?.length || 0 });
+    }
+
     if (!id) {
       return NextResponse.json({ error: 'ID de registro de carta es obligatorio' }, { status: 400 });
     }
