@@ -32,7 +32,7 @@ import { StorageFormModal } from '@/components/collection/StorageFormModal';
 import { SmartOrganizeModal } from '@/components/collection/SmartOrganizeModal';
 import { SleevingAdvisorModal } from '@/components/collection/SleevingAdvisorModal';
 import { SleeveInventoryFormModal } from '@/components/collection/SleeveInventoryFormModal';
-import { DeckDetailsModal } from '@/components/collection/DeckDetailsModal';
+import { UniversalDeckWorkspaceModal } from '@/components/collection/UniversalDeckWorkspaceModal';
 import { EnvironmentSwitcher } from '@/components/collection/EnvironmentSwitcher';
 import { Deck } from '@/types/collection';
 
@@ -104,6 +104,14 @@ export default function CollectionPage() {
               <span>📦</span>
               <span className="hidden sm:inline">Colección</span>
             </button>
+            <Link
+              href="/knowledge"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+              title="Banco de Reglas e Interpretaciones del Agente"
+            >
+              <span>🧠</span>
+              <span className="hidden sm:inline">Banco de Reglas</span>
+            </Link>
           </div>
 
           {/* ACCIONES SUPERIORES */}
@@ -348,7 +356,7 @@ export default function CollectionPage() {
         editingSleeve={state.editingSleeve}
       />
 
-      <DeckDetailsModal
+      <UniversalDeckWorkspaceModal
         key={selectedDeck?.id || 'none'}
         deck={selectedDeck}
         isOpen={isDeckDetailsOpen}
@@ -356,8 +364,10 @@ export default function CollectionPage() {
           setIsDeckDetailsOpen(false);
           setSelectedDeck(null);
         }}
+        onSelectDeck={(d) => setSelectedDeck(d)}
         locations={state.locations}
         decks={state.decks}
+        sleeves={state.sleeves}
         onSuccess={state.fetchCollectionDataSilently}
       />
     </div>

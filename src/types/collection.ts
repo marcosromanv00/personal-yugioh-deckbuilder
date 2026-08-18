@@ -26,6 +26,7 @@ export interface GridLayout {
 export interface CompartmentsConfig {
   count: number;
   names: string[];
+  deck_ids?: (string | null)[];
 }
 
 export interface StorageLocation {
@@ -55,7 +56,7 @@ export interface UserCard {
   card_id: number;
   storage_location_id: string | null; // null = Unsorted Inbox
   deck_id?: string | null;
-  deck_section?: 'main' | 'extra' | 'side' | null;
+  deck_section?: 'main' | 'extra' | 'side' | 'pool' | null;
   compartment_index: number;
   binder_page?: number;
   binder_slot?: number;

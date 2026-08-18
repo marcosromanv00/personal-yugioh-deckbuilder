@@ -18,18 +18,38 @@ import {
   ChevronRight,
   Plus,
   AlertCircle,
-  ArrowUpDown
+  ArrowUpDown,
+  CheckCircle2,
+  ShieldCheck,
+  Package,
+  Tag,
+  ArrowRight,
+  TrendingUp,
+  Compass,
+  Filter,
+  ChevronDown,
+  Swords,
+  Link2,
+  Unlink,
+  Settings
 } from 'lucide-react';
-import { StorageLocation, UserCard, SleeveInventory, Deck } from '@/types/collection';
+import { StorageLocation, UserCard, SleeveInventory, Deck, CompartmentsConfig } from '@/types/collection';
 import { Card, HoverCardBase } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { SearchPanel } from '@/components/deckbuilder/components/SearchPanel';
 import { PhysicalCardPickerModal } from './PhysicalCardPickerModal';
+import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
 import { getSleeveColorHex } from '@/lib/sleeves';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePanelResize } from '@/components/deckbuilder/hooks/usePanelResize';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
+import { 
+  analyzeCardClassification, 
+  analyzeLanePatterns, 
+  analyzeGlobalCollectionPatterns,
+  BestRecommendation 
+} from '@/lib/cardClassificationEngine';
 
 
 interface UniversalContainerWorkspaceModalProps {
@@ -49,6 +69,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   location,
   locations = [],
   onSelectLocation,
+  sleeves = [],
+  decks = [],
+  onDeckClick,
 }) => {
   const { theme } = useTheme();
   const toast = useToast();
@@ -99,16 +122,217 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   // Click-to-place / Selected search card
   const [selectedSearchCard, setSelectedSearchCard] = useState<Card | null>(null);
 
+  // Estado local del contenedor activo (para reflejar actualizaciones en tiempo real)
+  const [currentLocation, setCurrentLocation] = useState<StorageLocation | null>(location);
+  useEffect(() => {
+    setCurrentLocation(location);
+  }, [location]);
+
+  // Modal de Asignación de Mazos a Carriles
+  const [isAssignDeckModalOpen, setIsAssignDeckModalOpen] = useState(false);
+  const [assignCompartmentIdx, setAssignCompartmentIdx] = useState<number>(0);
+  const [selectedDeckIdToAssign, setSelectedDeckIdToAssign] = useState<string>('');
+  const [shouldMoveCardsOnAssign, setShouldMoveCardsOnAssign] = useState<boolean>(true);
+  const [shouldRenameCompartmentOnAssign, setShouldRenameCompartmentOnAssign] = useState<boolean>(false);
+  const [isAssigningDeck, setIsAssigningDeck] = useState<boolean>(false);
+
   // Panel derecho: Carta activa para edición/inspección
   const [selectedUserCard, setSelectedUserCard] = useState<UserCard | null>(null);
+  
+  // Modo del Panel Derecho: 'details' (Detalles / Copias) vs 'analysis' (Análisis IA & Patrones)
+  const [rightMode, setRightMode] = useState<'details' | 'analysis'>('details');
+  const [aiSubView, setAiSubView] = useState<'lane' | 'card' | 'collection'>('lane');
+
+  // Filtro por cluster/patrón detectado en el carril
+  const [activeClusterFilter, setActiveClusterFilter] = useState<string | null>(null);
+
+  // Contexto global de colección para precisión analítica
+  const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
+  const [internalDecks, setInternalDecks] = useState<Deck[]>(decks || []);
+
+  useEffect(() => {
+    if (decks && decks.length > 0) {
+      setInternalDecks(decks);
+    }
+  }, [decks]);
+
+  useEffect(() => {
+    if (isOpen) {
+      let isMounted = true;
+      const fetchGlobalContext = async () => {
+        try {
+          const [cardsRes, decksRes] = await Promise.all([
+            fetch('/api/collection/cards'),
+            fetch('/api/decks')
+          ]);
+          if (cardsRes.ok && isMounted) {
+            const json = await cardsRes.json();
+            setAllCollectionCards(json.data || []);
+          }
+          if (decksRes.ok && isMounted) {
+            const json = await decksRes.json();
+            setInternalDecks(json.data || []);
+          }
+        } catch (e) {
+          console.warn('Error loading global collection context:', e);
+        }
+      };
+      fetchGlobalContext();
+      return () => { isMounted = false; };
+    }
+  }, [isOpen]);
 
   // Paginación y filtros internos del contenedor (panel central)
   const [containerSearch, setContainerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('registration_asc');
   const [activeCompartment, setActiveCompartment] = useState<number>(-1);
+  const [selectedDeckFilter, setSelectedDeckFilter] = useState<string>('all');
   const [currentGridPage, setCurrentGridPage] = useState(1);
   const [currentBinderViewIndex, setCurrentBinderViewIndex] = useState(0);
+
+  // Decks detectados físicamente en las cartas de este contenedor
+  const decksInContainer = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; format?: string; totalCards: number; countInContainer: number; compartments: Set<number> }>();
+    cards.forEach(c => {
+      if (c.deck_id) {
+        const targetDeck = internalDecks.find(d => d.id === c.deck_id);
+        const dName = c.deck_details?.name || targetDeck?.name || 'Mazo';
+        const existing = map.get(c.deck_id) || {
+          id: c.deck_id,
+          name: dName,
+          format: targetDeck?.format,
+          totalCards: (targetDeck?.cards || []).reduce((sum, cd) => sum + cd.count, 0),
+          countInContainer: 0,
+          compartments: new Set<number>()
+        };
+        existing.countInContainer += (c.quantity || 1);
+        existing.compartments.add(c.compartment_index || 0);
+        map.set(c.deck_id, existing);
+      }
+    });
+    return Array.from(map.values());
+  }, [cards, internalDecks]);
+
+  // Mazos presentes en el carril activo (o todos si activeCompartment === -1)
+  const decksInActiveLane = useMemo(() => {
+    if (activeCompartment === -1) return decksInContainer;
+    return decksInContainer.filter(d => d.compartments.has(activeCompartment));
+  }, [decksInContainer, activeCompartment]);
+
+  // Conteo total de cartas físicas en el contenedor
+  const totalPhysicalCards = useMemo(() => {
+    return cards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  }, [cards]);
+
+  // Cartas del carril activo
+  const activeLaneCards = useMemo(() => {
+    if (activeCompartment === -1) return cards;
+    return cards.filter(c => (c.compartment_index || 0) === activeCompartment);
+  }, [cards, activeCompartment]);
+
+  // Opciones para el filtro de mazos
+  const deckFilterOptions = useMemo<DropdownOption<string>[]>(() => {
+    const opts: DropdownOption<string>[] = [
+      {
+        value: 'all',
+        label: activeCompartment === -1 ? 'Todos los mazos' : 'Mazos en este carril',
+        badge: activeCompartment === -1 ? decksInContainer.length : decksInActiveLane.length,
+        icon: <Swords className="w-3.5 h-3.5 text-red-500" />
+      }
+    ];
+    decksInActiveLane.forEach(d => {
+      opts.push({
+        value: d.id,
+        label: d.name,
+        badge: `${d.countInContainer}`,
+        icon: <Swords className="w-3.5 h-3.5 text-amber-500" />,
+        description: `${d.countInContainer} de ${d.totalCards} cartas físicas`
+      });
+    });
+    opts.push({
+      value: 'unassigned',
+      label: 'Sin mazo (Cartas sueltas)',
+      icon: <Package className="w-3.5 h-3.5 text-zinc-400" />
+    });
+    return opts;
+  }, [activeCompartment, decksInContainer, decksInActiveLane]);
+
+  // Opciones para el filtro de estado
+  const statusFilterOptions: DropdownOption<string>[] = useMemo(() => [
+    { value: 'all', label: 'Todos los estados' },
+    { value: 'collection', label: 'En Colección', icon: <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> },
+    { value: 'trade_sale', label: 'Venta / Trade', icon: <Tag className="w-3.5 h-3.5 text-amber-500" /> },
+    { value: 'bulk', label: 'Bulk (Sobrantes)', icon: <Package className="w-3.5 h-3.5 text-zinc-400" /> },
+    { value: 'workshop', label: 'Taller / Activo', icon: <Settings className="w-3.5 h-3.5 text-purple-500" /> },
+  ], []);
+
+  // Opciones para el filtro de ordenamiento
+  const sortOptions: DropdownOption<string>[] = useMemo(() => [
+    { value: 'registration_asc', label: 'Registro (1º → N)', icon: <ArrowUpDown className="w-3.5 h-3.5 text-red-500" /> },
+    { value: 'registration_desc', label: 'Recientes primero', icon: <ArrowUpDown className="w-3.5 h-3.5 text-red-500" /> },
+    { value: 'name_asc', label: 'Nombre (A → Z)' },
+    { value: 'name_desc', label: 'Nombre (Z → A)' },
+    { value: 'id_asc', label: 'Passcode ID (0 → 9)' },
+    { value: 'type', label: 'Tipo de Carta' },
+  ], []);
+
+  // Opciones para el dropdown de carriles (> 5 carriles)
+  const carrilDropdownOptions = useMemo<DropdownOption<number>[]>(() => {
+    const loc = currentLocation || location;
+    if (!loc?.compartments) return [];
+    const opts: DropdownOption<number>[] = [
+      {
+        value: -1,
+        label: 'Todos los carriles',
+        badge: totalPhysicalCards,
+        icon: <Layers className="w-3.5 h-3.5 text-purple-500" />
+      }
+    ];
+    loc.compartments.names.forEach((compName, idx) => {
+      const compCount = cards.filter(c => (c.compartment_index || 0) === idx).reduce((sum, c) => sum + (c.quantity || 1), 0);
+      const laneDecks = decksInContainer.filter(d => d.compartments.has(idx));
+      const deckSummary = laneDecks.length > 0 ? `${laneDecks.length} mazo(s): ${laneDecks.map(d => d.name).join(', ')}` : undefined;
+      opts.push({
+        value: idx,
+        label: compName || `Carril ${idx + 1}`,
+        badge: compCount,
+        description: deckSummary,
+        icon: <Box className="w-3.5 h-3.5 text-purple-400" />
+      });
+    });
+    return opts;
+  }, [currentLocation, location, totalPhysicalCards, cards, decksInContainer]);
+
+  // Diagnóstico y clasificación en tiempo real de la carta activa
+  const classificationReport = useMemo(() => {
+    if (!selectedUserCard) return null;
+    return analyzeCardClassification(
+      selectedUserCard,
+      allCollectionCards.length > 0 ? allCollectionCards : cards,
+      internalDecks.length > 0 ? internalDecks : (decks || []),
+      locations
+    );
+  }, [selectedUserCard, allCollectionCards, cards, internalDecks, decks, locations]);
+
+  // Análisis de patrones del carril activo
+  const lanePatternReport = useMemo(() => {
+    return analyzeLanePatterns(
+      activeLaneCards,
+      allCollectionCards.length > 0 ? allCollectionCards : cards,
+      internalDecks.length > 0 ? internalDecks : (decks || []),
+      locations
+    );
+  }, [activeLaneCards, allCollectionCards, cards, internalDecks, decks, locations]);
+
+  // Análisis global de toda la colección
+  const globalCollectionReport = useMemo(() => {
+    return analyzeGlobalCollectionPatterns(
+      allCollectionCards.length > 0 ? allCollectionCards : cards,
+      internalDecks.length > 0 ? internalDecks : (decks || []),
+      locations
+    );
+  }, [allCollectionCards, cards, internalDecks, decks, locations]);
 
   // Importación YDK / Bulk
   const [ydkText, setYdkText] = useState('');
@@ -186,15 +410,16 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   const containerType = isInbox ? 'box' : (location?.type || 'box');
 
   const { isIdealMode, syncData } = useIdealEnvironment();
+  const selectedUserCardIdRef = React.useRef<string | null>(null);
+  selectedUserCardIdRef.current = selectedUserCard?.id || null;
 
-  // Cargar cartas de este contenedor específico
+  // Cargar cartas de este contenedor específico de forma estable
   const fetchCards = useCallback(async () => {
     if (!isOpen) return;
     setLoading(true);
     try {
       if (isIdealMode && syncData?.idealCards) {
         const physicalLocId = (location as { physical_storage_location_id?: string } | null)?.physical_storage_location_id;
-
         const targetId = location?.id;
 
         const filtered = (syncData.idealCards as UserCard[]).filter(c => {
@@ -206,8 +431,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         });
 
         setCards(filtered);
-        if (selectedUserCard) {
-          const fresh = filtered.find(c => c.id === selectedUserCard.id);
+        if (selectedUserCardIdRef.current) {
+          const fresh = filtered.find(c => c.id === selectedUserCardIdRef.current);
           if (fresh) setSelectedUserCard(fresh);
         }
         return;
@@ -221,8 +446,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         const json = await res.json();
         const data: UserCard[] = json.data || [];
         setCards(data);
-        if (selectedUserCard) {
-          const fresh = data.find(c => c.id === selectedUserCard.id);
+        if (selectedUserCardIdRef.current) {
+          const fresh = data.find(c => c.id === selectedUserCardIdRef.current);
           if (fresh) setSelectedUserCard(fresh);
         }
       }
@@ -231,21 +456,19 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     } finally {
       setLoading(false);
     }
-  }, [isOpen, isInbox, containerId, selectedUserCard, isIdealMode, syncData, location]);
-
+  }, [isOpen, isInbox, containerId, isIdealMode, location?.id]);
 
   useEffect(() => {
     if (isOpen) {
-      queueMicrotask(() => {
-        setHasMutated(false);
-        setSelectedUserCard(null);
-        setSelectedSearchCard(null);
-        setCurrentGridPage(1);
-        setCurrentBinderViewIndex(0);
-        fetchCards();
-      });
+      setHasMutated(false);
+      setSelectedUserCard(null);
+      setSelectedSearchCard(null);
+      setCurrentGridPage(1);
+      setCurrentBinderViewIndex(0);
+      setActiveClusterFilter(null);
+      fetchCards();
     }
-  }, [isOpen, location?.id, fetchCards]);
+  }, [isOpen, location?.id]);
 
   // Ejecutar búsqueda en panel izquierdo
   const executeSearch = useCallback(async (
@@ -598,6 +821,40 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     setSelectedUserCard(null);
   };
 
+  // Asignar carta directamente a un mazo activo
+  const handleAssignToDeck = async (deckId: string, deckName: string, section: string = 'main') => {
+    if (!selectedUserCard) return;
+    await handleUpdateCard({
+      deck_id: deckId,
+      deck_section: section as 'main' | 'extra' | 'side',
+      status_flag: 'in_deck'
+    });
+    toast.success(`Carta asignada a ${deckName} (${section.toUpperCase()})`, { title: '¡Mazo asignado!' });
+  };
+
+  // Aplicar recomendación inteligente de 1 clic
+  const handleApplyRecommendation = async (rec: BestRecommendation) => {
+    if (!selectedUserCard) return;
+    const updates: Partial<UserCard> = {
+      status_flag: rec.suggestedStatusFlag,
+    };
+    if (rec.suggestedDeckId) {
+      updates.deck_id = rec.suggestedDeckId;
+      updates.deck_section = 'main';
+    }
+    if (rec.suggestedLocationId && rec.suggestedLocationId !== selectedUserCard.storage_location_id) {
+      updates.storage_location_id = rec.suggestedLocationId;
+      updates.binder_page = undefined;
+      updates.binder_slot = undefined;
+      await handleUpdateCard(updates);
+      setCards(prev => prev.filter(c => c.id !== selectedUserCard.id));
+      setSelectedUserCard(null);
+    } else {
+      await handleUpdateCard(updates);
+    }
+    toast.success(rec.title, { title: '✨ Clasificación Aplicada' });
+  };
+
   // Eliminar carta de la colección
   const handleDeleteCard = async () => {
     if (!selectedUserCard) return;
@@ -777,13 +1034,158 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     reader.readAsText(file);
   };
 
+  // Abrir modal de asignación de mazo a carril
+  const handleOpenAssignDeckModal = (compartmentIdx: number) => {
+    setAssignCompartmentIdx(compartmentIdx);
+    const activeLoc = currentLocation || location;
+    const existingDeckId = activeLoc?.compartments?.deck_ids?.[compartmentIdx] || '';
+    setSelectedDeckIdToAssign(existingDeckId || (internalDecks[0]?.id || ''));
+    setShouldMoveCardsOnAssign(true);
+    setShouldRenameCompartmentOnAssign(false);
+    setIsAssignDeckModalOpen(true);
+  };
+
+  // Guardar asignación de mazo a carril en Supabase / API
+  const handleSaveDeckAssignment = async () => {
+    const activeLoc = currentLocation || location;
+    if (!activeLoc || isInbox) return;
+    setIsAssigningDeck(true);
+    try {
+      const existingComp = activeLoc.compartments || { count: 1, names: ['Principal'] };
+      const currentDeckIds = [...(existingComp.deck_ids || Array(existingComp.count).fill(null))];
+      while (currentDeckIds.length < existingComp.count) {
+        currentDeckIds.push(null);
+      }
+      
+      const newDeckId = selectedDeckIdToAssign || null;
+      currentDeckIds[assignCompartmentIdx] = newDeckId;
+
+      const currentNames = [...existingComp.names];
+      if (shouldRenameCompartmentOnAssign && newDeckId) {
+        const targetDeck = internalDecks.find(d => d.id === newDeckId);
+        if (targetDeck) {
+          currentNames[assignCompartmentIdx] = `Mazo: ${targetDeck.name}`;
+        }
+      }
+
+      const updatedCompartments: CompartmentsConfig = {
+        ...existingComp,
+        names: currentNames,
+        deck_ids: currentDeckIds
+      };
+
+      const updatedLocation: StorageLocation = {
+        ...activeLoc,
+        compartments: updatedCompartments
+      };
+
+      const res = await fetch('/api/collection/storage', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeLoc.id,
+          name: activeLoc.name,
+          type: activeLoc.type,
+          sub_type: activeLoc.sub_type,
+          color_code: activeLoc.color_code,
+          dimensions: activeLoc.dimensions,
+          capacity: activeLoc.capacity,
+          grid_layout: activeLoc.grid_layout,
+          compartments: updatedCompartments,
+          render_style: activeLoc.render_style,
+          description: activeLoc.description
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Error al guardar asignación de mazo');
+      }
+
+      setCurrentLocation(updatedLocation);
+
+      if (shouldMoveCardsOnAssign && newDeckId) {
+        await fetch('/api/collection/cards', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'move_deck_cards',
+            target_deck_id: newDeckId,
+            target_storage_location_id: activeLoc.id,
+            target_compartment_index: assignCompartmentIdx
+          })
+        });
+        await fetchCards();
+      }
+
+      const assignedDeck = internalDecks.find(d => d.id === newDeckId);
+      if (newDeckId && assignedDeck) {
+        toast.success(`Mazo "${assignedDeck.name}" asignado al Carril ${assignCompartmentIdx + 1}`, { title: '¡Mazo Asignado!' });
+      } else {
+        toast.info(`Carril ${assignCompartmentIdx + 1} desvinculado`, { title: 'Desvinculación' });
+      }
+
+      setHasMutated(true);
+      setIsAssignDeckModalOpen(false);
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error('Error al asignar mazo a carril:', error);
+      toast.error(error.message || 'No se pudo asignar el mazo');
+    } finally {
+      setIsAssigningDeck(false);
+    }
+  };
+
+  // Mover todas las cartas de un mazo a otro carril
+  const handleMoveDeckCards = async (deckId: string, targetCompIdx: number) => {
+    const activeLoc = currentLocation || location;
+    if (!activeLoc || isInbox) return;
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'move_deck_cards',
+          target_deck_id: deckId,
+          target_storage_location_id: activeLoc.id,
+          target_compartment_index: targetCompIdx
+        })
+      });
+      if (!res.ok) throw new Error('Error al mover cartas');
+      const targetName = activeLoc.compartments?.names?.[targetCompIdx] || `Carril ${targetCompIdx + 1}`;
+      toast.success(`Cartas del mazo movidas a ${targetName}`, { title: '¡Mazo Reubicado!' });
+      setHasMutated(true);
+      await fetchCards();
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error('Error al mover cartas de mazo:', error);
+      toast.error(error.message || 'No se pudo mover el mazo');
+    }
+  };
+
   // Filtrado y Ordenamiento de cartas en el panel central
   const filteredCards = useMemo(() => {
     const list = cards.filter(c => {
       const nameMatch = !containerSearch || (c.card_details?.name.toLowerCase().includes(containerSearch.toLowerCase()) ?? false);
       const statusMatch = statusFilter === 'all' || c.status_flag === statusFilter;
       const compMatch = activeCompartment === -1 || (c.compartment_index || 0) === activeCompartment;
-      return nameMatch && statusMatch && compMatch;
+      
+      let clusterMatch = true;
+      if (activeClusterFilter && lanePatternReport) {
+        const cluster = lanePatternReport.clusters.find(cl => cl.id === activeClusterFilter);
+        if (cluster) {
+          clusterMatch = cluster.userCardIds.includes(c.id);
+        }
+      }
+
+      let deckMatch = true;
+      if (selectedDeckFilter === 'unassigned') {
+        deckMatch = !c.deck_id;
+      } else if (selectedDeckFilter !== 'all') {
+        deckMatch = c.deck_id === selectedDeckFilter;
+      }
+
+      return nameMatch && statusMatch && compMatch && clusterMatch && deckMatch;
     });
 
     return [...list].sort((a, b) => {
@@ -811,7 +1213,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       }
       return 0;
     });
-  }, [cards, containerSearch, statusFilter, activeCompartment, sortBy]);
+  }, [cards, containerSearch, statusFilter, sortBy, activeCompartment, activeClusterFilter, lanePatternReport, selectedDeckFilter]);
 
   // Agrupar cartas por card_id + carril para mostrar solo 1 tarjeta por tipo en la galería central
   const groupedGridCards = useMemo(() => {
@@ -847,10 +1249,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     return Array.from(groupsMap.values());
   }, [filteredCards]);
 
-  // Conteo total de cartas físicas en el contenedor (sumando copias de todas las variantes)
-  const totalPhysicalCards = useMemo(() => {
-    return cards.reduce((sum, c) => sum + (c.quantity || 1), 0);
-  }, [cards]);
 
   // Paginación para la grilla basada en tarjetas únicas agrupadas
   const CARDS_PER_GRID_PAGE = 30;
@@ -1070,251 +1468,53 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           style={!isMobile ? { width: `${panelResize.leftPanelWidth}px` } : {}}
           className={`${mobileTab === 'left' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/60 flex-col h-full overflow-hidden z-20`}
         >
-          
-          {/* Switch de Modo: Buscar vs Importar */}
-          <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/90 shrink-0">
-            <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setLeftTab('search')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  leftTab === 'search'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-                }`}
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span>Buscar Carta</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setLeftTab('import')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  leftTab === 'import'
-                    ? 'bg-cyan-600 text-white shadow-xs'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-                }`}
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Importar Bulk</span>
-              </button>
-            </div>
+          {/* Panel de Búsqueda e Importación Bulk Integrado */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <SearchPanel
+              leftPanelOpen={true}
+              setLeftPanelOpen={() => {}}
+              leftPanelWidth={panelResize.leftPanelWidth}
+              isMobile={isMobile}
+              showStagedTab={containerType === 'binder'}
+              stagedCardsCount={cards.filter(c => !c.binder_page || !c.binder_slot).length}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              searchScope={searchScope}
+              setSearchScope={setSearchScope}
+              onlyFavorites={onlyFavorites}
+              setOnlyFavorites={setOnlyFavorites}
+              searchType={searchType}
+              setSearchType={setSearchType}
+              advancedFilters={advancedFilters}
+              setAdvancedFilters={setAdvancedFilters}
+              searchResults={searchResults}
+              isSearching={isSearching}
+              searchViewMode={searchViewMode}
+              setSearchViewMode={setSearchViewMode}
+              searchLimit={searchLimit}
+              setSearchLimit={setSearchLimit}
+              format="Master Duel"
+              addCardToDeck={(card) => {
+                if (containerType === 'binder') {
+                  setSelectedSearchCard(card);
+                } else {
+                  handleAddCardToContainer(card);
+                }
+              }}
+              openPreviewForCard={(card) => {
+                const existing = cards.find(c => c.card_id === card.id);
+                if (existing) {
+                  setSelectedUserCard(existing);
+                } else {
+                  handleAddCardToContainer(card);
+                }
+                if (isMobile) setMobileTab('right');
+              }}
+              handleDragCardStart={(e, cardData) => handleDragCardStart(e, cardData as Card)}
+              handleCardMouseEnter={() => {}}
+              handleCardMouseLeave={() => {}}
+            />
           </div>
-
-          {/* Contenido según el switch */}
-          {leftTab === 'search' ? (
-            <div className="flex-1 overflow-hidden flex flex-col">
-              <SearchPanel
-                leftPanelOpen={true}
-                setLeftPanelOpen={() => {}}
-                leftPanelWidth={panelResize.leftPanelWidth}
-                isMobile={isMobile}
-                showStagedTab={containerType === 'binder'}
-                stagedCardsCount={cards.filter(c => !c.binder_page || !c.binder_slot).length}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                searchScope={searchScope}
-                setSearchScope={setSearchScope}
-                onlyFavorites={onlyFavorites}
-                setOnlyFavorites={setOnlyFavorites}
-                searchType={searchType}
-                setSearchType={setSearchType}
-                advancedFilters={advancedFilters}
-                setAdvancedFilters={setAdvancedFilters}
-                searchResults={searchResults}
-                isSearching={isSearching}
-                searchViewMode={searchViewMode}
-                setSearchViewMode={setSearchViewMode}
-                searchLimit={searchLimit}
-                setSearchLimit={setSearchLimit}
-                format="Master Duel"
-                addCardToDeck={(card) => {
-                  if (containerType === 'binder') {
-                    setSelectedSearchCard(card);
-                  } else {
-                    handleAddCardToContainer(card);
-                  }
-                }}
-                openPreviewForCard={(card) => {
-                  const existing = cards.find(c => c.card_id === card.id);
-                  if (existing) {
-                    setSelectedUserCard(existing);
-                  } else {
-                    handleAddCardToContainer(card);
-                  }
-                  if (isMobile) setMobileTab('right');
-                }}
-                handleDragCardStart={(e, cardData) => handleDragCardStart(e, cardData as Card)}
-                handleCardMouseEnter={() => {}}
-                handleCardMouseLeave={() => {}}
-              />
-            </div>
-          ) : (
-            <div className="flex-1 p-4 overflow-y-auto space-y-4">
-              <div className="p-3 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2.5">
-                <h3 className="text-xs font-black uppercase text-cyan-700 dark:text-cyan-400 flex items-center gap-1.5">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Importar Bulk</span>
-                </h3>
-                <p className="text-[11px] text-zinc-700 dark:text-zinc-300 font-medium">
-                  Selecciona el método e importa múltiples cartas directamente a <strong>{isInbox ? 'Sin Clasificar' : location?.name}</strong>.
-                </p>
-
-                {/* Sub-Switch de Formato de Importación Bulk */}
-                <div className="flex items-center bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-1 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImportSubTab('ydk');
-                      setImportError('');
-                      setImportSuccessMsg('');
-                    }}
-                    className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      importSubTab === 'ydk'
-                        ? 'bg-cyan-600 text-white font-black shadow-xs'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    📄 Archivo .YDK / Receta
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImportSubTab('id_list');
-                      setImportError('');
-                      setImportSuccessMsg('');
-                    }}
-                    className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      importSubTab === 'id_list'
-                        ? 'bg-cyan-600 text-white font-black shadow-xs'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    🔢 Lista por IDs (Cantidad + ID)
-                  </button>
-                </div>
-              </div>
-
-              <form onSubmit={handleYdkImport} className="space-y-4">
-                {/* Selector de Carril de Destino (Si el contenedor tiene varios compartimentos) */}
-                {location?.compartments && location.compartments.count > 1 && (
-                  <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-1.5 shadow-2xs">
-                    <label className="text-[10.5px] font-mono font-black uppercase text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                      <span>Carril / Compartimento de Destino:</span>
-                    </label>
-                    <select
-                      value={targetCompartmentForImport}
-                      onChange={(e) => setTargetCompartmentForImport(parseInt(e.target.value))}
-                      className="w-full bg-white dark:bg-zinc-950 border border-purple-300 dark:border-purple-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 font-bold focus:border-purple-500 focus:outline-none shadow-2xs cursor-pointer"
-                    >
-                      {location.compartments.names.map((compName, idx) => (
-                        <option key={idx} value={idx}>
-                          📦 {compName || `Carril ${idx + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[10px] text-purple-800 dark:text-purple-300 font-mono font-medium">
-                      Las cartas importadas se asignarán a este carril.
-                    </p>
-                  </div>
-                )}
-                {importSubTab === 'ydk' ? (
-                  <>
-                    <div className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-cyan-500 rounded-2xl p-4 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
-                      <input
-                        type="file"
-                        accept=".ydk,.txt"
-                        onChange={handleFileUpload}
-                        id="workspace-ydk-file"
-                        className="hidden"
-                      />
-                      <label htmlFor="workspace-ydk-file" className="cursor-pointer flex flex-col items-center gap-2">
-                        <Upload className="w-6 h-6 text-cyan-400" />
-                        <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300">
-                          {ydkFileName ? ydkFileName : 'Haz clic para seleccionar archivo .ydk'}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">Formatos: .ydk, .txt</span>
-                      </label>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-                        O pega la receta / texto .ydk:
-                      </label>
-                      <textarea
-                        value={ydkText}
-                        onChange={(e) => setYdkText(e.target.value)}
-                        placeholder="3 Ash Blossom & Joyous Spring&#10;1 Nibiru, the Primal Being&#10;2 Triple Tactics Talent"
-                        rows={6}
-                        className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:border-cyan-500 focus:outline-none resize-none"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div>
-                    <label className="block text-[10px] font-mono font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1">
-                      Pega tu lista [Cantidad] [ID / Passcode]:
-                    </label>
-                    <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-xl text-xs text-purple-900 dark:text-purple-200 mb-2.5 font-mono space-y-1">
-                      <p className="font-black text-purple-950 dark:text-purple-100">Formato aceptado:</p>
-                      <p className="flex items-center gap-1">
-                        • <code className="bg-purple-100 dark:bg-purple-900/60 text-purple-950 dark:text-purple-100 px-1 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-700/50">1 61280937</code>
-                        <span className="text-purple-700 dark:text-purple-300 font-medium">(1x Nibiru)</span>
-                      </p>
-                      <p className="flex items-center gap-1">
-                        • <code className="bg-purple-100 dark:bg-purple-900/60 text-purple-950 dark:text-purple-100 px-1 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-700/50">3 89631139</code>
-                        <span className="text-purple-700 dark:text-purple-300 font-medium">(3x Dragón Blanco)</span>
-                      </p>
-                      <p className="flex items-center gap-1">
-                        • <code className="bg-purple-100 dark:bg-purple-900/60 text-purple-950 dark:text-purple-100 px-1 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-700/50">05318639</code>
-                        <span className="text-purple-700 dark:text-purple-300 font-medium">(1 por línea sin cantidad)</span>
-                      </p>
-                    </div>
-                    <textarea
-                      value={ydkText}
-                      onChange={(e) => setYdkText(e.target.value)}
-                      placeholder="1 61280937&#10;3 89631139&#10;2 05318639&#10;61280937"
-                      rows={7}
-                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl p-3 text-xs text-zinc-900 dark:text-zinc-100 font-mono font-medium focus:border-cyan-500 focus:outline-none resize-none shadow-2xs placeholder-zinc-400 dark:placeholder-zinc-600"
-                    />
-                  </div>
-                )}
-
-                {importError && (
-                  <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-900 dark:text-red-300 font-semibold rounded-xl flex items-start gap-2 shadow-2xs">
-                    <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                    <span className="flex-1">{importError}</span>
-                  </div>
-                )}
-
-                {importSuccessMsg && (
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-300 font-semibold rounded-xl flex items-start gap-2 shadow-2xs">
-                    <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="flex-1">{importSuccessMsg}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={importLoading || !ydkText.trim()}
-                  className="w-full py-2.5 bg-linear-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {importLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Procesando Bulk...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      <span>Importar a {isInbox ? 'Inbox' : location?.name}</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-          )}
         </div>
 
         {/* DIVIDER REDIMENSIONABLE IZQUIERDO */}
@@ -1369,96 +1569,149 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             )}
           </AnimatePresence>
           
-          {/* Barra Superior de Filtros y Compartimentos — En 1 Sola Línea */}
-          <div className="px-3 sm:px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-900/40 flex items-center justify-between gap-2 shrink-0 flex-nowrap overflow-x-auto scrollbar-none">
-            
-            {/* Buscador dentro del contenedor */}
-            <div className="relative flex-1 min-w-32 max-w-xs shrink">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
-              <input
-                type="text"
-                value={containerSearch}
-                onChange={(e) => setContainerSearch(e.target.value)}
-                placeholder="Filtrar cartas..."
-                className="w-full pl-8.5 pr-2.5 py-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
-              />
-            </div>
-
-            {/* Selector de Estado y Criterio de Ordenamiento en 1 Sola Línea */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Filtro de Ordenamiento */}
-              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1 text-xs text-zinc-700 dark:text-zinc-300 shrink-0">
-                <ArrowUpDown className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                >
-                  <option value="registration_asc">Orden: Registro (1º → N)</option>
-                  <option value="registration_desc">Orden: Recientes primero</option>
-                  <option value="name_asc">Nombre (A → Z)</option>
-                  <option value="name_desc">Nombre (Z → A)</option>
-                  <option value="id_asc">ID Passcode (0 → 9)</option>
-                  <option value="type">Tipo de Carta</option>
-                </select>
+          {/* ── Barra Superior Consolidada y Escalable ── */}
+          <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0 relative z-30 overflow-visible">
+            {/* Fila 1: Buscador y Selector de Carriles */}
+            <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 flex-wrap sm:flex-nowrap relative z-30 overflow-visible">
+              {/* Buscador dentro del contenedor */}
+              <div className="relative flex-1 min-w-36 max-w-xs">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
+                <input
+                  type="text"
+                  value={containerSearch}
+                  onChange={(e) => setContainerSearch(e.target.value)}
+                  placeholder="Filtrar cartas..."
+                  className="w-full pl-8.5 pr-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+                />
               </div>
 
-              {/* Selector de Estado */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-300 focus:border-red-500 focus:outline-none shrink-0"
-              >
-                <option value="all">Todos los estados</option>
-                <option value="collection">En Colección</option>
-                <option value="trade_sale">Venta / Trade</option>
-                <option value="bulk">Bulk</option>
-                <option value="workshop">Taller / Activo</option>
-              </select>
+              {/* Selector de Carriles (Si el contenedor tiene más de 1 carril) */}
+              {(currentLocation || location)?.compartments && (currentLocation || location)!.compartments.count > 1 ? (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {/* Si tiene <= 5 carriles: Tabs ultracompactos tipo pill */}
+                  {(currentLocation || location)!.compartments.count <= 5 ? (
+                    <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-0.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSelectCompartment(-1);
+                          setActiveClusterFilter(null);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer select-none ${
+                          activeCompartment === -1
+                            ? 'bg-red-600 text-white shadow-xs'
+                            : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        Todos ({totalPhysicalCards})
+                      </button>
+                      {(currentLocation || location)!.compartments.names.map((compName, idx) => {
+                        const compCount = cards.filter(c => (c.compartment_index || 0) === idx).reduce((sum, c) => sum + (c.quantity || 1), 0);
+                        const laneDecks = decksInContainer.filter(d => d.compartments.has(idx));
+                        const isActive = activeCompartment === idx;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              handleSelectCompartment(idx);
+                              setActiveClusterFilter(null);
+                            }}
+                            title={`${compName || `Carril ${idx + 1}`}: ${compCount} cartas (${laneDecks.length} mazos)`}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 select-none ${
+                              isActive
+                                ? 'bg-red-600 text-white shadow-xs'
+                                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800'
+                            }`}
+                          >
+                            <span>C{idx + 1}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                              isActive ? 'bg-red-800 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                            }`}>
+                              {compCount}
+                            </span>
+                            {laneDecks.length > 0 && (
+                              <span className={`text-[10px] ${isActive ? 'text-amber-300' : 'text-zinc-600 dark:text-zinc-400'}`} title={`${laneDecks.length} mazo(s) en este carril`}>
+                                ⚔️{laneDecks.length > 1 ? laneDecks.length : ''}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Si tiene > 5 carriles: Dropdown de Carriles Escalable */
+                    <PremiumDropdown
+                      options={carrilDropdownOptions}
+                      value={activeCompartment}
+                      onChange={(val) => {
+                        handleSelectCompartment(val);
+                        setActiveClusterFilter(null);
+                      }}
+                      icon={<Layers className="w-3.5 h-3.5 text-red-500" />}
+                      menuWidth="w-64"
+                      size="sm"
+                    />
+                  )}
+
+                  {/* Botón de Gestión de Mazos y Carriles */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAssignCompartmentIdx(activeCompartment === -1 ? 0 : activeCompartment);
+                      setIsAssignDeckModalOpen(true);
+                    }}
+                    className="px-2.5 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 select-none group"
+                    title="Ver y gestionar los mazos distribuidos en esta caja"
+                  >
+                    <Swords className="w-3.5 h-3.5 text-red-500 group-hover:text-white" />
+                    <span className="hidden sm:inline">Mazos ({decksInContainer.length})</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Fila 2: Filtros Secundarios (Mazo, Estado, Orden) */}
+            <div className="px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-xs relative z-20 overflow-visible flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Filtro por Mazo específico dentro del contenedor/carril */}
+                {decksInContainer.length > 0 && (
+                  <PremiumDropdown
+                    options={deckFilterOptions}
+                    value={selectedDeckFilter}
+                    onChange={(val) => setSelectedDeckFilter(val)}
+                    icon={<Swords className="w-3.5 h-3.5 text-red-500" />}
+                    menuWidth="w-64"
+                    size="sm"
+                  />
+                )}
+
+                {/* Filtro de Estado */}
+                <PremiumDropdown
+                  options={statusFilterOptions}
+                  value={statusFilter}
+                  onChange={(val) => setStatusFilter(val)}
+                  size="sm"
+                  menuWidth="w-48"
+                />
+
+                {/* Filtro de Orden */}
+                <PremiumDropdown
+                  options={sortOptions}
+                  value={sortBy}
+                  onChange={(val) => setSortBy(val)}
+                  icon={<ArrowUpDown className="w-3.5 h-3.5 text-red-500" />}
+                  menuWidth="w-56"
+                  size="sm"
+                />
+              </div>
+
+              {/* Resumen de cartas mostradas */}
+              <div className="text-[10.5px] font-mono text-zinc-400 dark:text-zinc-500 shrink-0 hidden sm:block">
+                Mostrando <strong>{filteredCards.length}</strong> de {cards.length} cartas
+              </div>
             </div>
           </div>
-
-          {/* Tabs de Carriles / Compartimentos */}
-          {location?.compartments && location.compartments.count > 1 && (
-            <div className="px-3 sm:px-6 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/30 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
-              <span className="text-[10px] font-mono font-black uppercase text-zinc-400 dark:text-zinc-500 mr-1 shrink-0 flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5 text-purple-500" />
-                <span>Carriles:</span>
-              </span>
-
-              <button
-                type="button"
-                onClick={() => handleSelectCompartment(-1)}
-                className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  activeCompartment === -1
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-                }`}
-              >
-                <span>Todos los carriles ({totalPhysicalCards})</span>
-              </button>
-
-              {location.compartments.names.map((compName, idx) => {
-                const compCount = cards.filter(c => (c.compartment_index || 0) === idx).reduce((sum, c) => sum + (c.quantity || 1), 0);
-                const isActive = activeCompartment === idx;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSelectCompartment(idx)}
-                    className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                      isActive
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-                    }`}
-                  >
-                    <Box className="w-3 h-3 text-purple-400" />
-                    <span>{compName || `Carril ${idx + 1}`} ({compCount})</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
 
           {/* Banner de Click to Place para Binders */}
           <AnimatePresence>
@@ -1467,17 +1720,17 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="m-3 p-3 bg-purple-950/80 border border-purple-500/40 rounded-xl flex items-center justify-between text-xs text-purple-200 shadow-md shrink-0"
+                className="m-3 p-3 bg-red-950/80 border border-red-500/40 rounded-xl flex items-center justify-between text-xs text-red-200 shadow-md shrink-0"
               >
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+                  <Sparkles className="w-4 h-4 text-red-400 animate-pulse" />
                   <span>
                     Colocando <strong>{selectedSearchCard.name}</strong>. Haz clic en una casilla para ubicarla.
                   </span>
                 </div>
                 <button
                   onClick={() => setSelectedSearchCard(null)}
-                  className="px-2.5 py-1 rounded bg-purple-900 hover:bg-purple-800 text-purple-100 font-bold"
+                  className="px-2.5 py-1 rounded bg-red-900 hover:bg-red-800 text-red-100 font-bold"
                 >
                   Cancelar
                 </button>
@@ -1764,166 +2017,666 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           />
         )}
 
-        {/* ─── PANEL DERECHO: INSPECTOR Y EDICIÓN DE CARTA (REDIMENSIONABLE Y MÁS ESPACIOSO) ─── */}
+        {/* ─── PANEL DERECHO: INSPECTOR Y ASISTENTE IA DE PATRONES ─── */}
         <div 
           style={!isMobile ? { width: `${panelResize.rightPanelWidth}px` } : {}}
-          className={`${mobileTab === 'right' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 flex-col h-full overflow-y-auto p-5 z-20`}
+          className={`${mobileTab === 'right' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 flex-col h-full overflow-y-auto p-4 sm:p-5 z-20 space-y-4`}
         >
-          {selectedUserCard && selectedUserCard.card_details ? (
-            <div className="space-y-4.5">
-              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3.5">
-                <h3 className="text-xs font-black uppercase text-zinc-700 dark:text-zinc-200 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-red-500" />
-                  <span>Detalles de Carta</span>
-                </h3>
-                <button
-                  onClick={() => setSelectedUserCard(null)}
-                  className="p-1.5 rounded-lg text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+          {/* Header del Panel Derecho con Segmented Switch: DETALLES / ANÁLISIS */}
+          <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 gap-2 shrink-0">
+            <div className="flex-1 grid grid-cols-2 p-1 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl gap-1">
+              <button
+                type="button"
+                onClick={() => setRightMode('details')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  rightMode === 'details'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                <Info className="w-3.5 h-3.5" />
+                <span>DETALLES</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightMode('analysis')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer relative ${
+                  rightMode === 'analysis'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>ANÁLISIS</span>
+              </button>
+            </div>
 
-              {/* Vista previa de carta */}
-              <div className="flex gap-3.5 items-start bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={selectedUserCard.card_details.image_url_small || selectedUserCard.card_details.image_url}
-                  alt={selectedUserCard.card_details.name}
-                  className="w-22 rounded-xl shadow-md shrink-0 border border-zinc-200 dark:border-zinc-800"
-                />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <h4 className="text-xs font-black text-zinc-900 dark:text-white leading-snug">
-                    {selectedUserCard.card_details.name}
-                  </h4>
-                  <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono uppercase font-semibold">
-                    {selectedUserCard.card_details.type}
-                  </p>
-                  {selectedUserCard.card_details.archetype && (
-                    <span className="inline-block text-[9.5px] font-mono text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800/60 px-2 py-0.5 rounded-md mt-1.5 font-bold">
-                      {selectedUserCard.card_details.archetype}
-                    </span>
-                  )}
-                </div>
-              </div>
+            {selectedUserCard && (
+              <button
+                onClick={() => setSelectedUserCard(null)}
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                title="Cerrar carta seleccionada"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
-              {/* Formulario de propiedades con desglose de variantes */}
-              <div className="space-y-4">
-                {/* Desglose de Variantes y Rarezas por Copias */}
-                <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-purple-500" />
-                    <span>Desglose de Copias ({totalCopiesInContainer} en total)</span>
-                  </h4>
-                </div>
-
-                <div className="space-y-3">
-                  {activeVariants.map((v, idx) => (
-                    <div key={v.id} className="p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 shadow-2xs">
-                      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-1.5">
-                        <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
-                          Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
-                        </span>
-                        {activeVariants.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteVariantById(v.id)}
-                            className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
-                          >
-                            Eliminar
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        {/* Cantidad de copias para esta variante */}
-                        <div>
-                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                            Copias:
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="99"
-                            value={v.quantity || 1}
-                            onChange={(e) => handleUpdateVariantById(v.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-mono font-bold focus:border-purple-500 focus:outline-none"
-                          />
-                        </div>
-
-                        {/* Rareza de esta variante */}
-                        <div>
-                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                            Rareza:
-                          </label>
-                          <select
-                            value={v.rarity || 'Common'}
-                            onChange={(e) => handleUpdateVariantById(v.id, { rarity: e.target.value })}
-                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-bold focus:border-purple-500 focus:outline-none cursor-pointer"
-                          >
-                            <option value="Common">Common (Común)</option>
-                            <option value="Rare">Rare (Rara)</option>
-                            <option value="Super Rare">Super Rare</option>
-                            <option value="Ultra Rare">Ultra Rare</option>
-                            <option value="Secret Rare">Secret Rare</option>
-                            <option value="Ultimate Rare">Ultimate Rare</option>
-                            <option value="Ghost Rare">Ghost Rare</option>
-                            <option value="Starlight Rare">Starlight Rare</option>
-                            <option value="Collector's Rare">Collector&apos;s Rare</option>
-                            <option value="Quarter Century Secret Rare">25th Quarter Century</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Condición y Funda */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                            Condición:
-                          </label>
-                          <select
-                            value={v.condition || 'Near Mint'}
-                            onChange={(e) => handleUpdateVariantById(v.id, { condition: e.target.value as UserCard['condition'] })}
-                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
-                          >
-                            <option value="Near Mint">Near Mint (NM)</option>
-                            <option value="Lightly Played">Lightly Played (LP)</option>
-                            <option value="Moderately Played">Moderately Played (MP)</option>
-                            <option value="Heavily Played">Heavily Played (HP)</option>
-                            <option value="Damaged">Damaged (DMG)</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                            Funda / Sleeving:
-                          </label>
-                          <select
-                            value={v.sleeve_type || 'none'}
-                            onChange={(e) => handleUpdateVariantById(v.id, { sleeve_type: e.target.value as UserCard['sleeve_type'] })}
-                            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
-                          >
-                            <option value="none">Sin Funda</option>
-                            <option value="single">Funda Simple</option>
-                            <option value="double">Funda Doble</option>
-                            <option value="triple">Funda Triple</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
+          {/* ═══════════════════════════════════════════════════════════════════
+              MODO 1: ANÁLISIS IA & PATRONES
+              ═══════════════════════════════════════════════════════════════════ */}
+          {rightMode === 'analysis' ? (
+            <div className="space-y-3.5">
+              {/* Selector de sub-vistas del Asistente IA */}
+              <div className="grid grid-cols-3 p-1 bg-zinc-200/60 dark:bg-zinc-800/60 rounded-xl gap-1 border border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
-                  onClick={handleAddNewVariant}
-                  className="w-full py-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 font-bold text-xs rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                  onClick={() => setAiSubView('lane')}
+                  className={`py-1.5 px-1 rounded-lg text-[10.5px] font-mono font-bold transition-all text-center cursor-pointer flex items-center justify-center gap-1 ${
+                    aiSubView === 'lane'
+                      ? 'bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white shadow-2xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
                 >
-                  <Plus className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  <span>➕ Añadir variante / rareza diferente</span>
+                  <Layers className="w-3 h-3 text-purple-400" />
+                  <span>Carril</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiSubView('card')}
+                  className={`py-1.5 px-1 rounded-lg text-[10.5px] font-mono font-bold transition-all text-center cursor-pointer flex items-center justify-center gap-1 ${
+                    aiSubView === 'card'
+                      ? 'bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white shadow-2xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  <Tag className="w-3 h-3 text-amber-400" />
+                  <span>Carta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiSubView('collection')}
+                  className={`py-1.5 px-1 rounded-lg text-[10.5px] font-mono font-bold transition-all text-center cursor-pointer flex items-center justify-center gap-1 ${
+                    aiSubView === 'collection'
+                      ? 'bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white shadow-2xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  <TrendingUp className="w-3 h-3 text-emerald-400" />
+                  <span>Colección</span>
                 </button>
               </div>
+
+              {/* ── SUB-VISTA: PATRONES Y COINCIDENCIAS DEL CARRIL ── */}
+              {aiSubView === 'lane' && (
+                <div className="space-y-3.5">
+                  {/* Tarjeta de Mazo Asignado al Carril (Si aplica) */}
+                  {activeCompartment !== -1 && (
+                    (() => {
+                      const activeLoc = currentLocation || location;
+                      const assignedDeckId = activeLoc?.compartments?.deck_ids?.[activeCompartment];
+                      const assignedDeck = assignedDeckId ? internalDecks.find(d => d.id === assignedDeckId) : null;
+
+                      if (assignedDeck) {
+                        const deckCardsInLane = activeLaneCards.filter(c => c.deck_id === assignedDeck.id || c.deck_details?.name === assignedDeck.name);
+                        const totalDeckCardsCount = (assignedDeck.cards || []).reduce((sum, c) => sum + c.count, 0) || 40;
+                        const physicalCardsPresent = deckCardsInLane.reduce((sum, c) => sum + (c.quantity || 1), 0);
+                        const percentagePresent = Math.min(100, Math.round((physicalCardsPresent / Math.max(1, totalDeckCardsCount)) * 100));
+
+                        return (
+                          <div className="p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/60 rounded-2xl space-y-2.5 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-mono font-black uppercase text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <Swords className="w-3 h-3" />
+                                <span>Mazo Asignado</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAssignDeckModal(activeCompartment)}
+                                className="text-[10.5px] font-mono font-bold text-red-600 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
+                              >
+                                <Settings className="w-3 h-3" />
+                                <span>Configurar</span>
+                              </button>
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                                <span>{assignedDeck.name}</span>
+                                <span className="text-[10px] font-mono text-zinc-500">({assignedDeck.format || 'Master Duel'})</span>
+                              </h4>
+                              <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-0.5">
+                                Este carril está configurado como la ubicación física de este mazo.
+                              </p>
+                            </div>
+
+                            {/* Barra de progreso de presencia física */}
+                            <div className="space-y-1 pt-1">
+                              <div className="flex items-center justify-between text-[10px] font-mono font-bold">
+                                <span className="text-zinc-600 dark:text-zinc-400">Presencia Física en Carril:</span>
+                                <span className="text-red-600 dark:text-red-400 font-black">{physicalCardsPresent} / {totalDeckCardsCount} cartas ({percentagePresent}%)</span>
+                              </div>
+                              <div className="w-full h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-red-600 rounded-full transition-all duration-300"
+                                  style={{ width: `${percentagePresent}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="p-3 bg-zinc-100/80 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-mono font-black uppercase text-zinc-500 block">
+                              ¿Guardas un mazo aquí?
+                            </span>
+                            <p className="text-[11px] text-zinc-700 dark:text-zinc-300 font-medium truncate">
+                              Asigna un mazo a este carril para rastrear sus cartas físicas.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAssignDeckModal(activeCompartment)}
+                            className="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 shadow-xs"
+                          >
+                            <Swords className="w-3.5 h-3.5" />
+                            <span>Asignar</span>
+                          </button>
+                        </div>
+                      );
+                    })()
+                  )}
+
+                  {/* Resumen del Carril */}
+                  <div className="p-3.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-black uppercase text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800/40">
+                        {activeCompartment === -1 ? 'Todo el Contenedor' : `Carril ${activeCompartment + 1}`}
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-500 font-bold">
+                        {lanePatternReport.totalCards} cartas ({lanePatternReport.uniqueCards} únicas)
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100">
+                      {lanePatternReport.dominantTheme} ({lanePatternReport.dominantPercentage}%)
+                    </h4>
+                    <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+                      {lanePatternReport.summaryRecommendation}
+                    </p>
+                  </div>
+
+                  {/* Coincidencias y Clusters Detectados */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Grupos Detectados ({lanePatternReport.clusters.length})</span>
+                      </span>
+                      {activeClusterFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveClusterFilter(null)}
+                          className="text-[10px] font-mono text-red-500 hover:text-red-400 font-bold hover:underline cursor-pointer"
+                        >
+                          Limpiar filtro
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {lanePatternReport.clusters.map(cluster => {
+                        const isFiltered = activeClusterFilter === cluster.id;
+                        return (
+                          <div
+                            key={cluster.id}
+                            onClick={() => setActiveClusterFilter(isFiltered ? null : cluster.id)}
+                            className={`p-3 rounded-xl border transition-all cursor-pointer space-y-1.5 shadow-2xs ${
+                              isFiltered
+                                ? 'bg-red-50 dark:bg-red-950/20 border-red-500 text-red-900 dark:text-red-200'
+                                : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                {cluster.name}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400">
+                                {cluster.count} cartas ({cluster.percentage}%)
+                              </span>
+                            </div>
+                            <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug">
+                              {cluster.description}
+                            </p>
+                            <div className="flex items-center justify-between pt-1">
+                              {cluster.suggestedAction && (
+                                <span className="text-[9.5px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                  💡 {cluster.suggestedAction}
+                                </span>
+                              )}
+                              <span className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                isFiltered 
+                                  ? 'bg-red-600 text-white' 
+                                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500'
+                              }`}>
+                                {isFiltered ? 'Filtro Activo' : 'Clic para filtrar grid'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Cartas Fuera de Lugar (Foils / Staples desprotegidos) */}
+                  {lanePatternReport.misplacedCards.length > 0 && (
+                    <div className="p-3.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl space-y-2.5 shadow-2xs">
+                      <div className="flex items-center gap-1.5 text-xs font-mono font-black text-amber-700 dark:text-amber-400 uppercase">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Cartas Fuera de Lugar ({lanePatternReport.misplacedCards.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {lanePatternReport.misplacedCards.map((m, idx) => (
+                          <div key={idx} className="p-2.5 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2 shadow-2xs">
+                            <div className="min-w-0">
+                              <h6 className="text-[11px] font-bold text-zinc-900 dark:text-zinc-100 truncate">{m.cardName}</h6>
+                              <p className="text-[9.5px] text-amber-600 dark:text-amber-400 font-mono">
+                                {m.rarity} • Sugerido: {m.suggestedLocationName}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!m.suggestedLocationId) return;
+                                try {
+                                  await fetch('/api/collection/cards', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      id: m.userCardId,
+                                      storage_location_id: m.suggestedLocationId,
+                                      status_flag: 'collection'
+                                    })
+                                  });
+                                  setCards(prev => prev.filter(c => c.id !== m.userCardId));
+                                  toast.success(`${m.cardName} movida a ${m.suggestedLocationName}`, { title: '¡Carta reubicada!' });
+                                } catch (err) {
+                                  console.error(err);
+                                }
+                              }}
+                              className="shrink-0 px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] rounded-lg transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Mover
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── SUB-VISTA: DIAGNÓSTICO DE LA CARTA ACTIVA ── */}
+              {aiSubView === 'card' && (
+                classificationReport && selectedUserCard ? (
+                  <div className="space-y-3.5">
+                    {/* Header de la Carta */}
+                    <div className="flex gap-3 items-start bg-white dark:bg-zinc-950 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedUserCard.card_details?.image_url_small || selectedUserCard.card_details?.image_url}
+                        alt={selectedUserCard.card_details?.name || ''}
+                        className="w-16 rounded-lg shadow-sm shrink-0 border border-zinc-200 dark:border-zinc-800"
+                      />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100 truncate">
+                          {selectedUserCard.card_details?.name}
+                        </h4>
+                        <p className="text-[10px] text-zinc-500 font-mono uppercase">
+                          {selectedUserCard.card_details?.type}
+                        </p>
+                        {selectedUserCard.card_details?.archetype && (
+                          <span className="inline-block text-[9.5px] font-mono text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-1.5 py-0.5 rounded">
+                            {selectedUserCard.card_details.archetype}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Tarjeta de Sugerencia Principal */}
+                    <div className={`p-3.5 rounded-2xl border ${
+                      classificationReport.bestRecommendation.badgeColor === 'emerald'
+                        ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200'
+                        : classificationReport.bestRecommendation.badgeColor === 'amber'
+                        ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/40 text-amber-900 dark:text-amber-200'
+                        : classificationReport.bestRecommendation.badgeColor === 'blue'
+                        ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-800/40 text-blue-900 dark:text-blue-200'
+                        : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-200'
+                    } space-y-2 shadow-2xs`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-md bg-white/80 dark:bg-zinc-900/80 border border-current">
+                          {classificationReport.bestRecommendation.badgeLabel}
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-500 font-bold flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-amber-500" />
+                          <span>Sugerencia IA</span>
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100">
+                        {classificationReport.bestRecommendation.title}
+                      </h4>
+                      <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+                        {classificationReport.bestRecommendation.description}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyRecommendation(classificationReport.bestRecommendation)}
+                        className="w-full mt-1 py-2 px-3 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>{classificationReport.bestRecommendation.actionLabel}</span>
+                      </button>
+                    </div>
+
+                    {/* Decks Activos que requieren esta carta */}
+                    <div className="bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
+                        <div className="flex items-center gap-1.5 text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Completar Decks Activos</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-zinc-500">
+                          {classificationReport.deckMatches.length} mazo(s)
+                        </span>
+                      </div>
+
+                      {classificationReport.deckMatches.length > 0 ? (
+                        <div className="space-y-2">
+                          {classificationReport.deckMatches.map(deck => (
+                            <div key={deck.deckId} className="p-2.5 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2 shadow-2xs">
+                              <div className="min-w-0">
+                                <h5 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                  {deck.deckName}
+                                </h5>
+                                <p className="text-[10px] font-mono text-zinc-500">
+                                  Sección: <span className="uppercase font-bold text-emerald-600 dark:text-emerald-400">{deck.section}</span> • Faltan: <span className="font-black text-zinc-800 dark:text-zinc-200">{deck.neededCopies}x</span>
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleAssignToDeck(deck.deckId, deck.deckName, deck.section)}
+                                className="shrink-0 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10.5px] font-bold rounded-lg transition-colors cursor-pointer shadow-2xs flex items-center gap-1"
+                              >
+                                <span>Asignar</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-zinc-500 italic py-0.5">
+                          Ningún mazo activo en tu biblioteca requiere esta carta actualmente.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Playset y Excedente */}
+                    <div className="bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-zinc-700 dark:text-zinc-300">Regla de Playset (3 copias):</span>
+                        <span className={`font-mono font-bold ${classificationReport.surplus.isSurplus ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-500'}`}>
+                          {classificationReport.surplus.isSurplus ? `+${classificationReport.surplus.surplusCopies}x Excedente` : `${classificationReport.surplus.totalPhysicalInInventory}/3`}
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] text-zinc-500">
+                        {classificationReport.surplus.isSurplus 
+                          ? 'Tienes más de 3 copias físicas de esta carta en tu colección. Las copias sobrantes pueden venderse o cambiarse.' 
+                          : 'Dentro del límite reglamentario de 3 copias para jugar.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center bg-white dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2 shadow-2xs">
+                    <Tag className="w-8 h-8 text-zinc-400 mx-auto opacity-50" />
+                    <h4 className="text-xs font-black text-zinc-700 dark:text-zinc-300 uppercase">Selecciona una carta</h4>
+                    <p className="text-[11px] text-zinc-500 max-w-xs mx-auto">
+                      Haz clic en cualquier carta de la cuadrícula para ver su diagnóstico individual y destino recomendado.
+                    </p>
+                  </div>
+                )
+              )}
+
+              {/* ── SUB-VISTA: OPORTUNIDADES GLOBALES DE LA COLECCIÓN ── */}
+              {aiSubView === 'collection' && (
+                <div className="space-y-3.5">
+                  {/* Resumen Global */}
+                  <div className="p-3.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800/40">
+                        Colección Total
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-500 font-bold">
+                        {allCollectionCards.length || cards.length} cartas
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100">
+                      Oportunidades de Construcción
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 pt-1 text-[10.5px] font-mono">
+                      <div className="p-2 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                        <span className="text-zinc-500 block text-[9.5px]">Cores Listos:</span>
+                        <span className="font-black text-purple-600 dark:text-purple-400 text-xs">
+                          {globalCollectionReport.archetypeCores.length} arquetipos
+                        </span>
+                      </div>
+                      <div className="p-2 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                        <span className="text-zinc-500 block text-[9.5px]">Mazos Armables:</span>
+                        <span className="font-black text-emerald-600 dark:text-emerald-400 text-xs">
+                          {globalCollectionReport.deckOpportunities.filter(d => d.readyToAssignCount > 0).length} mazos
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cores de Arquetipos Listos */}
+                  <div className="bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2.5 shadow-2xs">
+                    <h5 className="text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-purple-500" />
+                      <span>Cores de Arquetipos ({globalCollectionReport.archetypeCores.length})</span>
+                    </h5>
+
+                    <div className="space-y-2">
+                      {globalCollectionReport.archetypeCores.slice(0, 6).map((core, idx) => (
+                        <div key={idx} className="p-2.5 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-zinc-900 dark:text-zinc-100">{core.archetype}</span>
+                            <span className="text-[10px] font-mono font-bold text-purple-600 dark:text-purple-400">{core.totalCards} cartas ({core.deckReadinessPercentage}% deck)</span>
+                          </div>
+                          <p className="text-[10px] text-zinc-500 truncate">
+                            Ej: {core.cardNames.join(', ')}
+                          </p>
+                          <span className="block text-[9.5px] font-mono text-emerald-600 dark:text-emerald-400 font-bold pt-0.5">
+                            💡 {core.suggestedAction}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mazos con Piezas Disponibles */}
+                  {globalCollectionReport.deckOpportunities.length > 0 && (
+                    <div className="bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2.5 shadow-2xs">
+                      <h5 className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Mazos con Piezas Listas</span>
+                      </h5>
+
+                      <div className="space-y-2">
+                        {globalCollectionReport.deckOpportunities.slice(0, 4).map(deck => (
+                          <div key={deck.deckId} className="p-2.5 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-zinc-900 dark:text-zinc-100">{deck.deckName}</span>
+                              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                {deck.readyToAssignCount}/{deck.totalNeeded} listas
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-zinc-500 mt-0.5">
+                              {deck.completionPossibleNow ? '✨ ¡Todas las cartas necesarias están en tu colección!' : `Tienes ${deck.readyToAssignCount} de las cartas faltantes.`}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+          ) : (
+            /* ═══════════════════════════════════════════════════════════════════
+               MODO 2: INSPECTOR TRADICIONAL DE DETALLES Y VARIANTES (SWITCH OFF)
+               ═══════════════════════════════════════════════════════════════════ */
+            selectedUserCard && selectedUserCard.card_details ? (
+              <div className="space-y-4">
+                {/* Vista previa de carta */}
+                <div className="flex gap-3.5 items-start bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={selectedUserCard.card_details.image_url_small || selectedUserCard.card_details.image_url}
+                    alt={selectedUserCard.card_details.name}
+                    className="w-20 rounded-xl shadow-md shrink-0 border border-zinc-200 dark:border-zinc-800"
+                  />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <h4 className="text-xs font-black text-zinc-900 dark:text-white leading-snug">
+                      {selectedUserCard.card_details.name}
+                    </h4>
+                    <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono uppercase font-semibold">
+                      {selectedUserCard.card_details.type}
+                    </p>
+                    {selectedUserCard.card_details.archetype && (
+                      <span className="inline-block text-[9.5px] font-mono text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800/60 px-2 py-0.5 rounded-md mt-1 font-bold">
+                        {selectedUserCard.card_details.archetype}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Desglose de Variantes y Rarezas por Copias */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-purple-500" />
+                      <span>Desglose de Copias ({totalCopiesInContainer} en total)</span>
+                    </h4>
+                  </div>
+
+                  <div className="space-y-3">
+                    {activeVariants.map((v, idx) => (
+                      <div key={v.id} className="p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 shadow-2xs">
+                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-1.5">
+                          <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
+                            Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
+                          </span>
+                          {activeVariants.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteVariantById(v.id)}
+                              className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
+                            >
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Cantidad de copias para esta variante */}
+                          <div>
+                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                              Copias:
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="99"
+                              value={v.quantity || 1}
+                              onChange={(e) => handleUpdateVariantById(v.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-mono font-bold focus:border-purple-500 focus:outline-none"
+                            />
+                          </div>
+
+                          {/* Rareza de esta variante */}
+                          <div>
+                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                              Rareza:
+                            </label>
+                            <select
+                              value={v.rarity || 'Common'}
+                              onChange={(e) => handleUpdateVariantById(v.id, { rarity: e.target.value })}
+                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-bold focus:border-purple-500 focus:outline-none cursor-pointer"
+                            >
+                              <option value="Common">Common (Común)</option>
+                              <option value="Rare">Rare (Rara)</option>
+                              <option value="Super Rare">Super Rare</option>
+                              <option value="Ultra Rare">Ultra Rare</option>
+                              <option value="Secret Rare">Secret Rare</option>
+                              <option value="Ultimate Rare">Ultimate Rare</option>
+                              <option value="Ghost Rare">Ghost Rare</option>
+                              <option value="Starlight Rare">Starlight Rare</option>
+                              <option value="Collector's Rare">Collector&apos;s Rare</option>
+                              <option value="Quarter Century Secret Rare">25th Quarter Century</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Condición y Funda */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                              Condición:
+                            </label>
+                            <select
+                              value={v.condition || 'Near Mint'}
+                              onChange={(e) => handleUpdateVariantById(v.id, { condition: e.target.value as UserCard['condition'] })}
+                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
+                            >
+                              <option value="Near Mint">Near Mint (NM)</option>
+                              <option value="Lightly Played">Lightly Played (LP)</option>
+                              <option value="Moderately Played">Moderately Played (MP)</option>
+                              <option value="Heavily Played">Heavily Played (HP)</option>
+                              <option value="Damaged">Damaged (DMG)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                              Funda / Sleeving:
+                            </label>
+                            <select
+                              value={v.sleeve_type || 'none'}
+                              onChange={(e) => handleUpdateVariantById(v.id, { sleeve_type: e.target.value as UserCard['sleeve_type'] })}
+                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
+                            >
+                              <option value="none">Sin Funda</option>
+                              <option value="single">Funda Simple</option>
+                              <option value="double">Funda Doble</option>
+                              <option value="triple">Funda Triple</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddNewVariant}
+                    className="w-full py-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 font-bold text-xs rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>➕ Añadir variante / rareza diferente</span>
+                  </button>
+                </div>
 
                 {/* Destino / Status flag */}
                 <div>
@@ -1933,7 +2686,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   <select
                     value={selectedUserCard.status_flag || 'collection'}
                     onChange={(e) => handleUpdateCard({ status_flag: e.target.value as UserCard['status_flag'] })}
-                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer font-bold"
                   >
                     <option value="collection">Colección Permanente</option>
                     <option value="trade_sale">Venta / Trade</option>
@@ -1995,30 +2748,29 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                     className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs"
                   />
                 </div>
-              </div>
 
-              {/* Botón Eliminar */}
-              <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
-                <button
-                  onClick={handleDeleteCard}
-                  className="w-full py-2.5 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Eliminar de Colección</span>
-                </button>
+                {/* Botón Eliminar */}
+                <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                  <button
+                    onClick={handleDeleteCard}
+                    className="w-full py-2.5 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Eliminar de Colección</span>
+                  </button>
+                </div>
               </div>
-
-            </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 dark:text-zinc-500 space-y-2">
-              <Sparkles className="w-10 h-10 mb-1 opacity-40 text-red-500" />
-              <h4 className="text-xs font-black uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">
-                Ninguna carta seleccionada
-              </h4>
-              <p className="text-[11.5px] leading-relaxed text-zinc-400 dark:text-zinc-500 max-w-xs">
-                Haz clic en una carta de la grid o añade una nueva para inspeccionar y editar sus propiedades.
-              </p>
-            </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 dark:text-zinc-500 space-y-2">
+                <Info className="w-10 h-10 mb-1 opacity-40 text-zinc-400" />
+                <h4 className="text-xs font-black uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">
+                  Ninguna carta seleccionada
+                </h4>
+                <p className="text-[11.5px] leading-relaxed text-zinc-400 dark:text-zinc-500 max-w-xs">
+                  Haz clic en una carta de la cuadrícula para inspeccionar sus copias, rarezas y propiedades.
+                </p>
+              </div>
+            )
           )}
         </div>
 
@@ -2045,6 +2797,248 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           );
         }}
       />
+
+      {/* ═══ MODAL PARA GESTIÓN DE MAZOS Y CARRILES ═══ */}
+      <AnimatePresence>
+        {isAssignDeckModalOpen && (
+          <div 
+            className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 font-sans"
+            onClick={() => setIsAssignDeckModalOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-2xl space-y-4 text-zinc-900 dark:text-zinc-100 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center">
+                    <Swords className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-wider">
+                      Gestión de Mazos y Carriles
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 font-medium">
+                      {(currentLocation || location)?.name || 'Caja'} • {decksInContainer.length} {decksInContainer.length === 1 ? 'mazo registrado' : 'mazos registrados'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAssignDeckModalOpen(false)}
+                  className="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-xl cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Sección 1: Distribución Actual de Mazos por Carril */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-black uppercase tracking-wider text-zinc-500 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-red-500" />
+                    <span>Distribución por Carril</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    {cards.length} cartas físicas en caja
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {((currentLocation || location)?.compartments?.names || ['Principal']).map((compName, idx) => {
+                    const compCount = cards.filter(c => (c.compartment_index || 0) === idx).reduce((sum, c) => sum + (c.quantity || 1), 0);
+                    const laneDecks = decksInContainer.filter(d => d.compartments.has(idx));
+                    const moveOptions = ((currentLocation || location)?.compartments?.names || [])
+                      .map((name, targetIdx) => targetIdx !== idx ? ({
+                        value: targetIdx,
+                        label: `Mover a ${name || `Carril ${targetIdx + 1}`}`,
+                        icon: <Box className="w-3.5 h-3.5 text-zinc-400" />
+                      }) : null)
+                      .filter(Boolean) as DropdownOption<number>[];
+
+                    return (
+                      <div 
+                        key={idx}
+                        className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Box className="w-3.5 h-3.5 text-zinc-500" />
+                            <span className="text-xs font-black text-zinc-800 dark:text-zinc-200">
+                              {compName || `Carril ${idx + 1}`}
+                            </span>
+                            <span className="text-[10.5px] px-1.5 py-0.2 rounded-full font-mono font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                              {compCount} cartas
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAssignCompartmentIdx(idx);
+                              setSelectedDeckIdToAssign(internalDecks[0]?.id || '');
+                            }}
+                            className="text-[10.5px] text-red-600 dark:text-red-400 hover:underline font-bold cursor-pointer"
+                          >
+                            ➕ Añadir mazo a C{idx + 1}
+                          </button>
+                        </div>
+
+                        {/* Listado de Mazos en este carril */}
+                        {laneDecks.length > 0 ? (
+                          <div className="space-y-1.5 pt-1">
+                            {laneDecks.map(d => (
+                              <div 
+                                key={d.id}
+                                className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Swords className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate">{d.name}</p>
+                                    <p className="text-[10px] text-zinc-500 font-mono">
+                                      {d.countInContainer} de {d.totalCards} cartas físicas en este carril
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Acciones de Mazo (Mover a otro carril con PremiumDropdown) */}
+                                {(currentLocation || location)?.compartments && (currentLocation || location)!.compartments.count > 1 && moveOptions.length > 0 && (
+                                  <div className="shrink-0 ml-2">
+                                    <PremiumDropdown
+                                      options={moveOptions}
+                                      value={-1}
+                                      onChange={(targetIdx) => {
+                                        if (targetIdx !== -1) {
+                                          handleMoveDeckCards(d.id, targetIdx);
+                                        }
+                                      }}
+                                      placeholder="Mover mazo a..."
+                                      menuWidth="w-52"
+                                      align="right"
+                                      size="sm"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono italic">
+                            Sin mazos vinculados ({compCount} cartas sueltas / staples)
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Sección 2: Vincular o Importar Nuevo Mazo a un Carril */}
+              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
+                <span className="text-[11px] font-mono font-black uppercase tracking-wider text-zinc-500 block">
+                  Vincular Mazo Existente a un Carril
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Selector de Carril */}
+                  {(currentLocation || location)?.compartments && (currentLocation || location)!.compartments.count > 1 && (
+                    <div>
+                      <label className="text-[10.5px] font-mono font-black text-zinc-500 uppercase block mb-1">
+                        Carril Destino:
+                      </label>
+                      <PremiumDropdown
+                        options={((currentLocation || location)?.compartments?.names || []).map((name, i) => ({
+                          value: i,
+                          label: name || `Carril ${i + 1}`,
+                          icon: <Box className="w-3.5 h-3.5 text-zinc-400" />
+                        }))}
+                        value={assignCompartmentIdx}
+                        onChange={(i) => setAssignCompartmentIdx(i)}
+                        className="w-full"
+                        menuWidth="w-full"
+                        size="sm"
+                      />
+                    </div>
+                  )}
+
+                  {/* Selector de Mazo */}
+                  <div className={(currentLocation || location)?.compartments && (currentLocation || location)!.compartments.count > 1 ? '' : 'sm:col-span-2'}>
+                    <label className="text-[10.5px] font-mono font-black text-zinc-500 uppercase block mb-1">
+                      Mazo a Vincular:
+                    </label>
+                    <PremiumDropdown
+                      options={internalDecks.map((d) => ({
+                        value: d.id,
+                        label: d.name,
+                        badge: (d.cards || []).reduce((sum, c) => sum + c.count, 0),
+                        icon: <Swords className="w-3.5 h-3.5 text-red-500" />
+                      }))}
+                      value={selectedDeckIdToAssign}
+                      onChange={(deckId) => setSelectedDeckIdToAssign(deckId)}
+                      placeholder="-- Seleccionar Mazo --"
+                      className="w-full"
+                      menuWidth="w-full"
+                      size="sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Opción de mover cartas físicas automáticamente */}
+                {selectedDeckIdToAssign && (
+                  <label className="flex items-start gap-2 cursor-pointer select-none bg-zinc-50 dark:bg-zinc-900 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                    <input
+                      type="checkbox"
+                      checked={shouldMoveCardsOnAssign}
+                      onChange={(e) => setShouldMoveCardsOnAssign(e.target.checked)}
+                      className="mt-0.5 rounded border-zinc-300 text-red-600 focus:ring-0 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100 block">
+                        Mover automáticamente las cartas físicas de este mazo a este carril
+                      </span>
+                      <span className="text-[10.5px] text-zinc-500 block leading-tight">
+                        Asigna la ubicación física de todas las copias de este mazo para que queden registradas en este carril.
+                      </span>
+                    </div>
+                  </label>
+                )}
+
+                {/* Botones de Acción */}
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsAssignDeckModalOpen(false)}
+                    className="px-3.5 py-1.5 text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveDeckAssignment}
+                    disabled={isAssigningDeck || !selectedDeckIdToAssign}
+                    className="px-4 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-red-600/20 cursor-pointer flex items-center gap-1.5"
+                  >
+                    {isAssigningDeck ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Asignando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Vincular Mazo al Carril</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       </motion.div>
     </div>

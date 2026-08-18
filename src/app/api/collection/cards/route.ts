@@ -210,11 +210,31 @@ export async function PUT(req: NextRequest) {
       is_favorite
     } = body;
 
+    const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // Caso especial: Mover todas las cartas físicas de un mazo a un contenedor y carril
+    if (body.action === 'move_deck_cards' && body.target_deck_id && body.target_storage_location_id !== undefined) {
+      if (!isSupabaseConfigured) {
+        return NextResponse.json({ success: true, message: 'Modo demo: Cartas del mazo movidas' });
+      }
+      const { data: updatedCards, error: moveError } = await supabase
+        .from('yg_user_cards')
+        .update({
+          storage_location_id: body.target_storage_location_id,
+          compartment_index: body.target_compartment_index ?? 0,
+          binder_page: null,
+          binder_slot: null
+        })
+        .eq('deck_id', body.target_deck_id)
+        .select('id');
+
+      if (moveError) throw moveError;
+      return NextResponse.json({ success: true, count: updatedCards?.length || 0 });
+    }
+
     if (!id) {
       return NextResponse.json({ error: 'ID de registro de carta es obligatorio' }, { status: 400 });
     }
-
-    const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!isSupabaseConfigured) {
       return NextResponse.json({ success: true, message: 'Modo demostración: Carta actualizada' });
