@@ -152,14 +152,23 @@ export interface CardClassificationReport {
 // PATRONES DE CARRIL Y COLECCIÓN (LANE & GLOBAL PATTERNS)
 // -------------------------------------------------------------
 
+export type LaneClusterCategory = 
+  | 'archetype' 
+  | 'staple' 
+  | 'high_rarity' 
+  | 'deck_completion' 
+  | 'fun_synergy' 
+  | 'surplus_sale' 
+  | 'bulk';
+
 export interface LaneCluster {
   id: string;
   name: string;
-  category: 'archetype' | 'staple' | 'high_rarity' | 'deck_completion' | 'bulk';
+  category: LaneClusterCategory;
   count: number;
   uniqueCount: number;
   percentage: number;
-  color: 'purple' | 'amber' | 'blue' | 'emerald' | 'zinc';
+  color: 'purple' | 'amber' | 'blue' | 'emerald' | 'zinc' | 'rose';
   cardIds: number[];
   userCardIds: string[];
   description: string;
@@ -206,6 +215,7 @@ export interface GlobalDeckOpportunity {
 export interface GlobalCollectionReport {
   archetypeCores: GlobalArchetypeCore[];
   deckOpportunities: GlobalDeckOpportunity[];
+  globalClusters: LaneCluster[];
   highValueFoilsCount: number;
   unprotectedFoilsCount: number;
   totalStaplesCount: number;
@@ -573,8 +583,31 @@ export function analyzeLanePatterns(
   }
 
   const clusters: LaneCluster[] = [];
+  const singleArchetypeCards: UserCard[] = [];
+  const surplusSaleCards: UserCard[] = [];
+  const funSynergyCards: UserCard[] = [];
 
-  // Añadir arquetipos relevantes
+  // Recolectar excedentes y sinergias
+  for (const uc of laneCards) {
+    const name = uc.card_details?.name || `Carta #${uc.card_id}`;
+    const rarity = uc.rarity || 'Common';
+    const isCardHighRarity = HIGH_RARITIES.some(r => rarity.toLowerCase().includes(r.toLowerCase()));
+    const isCardStaple = GLOBAL_STAPLES_TIER1.some(s => s.toLowerCase() === name.toLowerCase()) ||
+                         GLOBAL_STAPLES_TIER2.some(s => s.toLowerCase() === name.toLowerCase());
+
+    if (uc.status_flag === 'trade_sale') {
+      surplusSaleCards.push(uc);
+    }
+    // Sinergia implícita o tipo de soporte
+    const type = uc.card_details?.type || '';
+    if (type.includes('Tuner') || type.includes('Ritual') || type.includes('Pendulum') || uc.card_details?.race === 'Dragon' || uc.card_details?.race === 'Cyberse') {
+      if (!isCardStaple && !isCardHighRarity && !archetypeCounts.has(uc.card_details?.archetype || '')) {
+        funSynergyCards.push(uc);
+      }
+    }
+  }
+
+  // Añadir arquetipos relevantes (>= 2 copias)
   archetypeCounts.forEach((data, archName) => {
     if (data.count >= 2) {
       const pct = Math.round((data.count / totalCards) * 100);
@@ -591,8 +624,30 @@ export function analyzeLanePatterns(
         description: `${data.count} cartas (${data.uniqueIds.size} únicas) del arquetipo ${archName}.`,
         suggestedAction: `Agrupar lote ${archName}`,
       });
+    } else {
+      // Cartas de arquetipos con 1 sola copia
+      const singleCard = laneCards.find(c => c.card_details?.archetype === archName);
+      if (singleCard) singleArchetypeCards.push(singleCard);
     }
   });
+
+  // Añadir Arquetipos Menores / Cartas Rogues sueltas (1 copia)
+  if (singleArchetypeCards.length > 0) {
+    const count = singleArchetypeCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    clusters.push({
+      id: 'cluster-minor-archetypes',
+      name: 'Arquetipos Menores & Rogues',
+      category: 'fun_synergy',
+      count,
+      uniqueCount: new Set(singleArchetypeCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalCards) * 100),
+      color: 'rose',
+      cardIds: Array.from(new Set(singleArchetypeCards.map(c => c.card_id))),
+      userCardIds: singleArchetypeCards.map(c => c.id),
+      description: `${count} cartas de arquetipos únicos individuales para proyectos fun o rogue.`,
+      suggestedAction: 'Ver sinergias o guardar en Binder',
+    });
+  }
 
   // Añadir staples
   if (stapleCards.length > 0) {
@@ -648,6 +703,42 @@ export function analyzeLanePatterns(
     });
   }
 
+  // Añadir Excedentes / Venta
+  if (surplusSaleCards.length > 0) {
+    const count = surplusSaleCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    clusters.push({
+      id: 'cluster-surplus',
+      name: 'Excedentes / Venta & Trade',
+      category: 'surplus_sale',
+      count,
+      uniqueCount: new Set(surplusSaleCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalCards) * 100),
+      color: 'emerald',
+      cardIds: Array.from(new Set(surplusSaleCards.map(c => c.card_id))),
+      userCardIds: surplusSaleCards.map(c => c.id),
+      description: `${count} cartas marcadas para comercio o venta como excedentes.`,
+      suggestedAction: 'Ubicar en Caja de Venta',
+    });
+  }
+
+  // Añadir Bulk / Almacenamiento Estándar (garantiza que ninguna carta quede sin grupo)
+  if (bulkCards.length > 0) {
+    const count = bulkCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    clusters.push({
+      id: 'cluster-bulk',
+      name: 'Bulk / Almacén Estándar',
+      category: 'bulk',
+      count,
+      uniqueCount: new Set(bulkCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalCards) * 100),
+      color: 'zinc',
+      cardIds: Array.from(new Set(bulkCards.map(c => c.card_id))),
+      userCardIds: bulkCards.map(c => c.id),
+      description: `${count} cartas comunes sin arquetipo ni demanda activa. Ideales para caja masiva.`,
+      suggestedAction: 'Almacenar en Caja General',
+    });
+  }
+
   // Determinar tema dominante
   clusters.sort((a, b) => b.count - a.count);
   const dominant = clusters[0];
@@ -682,7 +773,7 @@ export function analyzeGlobalCollectionPatterns(
   locations: StorageLocation[] = []
 ): GlobalCollectionReport {
   // 1. Arquetipos globales
-  const archMap = new Map<string, { count: number; uniqueIds: Set<number>; cardNames: Set<string> }>();
+  const archMap = new Map<string, { count: number; uniqueIds: Set<number>; cardNames: Set<string>; userCardIds: string[] }>();
   let totalStaples = 0;
   let highValueFoils = 0;
   let unprotectedFoils = 0;
@@ -690,6 +781,12 @@ export function analyzeGlobalCollectionPatterns(
   let bulkTotal = 0;
 
   const physicalCountsByCardId = new Map<number, number>();
+  const stapleCards: UserCard[] = [];
+  const foilCards: UserCard[] = [];
+  const deckCompletionCards: UserCard[] = [];
+  const bulkCards: UserCard[] = [];
+  const singleArchetypeCards: UserCard[] = [];
+
   for (const uc of allCards) {
     const qty = uc.quantity || 1;
     const current = physicalCountsByCardId.get(uc.card_id) || 0;
@@ -703,24 +800,35 @@ export function analyzeGlobalCollectionPatterns(
                      GLOBAL_STAPLES_TIER2.some(s => s.toLowerCase() === name.toLowerCase());
 
     if (archetype) {
-      const e = archMap.get(archetype) || { count: 0, uniqueIds: new Set<number>(), cardNames: new Set<string>() };
+      const e = archMap.get(archetype) || { count: 0, uniqueIds: new Set<number>(), cardNames: new Set<string>(), userCardIds: [] };
       e.count += qty;
       e.uniqueIds.add(uc.card_id);
       e.cardNames.add(name);
+      e.userCardIds.push(uc.id);
       archMap.set(archetype, e);
     }
 
-    if (isStaple) totalStaples += qty;
+    if (isStaple) {
+      totalStaples += qty;
+      stapleCards.push(uc);
+    }
     if (isHighRarity) {
       highValueFoils += qty;
+      foilCards.push(uc);
       const loc = locations.find(l => l.id === uc.storage_location_id);
       if (!loc || loc.type !== 'binder') {
         unprotectedFoils += qty;
       }
     }
 
-    if (!isHighRarity && !isStaple && !archetype && !uc.deck_id) {
+    const matchesDeck = allDecks.some(d => d.cards?.some(dc => dc.card_id === uc.card_id));
+    if (matchesDeck) {
+      deckCompletionCards.push(uc);
+    }
+
+    if (!isHighRarity && !isStaple && !archetype && !matchesDeck) {
       bulkTotal += qty;
+      bulkCards.push(uc);
     }
   }
 
@@ -730,9 +838,11 @@ export function analyzeGlobalCollectionPatterns(
   });
 
   const archetypeCores: GlobalArchetypeCore[] = [];
+  const globalClusters: LaneCluster[] = [];
+  const totalAllCards = Math.max(1, allCards.reduce((sum, c) => sum + (c.quantity || 1), 0));
+
   archMap.forEach((val, archName) => {
     if (val.uniqueIds.size >= 3 || val.count >= 6) {
-      // Estimar readiness para deck (un core típico suele requerir 15-20 cartas del arquetipo)
       const readiness = Math.min(100, Math.round((val.count / 18) * 100));
       archetypeCores.push({
         archetype: archName,
@@ -743,8 +853,119 @@ export function analyzeGlobalCollectionPatterns(
         suggestedAction: readiness >= 70 ? 'Listo para armar Deck' : 'Lote / Core para Venta',
       });
     }
+
+    if (val.count >= 2) {
+      globalClusters.push({
+        id: `global-arch-${archName}`,
+        name: `Arquetipo: ${archName}`,
+        category: 'archetype',
+        count: val.count,
+        uniqueCount: val.uniqueIds.size,
+        percentage: Math.round((val.count / totalAllCards) * 100),
+        color: 'purple',
+        cardIds: Array.from(val.uniqueIds),
+        userCardIds: val.userCardIds,
+        description: `${val.count} cartas (${val.uniqueIds.size} únicas) del arquetipo ${archName} en toda la colección.`,
+        suggestedAction: `Reunir lote ${archName}`,
+      });
+    } else {
+      const singleCard = allCards.find(c => c.card_details?.archetype === archName);
+      if (singleCard) singleArchetypeCards.push(singleCard);
+    }
   });
   archetypeCores.sort((a, b) => b.totalCards - a.totalCards);
+
+  // Añadir Arquetipos Menores Globales
+  if (singleArchetypeCards.length > 0) {
+    const count = singleArchetypeCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    globalClusters.push({
+      id: 'global-minor-archetypes',
+      name: 'Arquetipos Menores & Rogues',
+      category: 'fun_synergy',
+      count,
+      uniqueCount: new Set(singleArchetypeCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalAllCards) * 100),
+      color: 'rose',
+      cardIds: Array.from(new Set(singleArchetypeCards.map(c => c.card_id))),
+      userCardIds: singleArchetypeCards.map(c => c.id),
+      description: `${count} cartas de arquetipos menores o decks fun distribuidas en la colección.`,
+      suggestedAction: 'Explorar sinergias',
+    });
+  }
+
+  // Añadir Staples Globales
+  if (stapleCards.length > 0) {
+    const count = stapleCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    globalClusters.push({
+      id: 'global-staples',
+      name: 'Staples & Handtraps Globales',
+      category: 'staple',
+      count,
+      uniqueCount: new Set(stapleCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalAllCards) * 100),
+      color: 'amber',
+      cardIds: Array.from(new Set(stapleCards.map(c => c.card_id))),
+      userCardIds: stapleCards.map(c => c.id),
+      description: `${count} cartas de alta utilidad competitiva en tu inventario completo.`,
+      suggestedAction: 'Centralizar en Binder de Staples',
+    });
+  }
+
+  // Añadir Foils Globales
+  if (foilCards.length > 0) {
+    const count = foilCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    globalClusters.push({
+      id: 'global-foils',
+      name: 'Joyas de Colección / Foils',
+      category: 'high_rarity',
+      count,
+      uniqueCount: new Set(foilCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalAllCards) * 100),
+      color: 'blue',
+      cardIds: Array.from(new Set(foilCards.map(c => c.card_id))),
+      userCardIds: foilCards.map(c => c.id),
+      description: `${count} cartas de alta rareza (Ultra, Secret, QCR, Ultimate) en la colección.`,
+      suggestedAction: 'Proteger en Carpetas',
+    });
+  }
+
+  // Añadir Piezas de Decks Globales
+  if (deckCompletionCards.length > 0) {
+    const count = deckCompletionCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    globalClusters.push({
+      id: 'global-deck-pieces',
+      name: 'Piezas de Mazos Activos',
+      category: 'deck_completion',
+      count,
+      uniqueCount: new Set(deckCompletionCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalAllCards) * 100),
+      color: 'emerald',
+      cardIds: Array.from(new Set(deckCompletionCards.map(c => c.card_id))),
+      userCardIds: deckCompletionCards.map(c => c.id),
+      description: `${count} cartas asignadas o requeridas por tus barajas activas.`,
+      suggestedAction: 'Completar Decks',
+    });
+  }
+
+  // Añadir Bulk Global
+  if (bulkCards.length > 0) {
+    const count = bulkCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+    globalClusters.push({
+      id: 'global-bulk',
+      name: 'Bulk / Almacenamiento Masivo',
+      category: 'bulk',
+      count,
+      uniqueCount: new Set(bulkCards.map(c => c.card_id)).size,
+      percentage: Math.round((count / totalAllCards) * 100),
+      color: 'zinc',
+      cardIds: Array.from(new Set(bulkCards.map(c => c.card_id))),
+      userCardIds: bulkCards.map(c => c.id),
+      description: `${count} cartas comunes para almacenamiento y canje general.`,
+      suggestedAction: 'Organizar en cajas de bulk',
+    });
+  }
+
+  globalClusters.sort((a, b) => b.count - a.count);
 
   // Oportunidades de completar Decks
   const deckOpportunities: GlobalDeckOpportunity[] = [];
@@ -791,6 +1012,7 @@ export function analyzeGlobalCollectionPatterns(
   return {
     archetypeCores,
     deckOpportunities,
+    globalClusters,
     highValueFoilsCount: highValueFoils,
     unprotectedFoilsCount: unprotectedFoils,
     totalStaplesCount: totalStaples,
