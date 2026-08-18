@@ -17,6 +17,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { StorageLocation, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface ManualCardAdderModalProps {
   isOpen: boolean;
@@ -437,18 +438,19 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                 <span className="text-[10px] font-black uppercase text-zinc-400 font-mono">
                   Destino por defecto:
                 </span>
-                <select
+                <PremiumDropdown
                   value={defaultLocationId}
-                  onChange={(e) => handleApplyLocationToAll(e.target.value)}
-                  className="py-1 px-2.5 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                >
-                  <option value="inbox">📥 Bandeja Sin Clasificar (Inbox)</option>
-                  {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      📦 {loc.name} ({loc.type})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleApplyLocationToAll(val)}
+                  size="sm"
+                  menuWidth="min-w-64"
+                  options={[
+                    { value: 'inbox', label: '📥 Bandeja Sin Clasificar (Inbox)' },
+                    ...locations.map((loc) => ({
+                      value: loc.id,
+                      label: `📦 ${loc.name} (${loc.type})`,
+                    })),
+                  ]}
+                />
               </div>
 
               <button
@@ -880,15 +882,17 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                           Idioma
                         </label>
-                        <select
+                        <PremiumDropdown
                           value={activeCard.language}
-                          onChange={(e) => handleUpdateActiveCard({ language: e.target.value as 'en' | 'es' | 'jp' })}
-                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                        >
-                          <option value="en">Inglés (EN)</option>
-                          <option value="es">Español (ES)</option>
-                          <option value="jp">Japonés (JP)</option>
-                        </select>
+                          onChange={(val) => handleUpdateActiveCard({ language: val as 'en' | 'es' | 'jp' })}
+                          align="full"
+                          size="sm"
+                          options={[
+                            { value: 'en', label: 'Inglés (EN)' },
+                            { value: 'es', label: 'Español (ES)' },
+                            { value: 'jp', label: 'Japonés (JP)' },
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -897,18 +901,19 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                       <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                         Contenedor de Destino
                       </label>
-                      <select
+                      <PremiumDropdown
                         value={activeCard.storage_location_id}
-                        onChange={(e) => handleUpdateActiveCard({ storage_location_id: e.target.value })}
-                        className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                      >
-                        <option value="inbox">📥 Bandeja &quot;Sin Clasificar&quot; (Inbox)</option>
-                        {locations.map((loc) => (
-                          <option key={loc.id} value={loc.id}>
-                            📦 {loc.name} ({loc.type})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => handleUpdateActiveCard({ storage_location_id: val })}
+                        align="full"
+                        size="sm"
+                        options={[
+                          { value: 'inbox', label: '📥 Bandeja "Sin Clasificar" (Inbox)' },
+                          ...locations.map((loc) => ({
+                            value: loc.id,
+                            label: `📦 ${loc.name} (${loc.type})`,
+                          })),
+                        ]}
+                      />
                     </div>
 
                     {/* Rareza y Condición */}
@@ -917,34 +922,26 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                           Rareza
                         </label>
-                        <select
+                        <PremiumDropdown
                           value={activeCard.rarity}
-                          onChange={(e) => handleUpdateActiveCard({ rarity: e.target.value })}
-                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                        >
-                          {RARITIES.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleUpdateActiveCard({ rarity: val })}
+                          align="full"
+                          size="sm"
+                          options={RARITIES.map((r) => ({ value: r, label: r }))}
+                        />
                       </div>
 
                       <div>
                         <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                           Condición
                         </label>
-                        <select
+                        <PremiumDropdown
                           value={activeCard.condition}
-                          onChange={(e) => handleUpdateActiveCard({ condition: e.target.value as CardCondition })}
-                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                        >
-                          {CONDITIONS.map((cond) => (
-                            <option key={cond} value={cond}>
-                              {cond}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleUpdateActiveCard({ condition: val as CardCondition })}
+                          align="full"
+                          size="sm"
+                          options={CONDITIONS.map((cond) => ({ value: cond, label: cond }))}
+                        />
                       </div>
                     </div>
 
@@ -954,33 +951,31 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                         <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                           Estado / Intención
                         </label>
-                        <select
+                        <PremiumDropdown
                           value={activeCard.status_flag}
-                          onChange={(e) => handleUpdateActiveCard({ status_flag: e.target.value as CardStatusFlag })}
-                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                        >
-                          {STATUS_FLAGS.map((s) => (
-                            <option key={s.value} value={s.value}>
-                              {s.label}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleUpdateActiveCard({ status_flag: val as CardStatusFlag })}
+                          align="full"
+                          size="sm"
+                          options={STATUS_FLAGS.map((s) => ({ value: s.value, label: s.label }))}
+                        />
                       </div>
 
                       <div>
                         <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                           Funda
                         </label>
-                        <select
+                        <PremiumDropdown
                           value={activeCard.sleeve_type}
-                          onChange={(e) => handleUpdateActiveCard({ sleeve_type: e.target.value as SleeveType })}
-                          className="w-full py-1.5 px-2 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                        >
-                          <option value="none">Sin Funda</option>
-                          <option value="single">Single Sleeve</option>
-                          <option value="double">Double Sleeve</option>
-                          <option value="triple">Triple Sleeve</option>
-                        </select>
+                          onChange={(val) => handleUpdateActiveCard({ sleeve_type: val as SleeveType })}
+                          align="full"
+                          size="sm"
+                          options={[
+                            { value: 'none', label: 'Sin Funda' },
+                            { value: 'single', label: 'Single Sleeve' },
+                            { value: 'double', label: 'Double Sleeve' },
+                            { value: 'triple', label: 'Triple Sleeve' },
+                          ]}
+                        />
                       </div>
                     </div>
 

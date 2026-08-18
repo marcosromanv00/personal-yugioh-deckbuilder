@@ -43,6 +43,7 @@ import { SleeveInventoryFormModal } from './SleeveInventoryFormModal';
 import { getSleeveColorHex } from '@/lib/sleeves';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePanelResize } from '@/components/deckbuilder/hooks/usePanelResize';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import Link from 'next/link';
 
 interface UniversalDeckWorkspaceModalProps {
@@ -698,19 +699,17 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
               </div>
 
               {/* Selector de Ordenamiento Modernizado */}
-              <div className="relative flex items-center bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl px-3 py-1.5 shadow-2xs transition-colors shrink-0">
-                <ArrowUpDown className="w-3.5 h-3.5 text-red-500 shrink-0 mr-1.5" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="appearance-none bg-transparent pr-5 text-xs font-bold text-zinc-800 dark:text-zinc-200 focus:outline-none cursor-pointer tracking-tight"
-                >
-                  <option value="default" className="bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">Orden: Por Defecto</option>
-                  <option value="name_asc" className="bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">Nombre (A → Z)</option>
-                  <option value="type" className="bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">Tipo de Carta</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 absolute right-2.5 pointer-events-none" />
-              </div>
+              <PremiumDropdown
+                value={sortBy}
+                onChange={(val) => setSortBy(val)}
+                size="sm"
+                icon={<ArrowUpDown className="w-3.5 h-3.5 text-red-500" />}
+                options={[
+                  { value: 'default', label: 'Orden: Por Defecto' },
+                  { value: 'name_asc', label: 'Nombre (A → Z)' },
+                  { value: 'type', label: 'Tipo de Carta' },
+                ]}
+              />
             </div>
 
             {/* Pestañas de Secciones del Deck */}
@@ -1209,33 +1208,37 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                     <label className="text-[10.5px] font-mono font-black uppercase text-zinc-700 dark:text-zinc-300">
                       Formato:
                     </label>
-                    <select
+                    <PremiumDropdown
                       value={format}
-                      onChange={(e) => setFormat(e.target.value)}
-                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-                    >
-                      <option value="TCG">TCG</option>
-                      <option value="Master Duel">Master Duel</option>
-                      <option value="OCG">OCG</option>
-                      <option value="Speed Duel">Speed Duel</option>
-                      <option value="Edison">Edison</option>
-                      <option value="GOAT">GOAT</option>
-                      <option value="Casual">Casual</option>
-                    </select>
+                      onChange={(val) => setFormat(val)}
+                      align="full"
+                      size="sm"
+                      options={[
+                        { value: 'TCG', label: 'TCG' },
+                        { value: 'Master Duel', label: 'Master Duel' },
+                        { value: 'OCG', label: 'OCG' },
+                        { value: 'Speed Duel', label: 'Speed Duel' },
+                        { value: 'Edison', label: 'Edison' },
+                        { value: 'GOAT', label: 'GOAT' },
+                        { value: 'Casual', label: 'Casual' },
+                      ]}
+                    />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[10.5px] font-mono font-black uppercase text-zinc-700 dark:text-zinc-300">
                       Estado:
                     </label>
-                    <select
+                    <PremiumDropdown
                       value={isActive ? 'active' : 'recipe'}
-                      onChange={(e) => setIsActive(e.target.value === 'active')}
-                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-2 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-                    >
-                      <option value="active">Activo (Mazo armado)</option>
-                      <option value="recipe">Inactivo (Receta)</option>
-                    </select>
+                      onChange={(val) => setIsActive(val === 'active')}
+                      align="full"
+                      size="sm"
+                      options={[
+                        { value: 'active', label: 'Activo (Mazo armado)' },
+                        { value: 'recipe', label: 'Inactivo (Receta)' },
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -1245,18 +1248,19 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                     <Box className="w-3.5 h-3.5 text-red-500" />
                     <span>Contenedor Físico Base:</span>
                   </label>
-                  <select
+                  <PremiumDropdown
                     value={storageLocationId}
-                    onChange={(e) => setStorageLocationId(e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-                  >
-                    <option value="">-- Sin almacenar (Sólo Receta Digital) --</option>
-                    {locations.map(loc => (
-                      <option key={loc.id} value={loc.id}>
-                        📦 {loc.name} ({loc.type})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setStorageLocationId(val)}
+                    align="full"
+                    size="sm"
+                    options={[
+                      { value: '', label: '-- Sin almacenar (Sólo Receta Digital) --' },
+                      ...locations.map((loc) => ({
+                        value: loc.id,
+                        label: `📦 ${loc.name} (${loc.type})`,
+                      })),
+                    ]}
+                  />
                   <p className="text-[10.5px] text-zinc-500 leading-relaxed mt-1">
                     Las cartas principales de este mazo se registrarán como guardadas aquí, salvo que indiques una ubicación separada para ciertas cartas.
                   </p>
@@ -1287,18 +1291,19 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                     <label className="text-[10px] font-mono text-zinc-500 font-bold block">
                       Main & Side Deck ({totalMainCount + totalSideCount} cartas):
                     </label>
-                    <select
+                    <PremiumDropdown
                       value={mainSleeveId}
-                      onChange={(e) => setMainSleeveId(e.target.value)}
-                      className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-                    >
-                      <option value="">-- Sin Funda Asignada --</option>
-                      {availableSleeves.map(s => (
-                        <option key={s.id} value={s.id}>
-                          🛡️ {s.name} ({s.brand} - {s.color_pattern}) [{s.quantity_total} totales]
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setMainSleeveId(val)}
+                      align="full"
+                      size="sm"
+                      options={[
+                        { value: '', label: '-- Sin Funda Asignada --' },
+                        ...availableSleeves.map((s) => ({
+                          value: s.id,
+                          label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_total} totales]`,
+                        })),
+                      ]}
+                    />
                   </div>
 
                   {/* Fundas Extra Deck */}
@@ -1306,18 +1311,19 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                     <label className="text-[10px] font-mono text-zinc-500 font-bold block">
                       Extra Deck ({totalExtraCount} cartas):
                     </label>
-                    <select
+                    <PremiumDropdown
                       value={extraSleeveId}
-                      onChange={(e) => setExtraSleeveId(e.target.value)}
-                      className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-                    >
-                      <option value="">-- Sin Funda Asignada --</option>
-                      {availableSleeves.map(s => (
-                        <option key={s.id} value={s.id}>
-                          🛡️ {s.name} ({s.brand} - {s.color_pattern}) [{s.quantity_total} totales]
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setExtraSleeveId(val)}
+                      align="full"
+                      size="sm"
+                      options={[
+                        { value: '', label: '-- Sin Funda Asignada --' },
+                        ...availableSleeves.map((s) => ({
+                          value: s.id,
+                          label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_total} totales]`,
+                        })),
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -1468,18 +1474,19 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                                   {currentCardLoc ? currentCardLoc.name : (currentBaseLocation?.name || 'En Deckbox')}
                                 </span>
                               </div>
-                              <select
+                              <PremiumDropdown
                                 value={uc.storage_location_id || ''}
-                                onChange={(e) => handleUpdateCardPhysicalLocation(uc.id, e.target.value || null, 0)}
-                                className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:border-cyan-500 focus:outline-none cursor-pointer"
-                              >
-                                <option value="">📦 Ubicación Base del Deck ({currentBaseLocation?.name || 'Deckbox'})</option>
-                                {locations.map(l => (
-                                  <option key={l.id} value={l.id}>
-                                    📁 {l.name} ({l.type})
-                                  </option>
-                                ))}
-                              </select>
+                                onChange={(val) => handleUpdateCardPhysicalLocation(uc.id, val || null, 0)}
+                                align="full"
+                                size="xs"
+                                options={[
+                                  { value: '', label: `📦 Ubicación Base del Deck (${currentBaseLocation?.name || 'Deckbox'})` },
+                                  ...locations.map((l) => ({
+                                    value: l.id,
+                                    label: `📁 ${l.name} (${l.type})`,
+                                  })),
+                               ]}
+                              />
                             </div>
                           );
                         })}

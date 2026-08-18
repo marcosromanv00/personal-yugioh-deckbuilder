@@ -6,6 +6,7 @@ import { X, Check, Edit3, Shield, Layers, AlertCircle } from 'lucide-react';
 import { Deck, StorageLocation, SleeveInventory, UserCard, DeckCardDetail, DeckSleeve } from '@/types/collection';
 import { useRouter } from 'next/navigation';
 import { SleeveInventoryFormModal } from './SleeveInventoryFormModal';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface DeckDetailsModalProps {
   deck: Deck | null;
@@ -491,27 +492,31 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">Formato</label>
-                <select
+                <PremiumDropdown
                   value={format}
-                  onChange={(e) => setFormat(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                >
-                  <option value="TCG">TCG</option>
-                  <option value="Master Duel">Master Duel</option>
-                  <option value="Duel Links">Duel Links</option>
-                </select>
+                  onChange={(val) => setFormat(val)}
+                  align="full"
+                  size="md"
+                  options={[
+                    { value: 'TCG', label: 'TCG' },
+                    { value: 'Master Duel', label: 'Master Duel' },
+                    { value: 'Duel Links', label: 'Duel Links' },
+                  ]}
+                />
               </div>
 
               <div>
                 <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">Estado</label>
-                <select
+                <PremiumDropdown
                   value={isActive ? 'active' : 'inactive'}
-                  onChange={(e) => setIsActive(e.target.value === 'active')}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                >
-                  <option value="active">Activo (En uso)</option>
-                  <option value="inactive">Inactivo (Receta de reserva)</option>
-                </select>
+                  onChange={(val) => setIsActive(val === 'active')}
+                  align="full"
+                  size="md"
+                  options={[
+                    { value: 'active', label: 'Activo (En uso)' },
+                    { value: 'inactive', label: 'Inactivo (Receta de reserva)' },
+                  ]}
+                />
               </div>
             </div>
 
@@ -520,24 +525,25 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
               <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
                 Contenedor Físico (Ubicación)
               </label>
-              <select
+              <PremiumDropdown
                 value={storageLocationId}
-                onChange={(e) => setStorageLocationId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-              >
-                <option value="">Sin almacenar (Sólo Receta)</option>
-                {locations.map((loc, idx) => {
-                  const containerDecks = decks.filter(d => d.storage_location_id === loc.id && d.id !== deck?.id);
-                  const decksLabel = containerDecks.length > 0
-                    ? ` (Contiene: ${containerDecks.map(d => d.name).join(', ')})`
-                    : '';
-                  return (
-                    <option key={loc.id || `location-${idx}`} value={loc.id}>
-                      {loc.type === 'deckbox' ? '📦' : loc.type === 'binder' ? '📘' : '📥'} {loc.name} ({loc.type.toUpperCase()}){decksLabel}
-                    </option>
-                  );
-                })}
-              </select>
+                onChange={(val) => setStorageLocationId(val)}
+                align="full"
+                size="md"
+                options={[
+                  { value: '', label: 'Sin almacenar (Sólo Receta)' },
+                  ...locations.map((loc, idx) => {
+                    const containerDecks = decks.filter((d) => d.storage_location_id === loc.id && d.id !== deck?.id);
+                    const decksLabel = containerDecks.length > 0
+                      ? ` (Contiene: ${containerDecks.map((d) => d.name).join(', ')})`
+                      : '';
+                    return {
+                      value: loc.id,
+                      label: `${loc.type === 'deckbox' ? '📦' : loc.type === 'binder' ? '📘' : '📥'} ${loc.name} (${loc.type.toUpperCase()})${decksLabel}`,
+                    };
+                  }),
+                ]}
+              />
             </div>
 
             {/* Fundas */}
@@ -569,21 +575,22 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
                         + Nueva
                       </button>
                     </div>
-                    <select
+                    <PremiumDropdown
                       value={mainSleeveId}
-                      onChange={(e) => {
-                        setMainSleeveId(e.target.value);
+                      onChange={(val) => {
+                        setMainSleeveId(val);
                         setMainSleeveMode('take');
                       }}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                    >
-                      <option value="">Ninguna / Sin funda</option>
-                      {availableSleeves.map((s, idx) => (
-                        <option key={s.id || `sleeve-main-${idx}`} value={s.id}>
-                          {s.name} ({s.brand} - {s.color_pattern})
-                        </option>
-                      ))}
-                    </select>
+                      align="full"
+                      size="md"
+                      options={[
+                        { value: '', label: 'Ninguna / Sin funda' },
+                        ...availableSleeves.map((s) => ({
+                          value: s.id,
+                          label: `${s.name} (${s.brand} - ${s.color_pattern})`,
+                        })),
+                      ]}
+                    />
                     {renderSleeveConflictPanel(
                       mainSleeveId,
                       'main_side',
@@ -610,21 +617,22 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
                         + Nueva
                       </button>
                     </div>
-                    <select
+                    <PremiumDropdown
                       value={extraSleeveId}
-                      onChange={(e) => {
-                        setExtraSleeveId(e.target.value);
+                      onChange={(val) => {
+                        setExtraSleeveId(val);
                         setExtraSleeveMode('take');
                       }}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-bold focus:border-red-500 focus:outline-none cursor-pointer"
-                    >
-                      <option value="">Ninguna / Sin funda</option>
-                      {availableSleeves.map((s, idx) => (
-                        <option key={s.id || `sleeve-extra-${idx}`} value={s.id}>
-                          {s.name} ({s.brand} - {s.color_pattern})
-                        </option>
-                      ))}
-                    </select>
+                      align="full"
+                      size="md"
+                      options={[
+                        { value: '', label: 'Ninguna / Sin funda' },
+                        ...availableSleeves.map((s) => ({
+                          value: s.id,
+                          label: `${s.name} (${s.brand} - ${s.color_pattern})`,
+                        })),
+                      ]}
+                    />
                     {renderSleeveConflictPanel(
                       extraSleeveId,
                       'extra',

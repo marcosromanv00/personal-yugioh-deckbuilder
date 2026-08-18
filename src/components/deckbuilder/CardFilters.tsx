@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
 
 export interface FilterState {
   type: string;
@@ -128,23 +129,26 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {/* Card Type */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Tipo de Carta</label>
-            <select
+            <PremiumDropdown
               value={filters.type}
-              onChange={(e) => updateFilter('type', e.target.value)}
-              className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
-            >
-              <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
-              <option value="Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Monstruo (Main)</option>
-              <option value="Extra" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Monstruo (Extra)</option>
-              <option value="Spell" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Magia</option>
-              <option value="Trap" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Trampa</option>
-              <option value="Fusion Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Fusion Monster</option>
-              <option value="Synchro Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Synchro Monster</option>
-              <option value="XYZ Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">XYZ Monster</option>
-              <option value="Link Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Link Monster</option>
-              <option value="Ritual Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Ritual Monster</option>
-              <option value="Pendulum Effect Monster" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Pendulum Monster</option>
-            </select>
+              onChange={(val) => updateFilter('type', val)}
+              align="full"
+              size="sm"
+              placeholder="Cualquiera"
+              options={[
+                { value: '', label: 'Cualquiera' },
+                { value: 'Monster', label: 'Monstruo (Main)' },
+                { value: 'Extra', label: 'Monstruo (Extra)' },
+                { value: 'Spell', label: 'Magia' },
+                { value: 'Trap', label: 'Trampa' },
+                { value: 'Fusion Monster', label: 'Fusion Monster' },
+                { value: 'Synchro Monster', label: 'Synchro Monster' },
+                { value: 'XYZ Monster', label: 'XYZ Monster' },
+                { value: 'Link Monster', label: 'Link Monster' },
+                { value: 'Ritual Monster', label: 'Ritual Monster' },
+                { value: 'Pendulum Effect Monster', label: 'Pendulum Monster' },
+              ]}
+            />
           </div>
 
           {/* Subtype / Race */}
@@ -152,32 +156,34 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
             <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">
               {filters.type === 'Spell' || filters.type === 'Trap' ? 'Propiedad' : 'Tipo / Raza'}
             </label>
-            <select
+            <PremiumDropdown
               value={filters.race}
-              onChange={(e) => updateFilter('race', e.target.value)}
-              className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
-            >
-              <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
-              {getRaceOptions().map((r) => (
-                <option key={r} value={r} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{r}</option>
-              ))}
-            </select>
+              onChange={(val) => updateFilter('race', val)}
+              align="full"
+              size="sm"
+              placeholder="Cualquiera"
+              options={[
+                { value: '', label: 'Cualquiera' },
+                ...getRaceOptions().map((r) => ({ value: r, label: r })),
+              ]}
+            />
           </div>
 
           {/* Attribute */}
           {(!filters.type || filters.type === 'Monster' || filters.type === 'Extra' || filters.type.includes('Monster')) && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Atributo</label>
-              <select
+              <PremiumDropdown
                 value={filters.attribute}
-                onChange={(e) => updateFilter('attribute', e.target.value)}
-                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
-              >
-                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
-                {ATTRIBUTES.map((attr) => (
-                  <option key={attr} value={attr} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{attr}</option>
-                ))}
-              </select>
+                onChange={(val) => updateFilter('attribute', val)}
+                align="full"
+                size="sm"
+                placeholder="Cualquiera"
+                options={[
+                  { value: '', label: 'Cualquiera' },
+                  ...ATTRIBUTES.map((attr) => ({ value: attr, label: attr })),
+                ]}
+              />
             </div>
           )}
 
@@ -185,16 +191,20 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {(!filters.type || filters.type === 'Monster' || filters.type === 'Extra' || filters.type.includes('Monster')) && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Nivel / Rango / Link</label>
-              <select
+              <PremiumDropdown
                 value={filters.level}
-                onChange={(e) => updateFilter('level', e.target.value)}
-                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
-              >
-                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((lvl) => (
-                  <option key={lvl} value={lvl.toString()} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{lvl}</option>
-                ))}
-              </select>
+                onChange={(val) => updateFilter('level', val)}
+                align="full"
+                size="sm"
+                placeholder="Cualquiera"
+                options={[
+                  { value: '', label: 'Cualquiera' },
+                  ...Array.from({ length: 12 }, (_, i) => ({
+                    value: (i + 1).toString(),
+                    label: `Nivel / Rango ${i + 1}`,
+                  })),
+                ]}
+              />
             </div>
           )}
 
@@ -262,16 +272,17 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {showRarity && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Rareza</label>
-              <select
+              <PremiumDropdown
                 value={filters.rarity || ''}
-                onChange={(e) => updateFilter('rarity', e.target.value)}
-                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
-              >
-                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
-                {RARITIES.map((r) => (
-                  <option key={r} value={r} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{r}</option>
-                ))}
-              </select>
+                onChange={(val) => updateFilter('rarity', val)}
+                align="full"
+                size="sm"
+                placeholder="Cualquiera"
+                options={[
+                  { value: '', label: 'Cualquiera' },
+                  ...RARITIES.map((r) => ({ value: r, label: r })),
+                ]}
+              />
             </div>
           )}
 
@@ -279,16 +290,17 @@ export const CardFilters: React.FC<CardFiltersProps> = ({
           {showCollectionOptions && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Estado / Destino</label>
-              <select
+              <PremiumDropdown
                 value={filters.status || ''}
-                onChange={(e) => updateFilter('status', e.target.value)}
-                className="w-full p-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs rounded-xl text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 font-bold shadow-xs transition-colors"
-              >
-                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cualquiera</option>
-                {STATUS_FLAGS.map((f) => (
-                  <option key={f.value} value={f.value} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{f.label}</option>
-                ))}
-              </select>
+                onChange={(val) => updateFilter('status', val)}
+                align="full"
+                size="sm"
+                placeholder="Cualquiera"
+                options={[
+                  { value: '', label: 'Cualquiera' },
+                  ...STATUS_FLAGS.map((f) => ({ value: f.value, label: f.label })),
+                ]}
+              />
             </div>
           )}
 

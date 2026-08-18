@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StorageLocation, UserCard, Deck, DeckCardDetail } from '@/types/collection';
 import { X, ChevronLeft, ChevronRight, Search, Sparkles, Plus } from 'lucide-react';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface GamifiedInventoryModalProps {
   location: StorageLocation | null;
@@ -191,17 +192,18 @@ export const GamifiedInventoryModal: React.FC<GamifiedInventoryModalProps> = ({
                     className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500"
                   />
                 </div>
-                <select
+                <PremiumDropdown
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-xs font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer"
-                >
-                  <option value="all">Todos los estados</option>
-                  <option value="collection">Colección</option>
-                  <option value="trade_sale">Venta / Trade</option>
-                  <option value="workshop">Taller</option>
-                  <option value="bulk">Bulk / Crap</option>
-                </select>
+                  onChange={(val) => setStatusFilter(val)}
+                  size="sm"
+                  options={[
+                    { value: 'all', label: 'Todos los estados' },
+                    { value: 'collection', label: 'Colección' },
+                    { value: 'trade_sale', label: 'Venta / Trade' },
+                    { value: 'workshop', label: 'Taller' },
+                    { value: 'bulk', label: 'Bulk / Crap' },
+                  ]}
+                />
               </div>
 
               {location.type === 'deckbox' && (location.compartments?.count || 1) > 1 && (
@@ -478,35 +480,34 @@ export const GamifiedInventoryModal: React.FC<GamifiedInventoryModalProps> = ({
                     </p>
                   ) : (
                     <div className="flex items-center gap-3 max-w-md">
-                      <select
-                        defaultValue=""
-                        onChange={async (e) => {
-                          const deckId = e.target.value;
+                      <PremiumDropdown
+                        value=""
+                        onChange={async (deckId) => {
                           if (!deckId) return;
                           try {
                             const res = await fetch('/api/decks', {
                               method: 'PUT',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ id: deckId, storage_location_id: location.id })
+                              body: JSON.stringify({ id: deckId, storage_location_id: location.id }),
                             });
                             if (res.ok) {
                               onRefreshData();
                               fetchContainerCards(location.id);
-                              e.target.value = ""; // Reset
                             }
                           } catch (err) {
                             console.error('Error al asignar baraja:', err);
                           }
                         }}
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-bold focus:outline-none focus:border-red-500 cursor-pointer"
-                      >
-                        <option value="" disabled>Selecciona una baraja para almacenar aquí...</option>
-                        {unassignedDecks.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name} ({d.format})
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Selecciona una baraja para almacenar aquí..."
+                        align="full"
+                        size="md"
+                        options={[
+                          ...unassignedDecks.map((d) => ({
+                            value: d.id,
+                            label: `${d.name} (${d.format})`,
+                          })),
+                        ]}
+                      />
                     </div>
                   )}
                 </div>

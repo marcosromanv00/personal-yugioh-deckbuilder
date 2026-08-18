@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Card, DeckCard, HoverCardBase } from '../types';
 import { SleeveInventory } from '@/types/collection';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 export interface CardDetailPanelProps {
   card: (Card | DeckCard | HoverCardBase) | null;
@@ -227,16 +228,18 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
               <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                 Sección
               </label>
-              <select
+              <PremiumDropdown
                 value={currentSection}
-                onChange={(e) => onUpdateDeckCard(deckCard.id, { section: e.target.value as any })}
-                className="w-full text-xs font-bold py-1.5 px-2 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-              >
-                <option value="main">Main Deck</option>
-                <option value="extra">Extra Deck</option>
-                <option value="side">Side Deck</option>
-                <option value="extras">Extras / Sugeridas</option>
-              </select>
+                onChange={(val) => onUpdateDeckCard(deckCard.id, { section: val as 'main' | 'extra' | 'side' | 'extras' })}
+                align="full"
+                size="sm"
+                options={[
+                  { value: 'main', label: 'Main Deck' },
+                  { value: 'extra', label: 'Extra Deck' },
+                  { value: 'side', label: 'Side Deck' },
+                  { value: 'extras', label: 'Extras / Sugeridas' },
+                ]}
+              />
             </div>
 
             <div>
@@ -324,34 +327,26 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
               <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                 Rareza
               </label>
-              <select
+              <PremiumDropdown
                 value={currentRarity}
-                onChange={(e) => onUpdateDeckCard(deckCard.id, { rarity: e.target.value })}
-                className="w-full text-xs font-bold py-1.5 px-2 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-              >
-                {RARITIES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => onUpdateDeckCard(deckCard.id, { rarity: val })}
+                align="full"
+                size="sm"
+                options={RARITIES.map((r) => ({ value: r, label: r }))}
+              />
             </div>
 
             <div>
               <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                 Condición
               </label>
-              <select
+              <PremiumDropdown
                 value={currentCondition}
-                onChange={(e) => onUpdateDeckCard(deckCard.id, { condition: e.target.value })}
-                className="w-full text-xs font-bold py-1.5 px-2 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-              >
-                {CONDITIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => onUpdateDeckCard(deckCard.id, { condition: val })}
+                align="full"
+                size="sm"
+                options={CONDITIONS.map((c) => ({ value: c, label: c }))}
+              />
             </div>
           </div>
 
@@ -361,25 +356,26 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
               <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                 Funda Específica (Opcional)
               </label>
-              <select
+              <PremiumDropdown
                 value={currentSleeveId}
-                onChange={(e) => {
-                  const sId = e.target.value;
-                  const found = availableSleeves.find(s => s.id === sId);
+                onChange={(sId) => {
+                  const found = availableSleeves.find((s) => s.id === sId);
                   onUpdateDeckCard(deckCard.id, {
                     sleeve_id: sId || undefined,
                     sleeve_color_hex: found ? found.color_hex : undefined,
                   });
                 }}
-                className="w-full text-xs font-bold py-1.5 px-2 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-red-500 focus:outline-none cursor-pointer"
-              >
-                <option value="">Heredar funda del Deck</option>
-                {availableSleeves.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.color_pattern})
-                  </option>
-                ))}
-              </select>
+                align="full"
+                size="sm"
+                placeholder="Heredar funda del Deck"
+                options={[
+                  { value: '', label: 'Heredar funda del Deck' },
+                  ...availableSleeves.map((s) => ({
+                    value: s.id,
+                    label: `${s.name} (${s.color_pattern})`,
+                  })),
+                ]}
+              />
             </div>
           )}
 

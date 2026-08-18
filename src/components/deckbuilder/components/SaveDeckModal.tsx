@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Shield, Zap, Settings2, X, Loader2 } from 'lucide-react';
 import { StorageLocation, SleeveInventory } from '@/types/collection';
 import { DeckCard } from '../types';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface SaveDeckModalProps {
   isOpen: boolean;
@@ -189,15 +190,17 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                   <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
                     Formato de Reglas
                   </label>
-                  <select
+                  <PremiumDropdown
                     value={saveFormat}
-                    onChange={(e) => setSaveFormat(e.target.value as 'Master Duel' | 'TCG' | 'Duel Links')}
-                    className="w-full px-3.5 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 cursor-pointer"
-                  >
-                    <option value="Master Duel">Master Duel (MD)</option>
-                    <option value="TCG">TCG (Formato Oficial Físico)</option>
-                    <option value="Duel Links">Duel Links (DL)</option>
-                  </select>
+                    onChange={(val) => setSaveFormat(val as 'Master Duel' | 'TCG' | 'Duel Links')}
+                    align="full"
+                    size="md"
+                    options={[
+                      { value: 'Master Duel', label: 'Master Duel (MD)' },
+                      { value: 'TCG', label: 'TCG (Formato Oficial Físico)' },
+                      { value: 'Duel Links', label: 'Duel Links (DL)' },
+                    ]}
+                  />
                 </div>
 
                 <div className="sm:col-span-2">
@@ -225,30 +228,33 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800">
                     <div>
                       <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">Estado de Armado</label>
-                      <select
+                      <PremiumDropdown
                         value={saveIsActive ? 'active' : 'inactive'}
-                        onChange={(e) => setSaveIsActive(e.target.value === 'active')}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 cursor-pointer"
-                      >
-                        <option value="active">● Activo (Baraja física en uso)</option>
-                        <option value="inactive">○ Inactivo (Solo receta/prototipo)</option>
-                      </select>
+                        onChange={(val) => setSaveIsActive(val === 'active')}
+                        align="full"
+                        size="sm"
+                        options={[
+                          { value: 'active', label: '● Activo (Baraja física en uso)' },
+                          { value: 'inactive', label: '○ Inactivo (Solo receta/prototipo)' },
+                        ]}
+                      />
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">Contenedor Físico</label>
-                      <select
+                      <PremiumDropdown
                         value={targetLocationId}
-                        onChange={(e) => setTargetLocationId(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 cursor-pointer"
-                      >
-                        <option value="inbox">📥 Inbox / Sin asignar</option>
-                        {locations.map((loc) => (
-                          <option key={loc.id} value={loc.id}>
-                            📦 {loc.name} ({loc.type})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => setTargetLocationId(val)}
+                        align="full"
+                        size="sm"
+                        options={[
+                          { value: 'inbox', label: '📥 Inbox / Sin asignar' },
+                          ...locations.map((loc) => ({
+                            value: loc.id,
+                            label: `📦 ${loc.name} (${loc.type})`,
+                          })),
+                        ]}
+                      />
                     </div>
                   </div>
 
@@ -264,34 +270,36 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">Main & Side Deck</label>
-                        <select
+                        <PremiumDropdown
                           value={selectedMainSleeveId}
-                          onChange={(e) => setSelectedMainSleeveId(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 cursor-pointer"
-                        >
-                          <option value="">Sin funda asignada</option>
-                          {availableSleeves.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.brand} • {s.color_pattern} ({s.name})
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => setSelectedMainSleeveId(val)}
+                          align="full"
+                          size="sm"
+                          options={[
+                            { value: '', label: 'Sin funda asignada' },
+                            ...availableSleeves.map((s) => ({
+                              value: s.id,
+                              label: `${s.brand} • ${s.color_pattern} (${s.name})`,
+                            })),
+                          ]}
+                        />
                       </div>
 
                       <div>
                         <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">Extra Deck</label>
-                        <select
+                        <PremiumDropdown
                           value={selectedExtraSleeveId}
-                          onChange={(e) => setSelectedExtraSleeveId(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 cursor-pointer"
-                        >
-                          <option value="">Sin funda asignada</option>
-                          {availableSleeves.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.brand} • {s.color_pattern} ({s.name})
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => setSelectedExtraSleeveId(val)}
+                          align="full"
+                          size="sm"
+                          options={[
+                            { value: '', label: 'Sin funda asignada' },
+                            ...availableSleeves.map((s) => ({
+                              value: s.id,
+                              label: `${s.brand} • ${s.color_pattern} (${s.name})`,
+                            })),
+                          ]}
+                        />
                       </div>
                     </div>
                   </div>

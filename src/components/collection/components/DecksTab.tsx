@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, Search, Plus, Shield, Box, Eye, Trash2, ArrowUpRight, CheckCircle2, Sparkles, Filter } from 'lucide-react';
 import Link from 'next/link';
 import { Deck, StorageLocation, SleeveInventory } from '@/types/collection';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface DecksTabProps {
   decks: Deck[];
@@ -121,15 +122,16 @@ export const DecksTab: React.FC<DecksTabProps> = ({
           </div>
 
           {/* Status Filter */}
-          <select
+          <PremiumDropdown
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none cursor-pointer shadow-xs"
-          >
-            <option value="all" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Estado: Todos</option>
-            <option value="active" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Solo Activos (Físicos)</option>
-            <option value="recipe" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Solo Recetas / Inactivos</option>
-          </select>
+            onChange={(val) => setStatusFilter(val as 'all' | 'active' | 'recipe')}
+            size="md"
+            options={[
+              { value: 'all', label: 'Estado: Todos' },
+              { value: 'active', label: 'Solo Activos (Físicos)' },
+              { value: 'recipe', label: 'Solo Recetas / Inactivos' },
+            ]}
+          />
 
           <Link
             href="/"

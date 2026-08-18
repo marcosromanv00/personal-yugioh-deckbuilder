@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Layers, Save, Loader2, AlertCircle } from 'lucide-react';
 import { SleeveInventory, SleeveInventoryFormData, SleeveSizeType, SleeveInventoryCondition } from '@/types/collection';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface SleeveInventoryFormModalProps {
   isOpen: boolean;
@@ -225,27 +226,23 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Tamaño</label>
-                  <select
+                  <PremiumDropdown
                     value={form.size_type}
-                    onChange={e => update('size_type', e.target.value as SleeveSizeType)}
-                    className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500 cursor-pointer"
-                  >
-                    {SLEEVE_SIZES.map(s => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => update('size_type', val as SleeveSizeType)}
+                    align="full"
+                    size="md"
+                    options={SLEEVE_SIZES.map((s) => ({ value: s.value, label: s.label }))}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Condición</label>
-                  <select
+                  <PremiumDropdown
                     value={form.condition}
-                    onChange={e => update('condition', e.target.value as SleeveInventoryCondition)}
-                    className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500 cursor-pointer"
-                  >
-                    {CONDITIONS.map(c => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => update('condition', val as SleeveInventoryCondition)}
+                    align="full"
+                    size="md"
+                    options={CONDITIONS.map((c) => ({ value: c.value, label: c.label }))}
+                  />
                 </div>
               </div>
 
