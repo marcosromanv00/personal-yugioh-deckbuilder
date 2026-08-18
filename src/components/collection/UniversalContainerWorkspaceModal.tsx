@@ -193,7 +193,8 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     setLoading(true);
     try {
       if (isIdealMode && syncData?.idealCards) {
-        const physicalLocId = (location as any)?.physical_storage_location_id;
+        const physicalLocId = (location as { physical_storage_location_id?: string } | null)?.physical_storage_location_id;
+
         const targetId = location?.id;
 
         const filtered = (syncData.idealCards as UserCard[]).filter(c => {

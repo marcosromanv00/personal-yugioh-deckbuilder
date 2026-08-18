@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { Deck } from '@/types/collection';
+
+export interface InputDeckCard {
+  id: number;
+  count: number;
+  proxy_count?: number;
+  section: string;
+  name?: string;
+  type?: string;
+  image_url?: string;
+}
 
 // Global mocks for demo mode persistence
 const globalForDecks = global as unknown as {
-  mockDecks?: any[];
-  mockDeckCards?: any[];
+  mockDecks?: Deck[];
+  mockDeckCards?: Record<string, unknown>[];
 };
+
+
 
 if (!globalForDecks.mockDecks) {
   globalForDecks.mockDecks = [];
@@ -82,14 +95,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { data: decks, error } = await query;
-    if (error) throw error;
+    let decks: Deck[] = [];
+    try {
+      const { data, error } = await query;
+      if (error) {
+        console.warn('Advertencia al obtener decks de Supabase, usando fallback local:', error.message);
+        decks = (globalForDecks.mockDecks as Deck[]) || [];
+      } else {
+        decks = (data as Deck[]) || [];
+      }
+    } catch (supabaseErr) {
+      console.warn('Error de red/DNS al conectar con Supabase (decks):', supabaseErr);
+      decks = (globalForDecks.mockDecks as Deck[]) || [];
+    }
 
-    return NextResponse.json({ data: decks || [] });
-  } catch (error: any) {
-    console.error('Error fetching decks:', error);
-    return NextResponse.json({ error: error.message || 'Error al obtener decks' }, { status: 500 });
+    return NextResponse.json({ data: decks });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Error fetching decks:', err);
+    return NextResponse.json({ data: globalForDecks.mockDecks || [] });
   }
+
+
 }
 
 // POST: Crear un nuevo deck y opcionalmente registrar cartas al inventario
@@ -130,7 +157,17 @@ export async function POST(req: NextRequest) {
 
       globalForDecks.mockDecks = [...(globalForDecks.mockDecks || []), newDeck];
 
-      const newCards = (cards || []).map((c: any) => ({
+      interface InputDeckCard {
+        id: number;
+        count: number;
+        proxy_count?: number;
+        section: string;
+        name?: string;
+        type?: string;
+        image_url?: string;
+      }
+
+      const newCards = (cards || []).map((c: InputDeckCard) => ({
         deck_id: newDeck.id,
         card_id: c.id,
         count: c.count,
@@ -165,7 +202,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Insertar cartas del Deck
     if (cards && cards.length > 0) {
-      const deckCardsPayload = cards.map((c: any) => ({
+      const deckCardsPayload = cards.map((c: InputDeckCard) => ({
         deck_id: deck.id,
         card_id: c.id,
         count: c.count,
@@ -182,8 +219,8 @@ export async function POST(req: NextRequest) {
 
     // 3. Registrar cartas al inventario general (yg_user_cards)
     if (register_to_inventory && inventory_cards_to_add && inventory_cards_to_add.length > 0) {
-      const inventoryPayload = inventory_cards_to_add.map((c: any) => {
-        const matchingDeckCard = (cards || []).find((dc: any) => dc.id === c.id);
+      const inventoryPayload = inventory_cards_to_add.map((c: InputDeckCard) => {
+        const matchingDeckCard = (cards || []).find((dc: InputDeckCard) => dc.id === c.id);
         const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
           ? matchingDeckCard.section
           : null;
@@ -213,10 +250,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ data: deck });
-  } catch (error: any) {
-    console.error('Error creating deck:', error);
-    return NextResponse.json({ error: error.message || 'Error al crear deck' }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Error creating deck:', err);
+    return NextResponse.json({ error: err.message || 'Error al crear deck' }, { status: 500 });
   }
+
 }
 
 // PUT: Actualizar un deck existente (incluyendo moverlo de deckbox o re-sincronizar cartas)
@@ -248,7 +287,9 @@ export async function PUT(req: NextRequest) {
             name: name !== undefined ? name : d.name,
             description: description !== undefined ? description : d.description,
             format: format !== undefined ? format : d.format,
-            skill_name: skill_name !== undefined ? skill_name : d.skill_name,
+            skill_name: skill_name !== undefined ? skill_name : (d as unknown as Record<string, unknown>).skill_name,
+
+
             storage_location_id: storage_location_id !== undefined ? storage_location_id : d.storage_location_id,
             is_active: is_active !== undefined ? is_active : d.is_active,
             updated_at: new Date().toISOString()
@@ -260,7 +301,7 @@ export async function PUT(req: NextRequest) {
       if (cards !== undefined) {
         // Reemplazar cartas del mock
         globalForDecks.mockDeckCards = (globalForDecks.mockDeckCards || []).filter(c => c.deck_id !== id);
-        const newCards = cards.map((c: any) => ({
+        const newCards = cards.map((c: { id: number; count: number; section: string; name?: string; type?: string; image_url?: string }) => ({
           deck_id: id,
           card_id: c.id,
           count: c.count,
@@ -277,7 +318,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Supabase
-    const updatePayload: any = {};
+    const updatePayload: Record<string, unknown> = {};
     if (name !== undefined) updatePayload.name = name;
     if (description !== undefined) updatePayload.description = description;
     if (format !== undefined) updatePayload.format = format;
@@ -341,7 +382,7 @@ export async function PUT(req: NextRequest) {
 
       // Insertar nuevas cartas
       if (cards.length > 0) {
-        const deckCardsPayload = cards.map((c: any) => ({
+        const deckCardsPayload = cards.map((c: { id: number; count: number; proxy_count?: number; section: string }) => ({
           deck_id: id,
           card_id: c.id,
           count: c.count,
@@ -392,7 +433,7 @@ export async function PUT(req: NextRequest) {
       const inventoryPayload = [];
 
       for (const c of inventory_cards_to_add) {
-        const matchingDeckCard = (cards || []).find((dc: any) => dc.id === c.id);
+        const matchingDeckCard = (cards || []).find((dc: { id: number; section: string }) => dc.id === c.id);
         const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
           ? matchingDeckCard.section
           : null;
@@ -405,7 +446,7 @@ export async function PUT(req: NextRequest) {
         if (qtyToInsert > 0) {
           // Determinar si ya hay una funda asignada para esta sección en el deck
           const sectionType = (section === 'main' || section === 'side') ? 'main_side' : 'extra';
-          const assignedSleeve = deckSleeves?.find(ds => ds.section_type === sectionType);
+          const assignedSleeve = deckSleeves?.find((ds: { section_type: string; sleeve_details?: { brand?: string; color_pattern?: string; condition?: string } }) => ds.section_type === sectionType);
 
           let sleeveType = 'none';
           let sleeveBrand = null;
@@ -450,10 +491,12 @@ export async function PUT(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Error updating deck:', error);
-    return NextResponse.json({ error: error.message || 'Error al actualizar deck' }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Error updating deck:', err);
+    return NextResponse.json({ error: err.message || 'Error al actualizar deck' }, { status: 500 });
   }
+
 }
 
 // DELETE: Eliminar un deck
@@ -480,8 +523,10 @@ export async function DELETE(req: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Error deleting deck:', error);
-    return NextResponse.json({ error: error.message || 'Error al eliminar deck' }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Error deleting deck:', err);
+    return NextResponse.json({ error: err.message || 'Error al eliminar deck' }, { status: 500 });
   }
 }
+

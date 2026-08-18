@@ -53,10 +53,15 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   deckCards,
   loadingDecks,
   locations,
+  userInventoryCounts = {},
   registerToInventory,
   setRegisterToInventory,
   targetLocationId,
   setTargetLocationId,
+  cardsToRegister,
+  setCardsToRegister,
+
+
   availableSleeves,
   selectedMainSleeveId,
   setSelectedMainSleeveId,
@@ -66,6 +71,37 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   handleExcludeExisting,
 }) => {
   const [saveTab, setSaveTab] = useState<'quick' | 'advanced'>('quick');
+  const [cardQuantities, setCardQuantities] = useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {};
+    deckCards.forEach((c) => {
+      initial[c.id] = c.count;
+    });
+    return initial;
+  });
+
+  const toggleCardRegister = (cardId: number) => {
+    setCardsToRegister((prev) => ({
+      ...prev,
+      [cardId]: prev[cardId] === false ? true : false,
+    }));
+  };
+
+  const updateCardRegisterQty = (cardId: number, delta: number, maxCount: number) => {
+    setCardQuantities((prev) => {
+      const current = prev[cardId] ?? maxCount;
+      const next = Math.min(maxCount, Math.max(1, current + delta));
+      return { ...prev, [cardId]: next };
+    });
+  };
+
+  const selectAllCardsToRegister = (val: boolean) => {
+    const updated: Record<number, boolean> = {};
+    deckCards.forEach((c) => {
+      updated[c.id] = val;
+    });
+    setCardsToRegister(updated);
+  };
+
 
   const mainCardsCount = deckCards.filter((c) => c.section === 'main').reduce((acc, c) => acc + c.count, 0);
   const extraCardsCount = deckCards.filter((c) => c.section === 'extra').reduce((acc, c) => acc + c.count, 0);
@@ -275,16 +311,135 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                     </label>
 
                     {registerToInventory && (
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={handleExcludeExisting}
-                          className="text-[10px] font-mono text-purple-600 dark:text-purple-400 font-bold hover:underline cursor-pointer"
-                        >
-                          Excluir cartas que ya tengo registradas en mi inventario
-                        </button>
+                      <div className="pt-2 space-y-2 border-t border-zinc-200 dark:border-zinc-800">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black uppercase text-zinc-700 dark:text-zinc-300">
+                            Cartas a registrar: <b className="text-red-600 dark:text-red-400 font-mono text-xs">+{deckCards.filter(c => cardsToRegister[c.id] !== false).reduce((acc, c) => acc + (cardQuantities[c.id] ?? c.count), 0)} nuevas</b>
+                            <span className="text-[10px] text-zinc-500 font-normal ml-1">
+                              (📦 {deckCards.reduce((acc, c) => acc + (userInventoryCounts[c.id] || 0), 0)} ya en colección)
+                            </span>
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => selectAllCardsToRegister(true)}
+                              className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+                            >
+                              Todas
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => selectAllCardsToRegister(false)}
+                              className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+                            >
+                              Ninguna
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleExcludeExisting}
+                              className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 hover:bg-purple-200 dark:hover:bg-purple-900 transition-colors cursor-pointer"
+                            >
+                              Excluir ya registradas
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                          {deckCards.map((c) => {
+                            const alreadyInInv = userInventoryCounts[c.id] || 0;
+                            const isChecked = cardsToRegister[c.id] !== false;
+                            const qty = cardQuantities[c.id] ?? c.count;
+
+                            return (
+                              <div
+                                key={`${c.id}-${c.section}`}
+                                onClick={() => toggleCardRegister(c.id)}
+                                className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                                  isChecked
+                                    ? 'bg-white dark:bg-zinc-900 border-red-500/50 dark:border-red-500/40 shadow-xs'
+                                    : 'bg-zinc-100/50 dark:bg-zinc-950/30 border-zinc-200 dark:border-zinc-800 opacity-50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleCardRegister(c.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer shrink-0"
+                                />
+                                {c.image_url && (
+                                  <img
+                                    src={c.image_url}
+                                    alt={c.name}
+                                    className="w-6 h-8 object-cover rounded shadow-xs shrink-0"
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                    {c.name}
+                                  </p>
+                                  <span className={`inline-block px-1.5 py-0.2 text-[8.5px] font-black uppercase rounded tracking-wider mt-0.5 ${
+                                    c.section === 'extra' 
+                                      ? 'bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400' 
+                                      : c.section === 'side'
+                                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400'
+                                      : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                                  }`}>
+                                    {c.section}
+                                  </span>
+                                </div>
+
+                                {/* Columna de comparación directa en el espacio seleccionado */}
+                                <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex flex-col items-end text-right">
+                                    <span className="text-[8.5px] font-black uppercase text-zinc-400 font-mono tracking-wider">
+                                      En Colección
+                                    </span>
+                                    <span className={`text-[11px] font-mono font-black px-2 py-0.5 rounded-lg border ${
+                                      alreadyInInv > 0
+                                        ? 'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/80'
+                                        : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-400 border-zinc-200 dark:border-zinc-800'
+                                    }`}>
+                                      📦 {alreadyInInv} {alreadyInInv === 1 ? 'copia' : 'copias'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-col items-end">
+                                    <span className="text-[8.5px] font-black uppercase text-zinc-400 font-mono tracking-wider">
+                                      A Registrar
+                                    </span>
+                                    <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateCardRegisterQty(c.id, -1, c.count)}
+                                        disabled={qty <= 1}
+                                        className="w-5 h-5 rounded-lg flex items-center justify-center bg-white dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer shadow-xs"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="text-xs font-mono font-black text-zinc-900 dark:text-zinc-100 px-1.5">
+                                        {qty}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateCardRegisterQty(c.id, 1, c.count)}
+                                        disabled={qty >= c.count}
+                                        className="w-5 h-5 rounded-lg flex items-center justify-center bg-white dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer shadow-xs"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                            );
+                          })}
+                        </div>
                       </div>
+
                     )}
+
                   </div>
                 </motion.div>
               )}

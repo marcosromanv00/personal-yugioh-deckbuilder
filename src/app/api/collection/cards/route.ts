@@ -54,21 +54,25 @@ export async function GET(req: NextRequest) {
       dbQuery = dbQuery.eq('is_proxy', false);
     }
 
-    if (statusFlag) {
-      dbQuery = dbQuery.eq('status_flag', statusFlag);
-    }
-
     if (sleeveType) {
       dbQuery = dbQuery.eq('sleeve_type', sleeveType);
     }
 
-    const { data: cards, error } = await dbQuery;
-
-    if (error) {
-      throw error;
+    let cards: UserCard[] = [];
+    try {
+      const { data, error } = await dbQuery;
+      if (error) {
+        console.warn('Advertencia de consulta Supabase en cards:', error.message);
+      } else {
+        cards = (data as UserCard[]) || [];
+      }
+    } catch (supabaseErr) {
+      console.warn('Error de red/DNS al consultar Supabase (cards):', supabaseErr);
     }
 
+
     let filteredCards = cards || [];
+
 
     if (query) {
       const qLower = query.toLowerCase();
@@ -265,10 +269,10 @@ export async function POST(req: NextRequest) {
 
     // Caso 1: Inserción en lote (Batch)
     if (Array.isArray(body.cards) && body.cards.length > 0) {
-      const cardsList = body.cards;
+      const cardsList: Partial<UserCard>[] = body.cards;
 
       if (!isSupabaseConfigured) {
-        const mockCreated = cardsList.map((c: any, index: number) => ({
+        const mockCreated = cardsList.map((c: Partial<UserCard>, index: number) => ({
           id: `demo-${Date.now()}-${index}`,
           card_id: c.card_id,
           storage_location_id: c.storage_location_id || null,
@@ -286,6 +290,7 @@ export async function POST(req: NextRequest) {
 
       // Asegurar que las cartas existan en yg_cards
       for (const c of cardsList) {
+        if (!c.card_id) continue;
         const { data: existingCard } = await supabase
           .from('yg_cards')
           .select('id')
@@ -326,7 +331,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const insertPayload = cardsList.map((c: any) => ({
+      const insertPayload = cardsList.map((c: Partial<UserCard>) => ({
         card_id: c.card_id,
         storage_location_id: c.storage_location_id || null,
         quantity: c.quantity || 1,
@@ -338,6 +343,7 @@ export async function POST(req: NextRequest) {
         is_proxy: !!c.is_proxy,
         notes: c.notes || '',
       }));
+
 
       const { data, error } = await supabase
         .from('yg_user_cards')

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { StorageLocation } from '@/types/collection';
 
 // Global mock storage for demo mode persistence
 const globalForStorage = global as unknown as {
-  mockStorageLocations?: any[];
+  mockStorageLocations?: StorageLocation[];
 };
 
 if (!globalForStorage.mockStorageLocations) {
@@ -49,50 +50,60 @@ export async function GET(req: NextRequest) {
                                  process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://placeholder.supabase.co' &&
                                  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    let locations = [];
+    let locations: StorageLocation[] = [];
     if (!isSupabaseConfigured) {
       locations = globalForStorage.mockStorageLocations || [];
       if (id) {
-        locations = locations.filter((loc: any) => loc.id === id);
+        locations = locations.filter((loc: StorageLocation) => loc.id === id);
       }
     } else {
-      let query = supabase
-        .from('yg_storage_locations')
-        .select('*');
-      
-      if (id) {
-        query = query.eq('id', id);
-      } else {
-        query = query.order('name', { ascending: true });
-      }
+      try {
+        let query = supabase
+          .from('yg_storage_locations')
+          .select('*');
+        
+        if (id) {
+          query = query.eq('id', id);
+        } else {
+          query = query.order('name', { ascending: true });
+        }
 
-      const { data, error } = await query;
+        const { data, error } = await query;
 
-      if (error) {
-        throw error;
+        if (error) {
+          console.warn('Supabase inaccesible en storage, usando demo fallback:', error.message);
+          locations = globalForStorage.mockStorageLocations || [];
+        } else {
+          locations = (data as StorageLocation[]) || [];
+        }
+      } catch (supabaseErr) {
+        console.warn('Error de red/DNS al conectar con Supabase (storage):', supabaseErr);
+        locations = globalForStorage.mockStorageLocations || [];
       }
-      locations = data || [];
     }
 
     // Obtener la cantidad de cartas guardadas en cada contenedor
-    let cardCounts: any[] = [];
+    let cardCounts: Array<{ storage_location_id: string; quantity?: number }> = [];
     if (isSupabaseConfigured) {
-      let countQuery = supabase
-        .from('yg_user_cards')
-        .select('storage_location_id, quantity')
-        .not('storage_location_id', 'is', null);
-      
-      if (id) {
-        countQuery = countQuery.eq('storage_location_id', id);
-      }
+      try {
+        let countQuery = supabase
+          .from('yg_user_cards')
+          .select('storage_location_id, quantity')
+          .not('storage_location_id', 'is', null);
+        
+        if (id) {
+          countQuery = countQuery.eq('storage_location_id', id);
+        }
 
-      const { data: counts, error: countError } = await countQuery;
-
-      if (countError) {
-        console.warn('Error al calcular ocupación:', countError);
+        const { data: counts, error: countError } = await countQuery;
+        if (!countError) {
+          cardCounts = (counts as Array<{ storage_location_id: string; quantity?: number }>) || [];
+        }
+      } catch (err) {
+        console.warn('Error calculando ocupación desde Supabase:', err);
       }
-      cardCounts = counts || [];
     }
+
 
     const countsMap: Record<string, number> = {};
     if (cardCounts) {
@@ -103,10 +114,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const locationsWithCounts = locations.map((loc: any) => ({
+    const locationsWithCounts = locations.map((loc: StorageLocation) => ({
       ...loc,
       occupied_cards: countsMap[loc.id] || 0,
     }));
+
 
     if (id) {
       return NextResponse.json({ data: locationsWithCounts[0] || null });

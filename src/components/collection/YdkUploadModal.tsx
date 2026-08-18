@@ -8,9 +8,10 @@ interface YdkUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onImportToDeck?: (ydkText: string) => Promise<void>;
 }
 
-export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose, onSuccess, onImportToDeck }) => {
   const [ydkText, setYdkText] = useState('');
   const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,7 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ydkText.trim()) {
-      setError('Por favor sube un archivo .ydk o pega el contenido');
+      setError('Por favor sube un archivo .ydk o pega el contenido / lista de IDs');
       return;
     }
 
@@ -43,18 +44,24 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
     setResultMessage('');
 
     try {
-      const res = await fetch('/api/collection/inbox', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ydkText }),
-      });
+      if (onImportToDeck) {
+        await onImportToDeck(ydkText);
+        setResultMessage('¡Éxito! Baraja cargada en el editor con las cartas indicadas.');
+      } else {
+        const res = await fetch('/api/collection/inbox', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ydkText }),
+        });
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || 'Error al importar archivo .ydk');
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || 'Error al importar archivo .ydk');
+        }
+
+        setResultMessage(`¡Éxito! Se importaron ${json.insertedCount || json.parsedCount || 0} cartas a la bandeja Sin Clasificar.`);
       }
 
-      setResultMessage(`¡Éxito! Se importaron ${json.insertedCount || json.parsedCount || 0} cartas a la bandeja Sin Clasificar.`);
       setTimeout(() => {
         onSuccess();
         onClose();
@@ -62,11 +69,12 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
 
     } catch (err: unknown) {
       const errorObj = err as Error;
-      setError(errorObj.message || 'Fallo al procesar el archivo .ydk');
+      setError(errorObj.message || 'Fallo al procesar el archivo .ydk / lista de IDs');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <AnimatePresence>

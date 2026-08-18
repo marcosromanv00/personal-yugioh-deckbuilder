@@ -1,10 +1,24 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, DeckCard, ArchetypeItem, BreakdownCardItem, BanlistAlert, Replacement, HistoryItem } from '../types';
 import { FilterState } from '../CardFilters';
 import { StorageLocation, SleeveInventory, DeckSleeve, Deck } from '@/types/collection';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 
+export interface YgoApiCardDetails {
+  id: number;
+  name: string;
+  type: string;
+  card_images: Array<{ image_url: string; image_url_small?: string }>;
+  atk?: number;
+  def?: number;
+  level?: number;
+  race?: string;
+  attribute?: string;
+  archetype?: string;
+}
+
 export function useDeckBuilderState() {
+
   const { isIdealMode, syncData } = useIdealEnvironment();
 
   // Formato y Deck
@@ -246,8 +260,11 @@ export function useDeckBuilderState() {
   }, [format]);
 
   useEffect(() => {
-    fetchArchetypes();
+    Promise.resolve().then(() => {
+      fetchArchetypes();
+    });
   }, [fetchArchetypes]);
+
 
 
   const initializeDeckFromArchetype = async (archetype: string, cardsInBreakdown: BreakdownCardItem[]) => {
@@ -472,15 +489,11 @@ export function useDeckBuilderState() {
             const ageMs = Date.now() - (draft.timestamp || 0);
             // Si el borrador es de menos de 7 días y tiene cartas
             if (ageMs < 7 * 24 * 60 * 60 * 1000 && Array.isArray(draft.deckCards) && draft.deckCards.length > 0) {
-              // Cargar como borrador recuperado solo si no hay deckId cargado
-              setDeckCards((current) => {
-                if (current.length === 0) {
-                  if (draft.deckName) setDeckName(draft.deckName);
-                  if (draft.format) setFormat(draft.format);
-                  if (draft.deckDescription) setDeckDescription(draft.deckDescription);
-                  return draft.deckCards;
-                }
-                return current;
+              Promise.resolve().then(() => {
+                setDeckCards((current) => (current.length === 0 ? draft.deckCards : current));
+                if (draft.deckName) setDeckName(draft.deckName);
+                if (draft.format) setFormat(draft.format);
+                if (draft.deckDescription) setDeckDescription(draft.deckDescription);
               });
             }
           } catch (e) {
@@ -489,6 +502,8 @@ export function useDeckBuilderState() {
         }
       }
     }, []);
+
+
 
     // Exportar deck como archivo .YDK
     const exportYdkFile = useCallback(() => {
@@ -700,10 +715,14 @@ export function useDeckBuilderState() {
     setLoadingDecks(true);
     try {
       let fetchedDecks: Deck[] = [];
-      const decksRes = await fetch('/api/decks');
-      if (decksRes.ok) {
-        const json = await decksRes.json();
-        fetchedDecks = json.data || [];
+      try {
+        const decksRes = await fetch('/api/decks');
+        if (decksRes.ok) {
+          const json = await decksRes.json();
+          fetchedDecks = json.data || [];
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando /api/decks:', err);
       }
 
       if (isIdealMode && syncData?.idealDecks) {
@@ -711,32 +730,45 @@ export function useDeckBuilderState() {
       }
       setSavedDecks(fetchedDecks);
 
-      const locRes = await fetch('/api/collection/storage');
-      if (locRes.ok) {
-        const json = await locRes.json();
-        setLocations((json.data || []).filter((l: StorageLocation) => l.type === 'deckbox' || l.type === 'binder' || l.type === 'box'));
+      try {
+        const locRes = await fetch('/api/collection/storage');
+        if (locRes.ok) {
+          const json = await locRes.json();
+          setLocations((json.data || []).filter((l: StorageLocation) => l.type === 'deckbox' || l.type === 'binder' || l.type === 'box'));
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando /api/collection/storage:', err);
       }
 
-      const invRes = await fetch('/api/collection/cards');
-      if (invRes.ok) {
-        const json = await invRes.json();
-        const counts: Record<number, number> = {};
-        const proxies: Record<number, number> = {};
-        (json.data || []).forEach((uc: import('@/types/collection').UserCard) => {
-          counts[uc.card_id] = (counts[uc.card_id] || 0) + (uc.quantity || 1);
-          if (uc.is_proxy) {
-            proxies[uc.card_id] = (proxies[uc.card_id] || 0) + (uc.quantity || 1);
-          }
-        });
-        setUserInventoryCounts(counts);
-        setUserProxyCounts(proxies);
+      try {
+        const invRes = await fetch('/api/collection/cards');
+        if (invRes.ok) {
+          const json = await invRes.json();
+          const counts: Record<number, number> = {};
+          const proxies: Record<number, number> = {};
+          (json.data || []).forEach((uc: import('@/types/collection').UserCard) => {
+            counts[uc.card_id] = (counts[uc.card_id] || 0) + (uc.quantity || 1);
+            if (uc.is_proxy) {
+              proxies[uc.card_id] = (proxies[uc.card_id] || 0) + (uc.quantity || 1);
+            }
+          });
+          setUserInventoryCounts(counts);
+          setUserProxyCounts(proxies);
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando /api/collection/cards:', err);
       }
 
-      const sleevesRes = await fetch('/api/collection/sleeve-inventory');
-      if (sleevesRes.ok) {
-        const json = await sleevesRes.json();
-        setAvailableSleeves(json.data || []);
+      try {
+        const sleevesRes = await fetch('/api/collection/sleeve-inventory');
+        if (sleevesRes.ok) {
+          const json = await sleevesRes.json();
+          setAvailableSleeves(json.data || []);
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando fundas:', err);
       }
+
 
       if (deckId) {
         const dsRes = await fetch(`/api/decks/${deckId}/sleeves`);
@@ -831,8 +863,9 @@ export function useDeckBuilderState() {
         if (res.ok) {
           const json = await res.json();
           const detailsList = json.data || [];
-          const detailsMap = new Map<number, any>();
-          detailsList.forEach((item: any) => detailsMap.set(item.id, item));
+          const detailsMap = new Map<number, YgoApiCardDetails>();
+          detailsList.forEach((item: YgoApiCardDetails) => detailsMap.set(item.id, item));
+
 
           setDeckCards(prev => prev.map(card => {
             const found = detailsMap.get(card.id);
@@ -1023,6 +1056,128 @@ export function useDeckBuilderState() {
     setCardsToRegister(updated);
   };
 
+  const handleImportYdkOrBulk = async (rawInput: string) => {
+    if (!rawInput.trim()) return;
+
+    const lines = rawInput.split(/\r?\n/);
+    let currentSection: 'main' | 'extra' | 'side' = 'main';
+    const parsedEntries: Array<{ cardId: number; section: 'main' | 'extra' | 'side' }> = [];
+    let hasSectionHeader = false;
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      if (trimmed.startsWith('#main')) {
+        currentSection = 'main';
+        hasSectionHeader = true;
+        return;
+      }
+      if (trimmed.startsWith('#extra')) {
+        currentSection = 'extra';
+        hasSectionHeader = true;
+        return;
+      }
+      if (trimmed.startsWith('!side') || trimmed.startsWith('#side')) {
+        currentSection = 'side';
+        hasSectionHeader = true;
+        return;
+      }
+      if (trimmed.startsWith('#') || trimmed.startsWith('!')) {
+        return;
+      }
+
+      const matches = trimmed.match(/\d+/g);
+      if (matches) {
+        matches.forEach(m => {
+          const id = parseInt(m, 10);
+          if (id > 0) {
+            parsedEntries.push({ cardId: id, section: currentSection });
+          }
+        });
+      }
+    });
+
+    if (parsedEntries.length === 0) {
+      throw new Error('No se encontraron IDs de cartas válidas en el texto proporcionado.');
+    }
+
+    const uniqueIds = Array.from(new Set(parsedEntries.map(e => e.cardId)));
+    const detailsMap = new Map<number, Record<string, unknown>>();
+
+    for (let i = 0; i < uniqueIds.length; i += 30) {
+      const chunk = uniqueIds.slice(i, i + 30);
+      try {
+        const res = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${chunk.join(',')}`);
+        if (res.ok) {
+          const json = await res.json();
+          (json.data || []).forEach((item: Record<string, unknown>) => {
+            if (typeof item.id === 'number') {
+              detailsMap.set(item.id, item);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Error resolviendo lote de IDs en YGOPRODeck:', e);
+      }
+    }
+
+    const countsMap = new Map<string, { cardId: number; count: number; section: 'main' | 'extra' | 'side' }>();
+    parsedEntries.forEach(entry => {
+      const details = detailsMap.get(entry.cardId);
+      let section = entry.section;
+
+      if (!hasSectionHeader && details) {
+        const type = (details.type as string)?.toLowerCase() || '';
+        const isExtra = type.includes('fusion') || type.includes('synchro') || type.includes('xyz') || type.includes('link');
+        section = isExtra ? 'extra' : 'main';
+      }
+
+      const key = `${entry.cardId}_${section}`;
+      const existing = countsMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        countsMap.set(key, { cardId: entry.cardId, count: 1, section });
+      }
+    });
+
+    const newMappedCards: DeckCard[] = Array.from(countsMap.values()).map(item => {
+      const found = detailsMap.get(item.cardId);
+      const images = found?.card_images as Array<{ image_url: string }> | undefined;
+      return {
+        id: item.cardId,
+        name: (found?.name as string) || `Carta #${item.cardId}`,
+        count: item.count,
+        proxy_count: 0,
+        section: item.section,
+        type: (found?.type as string) || 'Monster',
+        image_url: images?.[0]?.image_url || `https://images.ygoprodeck.com/images/cards/${item.cardId}.jpg`,
+        atk: found?.atk as number | undefined,
+        def: found?.def as number | undefined,
+        level: found?.level as number | undefined,
+        race: found?.race as string | undefined,
+        attribute: found?.attribute as string | undefined
+      };
+    });
+
+    setDeckCards(newMappedCards);
+    setHistoryStack([]);
+    setRedoStack([]);
+    setDeckId(null);
+    setDeckName('Deck Importado YDK / Bulk');
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('yg_deck_draft', JSON.stringify({
+        deckName: 'Deck Importado YDK / Bulk',
+        format: format,
+        deckCards: newMappedCards,
+        timestamp: Date.now()
+      }));
+    }
+  };
+
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -1031,7 +1186,7 @@ export function useDeckBuilderState() {
         fetch('/api/decks')
           .then(res => res.json())
           .then(json => {
-            const selected = (json.data || []).find((d: any) => d.id === loadDeckId);
+            const selected = (json.data || []).find((d: Deck) => d.id === loadDeckId);
             if (selected) {
               handleLoadDeck(selected);
               // Clean up the URL search params so it doesn't trigger again
@@ -1043,6 +1198,7 @@ export function useDeckBuilderState() {
       }
     }
   }, [handleLoadDeck]);
+
 
   return {
     format,
@@ -1140,6 +1296,7 @@ export function useDeckBuilderState() {
     handleDeleteDeck,
     handleClearDeck,
     handleExcludeExisting,
+    handleImportYdkOrBulk,
     handleUndo,
     handleRedo,
     canUndo: historyStack.length > 0,

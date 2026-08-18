@@ -18,13 +18,30 @@ export async function POST(req: NextRequest) {
     }
 
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    const parsedItems: { raw: string; name: string; quantity: number }[] = [];
+    const parsedItems: { raw: string; name: string; quantity: number; section: string }[] = [];
+    let currentSection = 'main';
 
-    // RegExp to match: "3 Ash Blossom", "1x Nibiru", "Raigeki x2", "Ash Blossom"
-    const qtyStartRegex = /^(\d+)x?\s+(.+)$/i;
+    // RegExp to match: "3 Ash Blossom", "1x Nibiru", "Raigeki x2", "3 88962829", "Ash Blossom"
+    const qtyStartRegex = /^(\d+)\s*x?\s+(.+)$/i;
     const qtyEndRegex = /^(.+?)\s+x?\s*(\d+)$/i;
 
     for (const line of lines) {
+      if (line.startsWith('#main')) {
+        currentSection = 'main';
+        continue;
+      }
+      if (line.startsWith('#extra')) {
+        currentSection = 'extra';
+        continue;
+      }
+      if (line.startsWith('!side') || line.startsWith('#side')) {
+        currentSection = 'side';
+        continue;
+      }
+      if (line.startsWith('#') || line.startsWith('!')) {
+        continue;
+      }
+
       let quantity = 1;
       let cardName = line;
 
@@ -43,40 +60,81 @@ export async function POST(req: NextRequest) {
       // Quitar comillas o caracteres extra
       cardName = cardName.replace(/^["'«“]|["'»”]$/g, '').trim();
       if (cardName) {
-        parsedItems.push({ raw: line, name: cardName, quantity });
+        parsedItems.push({ raw: line, name: cardName, quantity, section: currentSection });
       }
     }
 
-    const matchedList: any[] = [];
+    interface MatchedBulkCardItem {
+      card_id: number;
+      name: string;
+      type: string;
+      image_url: string;
+      image_url_small?: string;
+      quantity: number;
+      section: string;
+    }
+
+    interface YgoCardDetailsRecord {
+      id: number;
+      name: string;
+      type: string;
+      desc?: string;
+      atk?: number | null;
+      def?: number | null;
+      level?: number | null;
+      race?: string | null;
+      attribute?: string | null;
+      archetype?: string | null;
+      image_url?: string;
+      image_url_small?: string;
+    }
+
+    const matchedList: MatchedBulkCardItem[] = [];
     const unmatchedList: string[] = [];
 
     const hasSupabase = isSupabaseConfigured();
 
     for (const item of parsedItems) {
       let cardId: number | null = null;
-      let cardDetails: any = null;
+      let cardDetails: YgoCardDetailsRecord | null = null;
+
+      const isNumericId = /^\d+$/.test(item.name);
+
 
       if (hasSupabase) {
-        // Buscar coincidencia exacta o cercana en base de datos local
-        const { data: dbCards } = await supabase
-          .from('yg_cards')
-          .select('*')
-          .ilike('name', item.name);
-
-        if (dbCards && dbCards.length > 0) {
-          cardDetails = dbCards[0];
-          cardId = dbCards[0].id;
-        } else {
-          // Intentar coincidencia parcial
-          const { data: partialCards } = await supabase
+        if (isNumericId) {
+          const numId = parseInt(item.name, 10);
+          const { data: dbCards } = await supabase
             .from('yg_cards')
             .select('*')
-            .ilike('name', `%${item.name}%`)
-            .limit(1);
+            .eq('id', numId);
 
-          if (partialCards && partialCards.length > 0) {
-            cardDetails = partialCards[0];
-            cardId = partialCards[0].id;
+          if (dbCards && dbCards.length > 0) {
+            cardDetails = dbCards[0];
+            cardId = dbCards[0].id;
+          }
+        } else {
+          // Buscar coincidencia exacta o cercana en base de datos local
+          const { data: dbCards } = await supabase
+            .from('yg_cards')
+            .select('*')
+            .ilike('name', item.name);
+
+          if (dbCards && dbCards.length > 0) {
+            cardDetails = dbCards[0];
+            cardId = dbCards[0].id;
+          } else {
+            // Intentar coincidencia parcial
+            const { data: partialCards } = await supabase
+              .from('yg_cards')
+              .select('*')
+              .ilike('name', `%${item.name}%`)
+              .limit(1);
+
+            if (partialCards && partialCards.length > 0) {
+              cardDetails = partialCards[0];
+              cardId = partialCards[0].id;
+            }
           }
         }
       }
@@ -84,7 +142,11 @@ export async function POST(req: NextRequest) {
       // Si no se encuentra en DB local, intentar buscar en API de YGOPRODeck
       if (!cardId) {
         try {
-          const ygoproRes = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?fname=${encodeURIComponent(item.name)}`);
+          const url = isNumericId
+            ? `https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${encodeURIComponent(item.name)}`
+            : `https://db.ygoprodeck.com/api/v7/cardinfo.php?fname=${encodeURIComponent(item.name)}`;
+
+          const ygoproRes = await fetch(url);
           if (ygoproRes.ok) {
             const ygoproJson = await ygoproRes.json();
             const c = ygoproJson.data?.[0];
@@ -121,14 +183,17 @@ export async function POST(req: NextRequest) {
           card_id: cardId,
           name: cardDetails.name,
           type: cardDetails.type,
-          image_url: cardDetails.image_url,
+          image_url: cardDetails.image_url || `https://images.ygoprodeck.com/images/cards/${cardId}.jpg`,
           image_url_small: cardDetails.image_url_small,
-          quantity: item.quantity
+          quantity: item.quantity,
+          section: item.section || 'main'
+
         });
       } else {
         unmatchedList.push(item.raw);
       }
     }
+
 
     // Si la acción es "save", procedemos a insertar todas las cartas encontradas
     if (action === 'save') {
@@ -165,8 +230,10 @@ export async function POST(req: NextRequest) {
       unmatched: unmatchedList
     });
 
-  } catch (error: any) {
-    console.error('Error parseando lote:', error);
-    return NextResponse.json({ error: error.message || 'Error al procesar lote de cartas' }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Error parseando lote:', err);
+    return NextResponse.json({ error: err.message || 'Error al procesar lote de cartas' }, { status: 500 });
   }
+
 }

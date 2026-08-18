@@ -3,24 +3,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   RefreshCw,
-  Save,
   FolderOpen,
-  MoreVertical,
-  X,
   Trash2,
   Undo2,
   Redo2,
-  Download,
-  Upload,
-  HelpCircle,
   Sun,
   Moon,
   Bot,
-  Sparkles,
-  Network,
-  GitFork,
-  PenLine,
 } from 'lucide-react';
+
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -243,6 +234,8 @@ export default function DeckBuilder() {
     [state, toast]
   );
 
+  const { canUndo, canRedo, handleUndo, handleRedo } = state;
+
   // Atajos de teclado para Deshacer / Rehacer (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -254,8 +247,8 @@ export default function DeckBuilder() {
 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        if (state.canUndo) {
-          state.handleUndo();
+        if (canUndo) {
+          handleUndo();
           toast.info('Acción deshecha');
         }
       } else if (
@@ -263,8 +256,8 @@ export default function DeckBuilder() {
         ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
       ) {
         e.preventDefault();
-        if (state.canRedo) {
-          state.handleRedo();
+        if (canRedo) {
+          handleRedo();
           toast.info('Acción rehecha');
         }
       }
@@ -272,7 +265,8 @@ export default function DeckBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [state.canUndo, state.canRedo, state.handleUndo, state.handleRedo, toast]);
+  }, [canUndo, canRedo, handleUndo, handleRedo, toast]);
+
 
   // Wrapper para añadir cartas con Toast y botón de deshacer
   const handleAddCardWithFeedback = useCallback(
@@ -1306,15 +1300,17 @@ export default function DeckBuilder() {
         onClose={() => setIsClearConfirmOpen(false)}
       />
 
-      {/* YDK UPLOAD MODAL IN DECKBUILDER */}
+      {/* YDK / BULK IDS UPLOAD MODAL IN DECKBUILDER */}
       <YdkUploadModal
         isOpen={isYdkUploadOpen}
         onClose={() => setIsYdkUploadOpen(false)}
         onSuccess={() => {
           setIsYdkUploadOpen(false);
-          toast.success('Archivo .YDK importado exitosamente');
+          toast.success('Deck cargado exitosamente desde .YDK / IDs Bulk');
         }}
+        onImportToDeck={state.handleImportYdkOrBulk}
       />
+
 
       {/* SAVE DECK MODAL */}
       <SaveDeckModal
