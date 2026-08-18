@@ -171,7 +171,7 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
                 value={ydkText}
                 onChange={(e) => {
                   const raw = e.target.value;
-                  const sanitized = importMode === 'ids' ? sanitizeBulkInput(raw, true) : raw;
+                  const sanitized = importMode === 'ids' ? sanitizeBulkInput(raw, true, true) : raw;
                   setYdkText(sanitized);
                 }}
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"

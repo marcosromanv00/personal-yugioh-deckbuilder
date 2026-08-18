@@ -631,7 +631,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                   value={bulkText}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    const sanitized = bulkMode === 'ids' ? sanitizeBulkInput(raw, true) : raw;
+                    const sanitized = bulkMode === 'ids' ? sanitizeBulkInput(raw, true, true) : raw;
                     setBulkText(sanitized);
                   }}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
