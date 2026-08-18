@@ -30,7 +30,7 @@ export function useDeckWorkspaceState({
 
   // Deck Activo y Lista de Cartas
   const [currentDeck, setCurrentDeck] = useState<Deck | null>(deck);
-  const [deckCards, setDeckCards] = useState<DeckCardDetail[]>([]);
+  const [deckCards, setDeckCards] = useState<DeckCardDetail[]>(deck?.cards || []);
   const [userCards, setUserCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMutated, setHasMutated] = useState(false);
@@ -114,6 +114,9 @@ export function useDeckWorkspaceState({
     setSelectedCardDetail(null);
     setSectionFilter('all');
     setSearchFilter('');
+    if (deck.cards && Array.isArray(deck.cards)) {
+      setDeckCards(deck.cards);
+    }
 
     // Cargar fundas asignadas al deck si existen
     if (deck.sleeves && Array.isArray(deck.sleeves)) {
@@ -228,7 +231,7 @@ export function useDeckWorkspaceState({
   }, [deckCards]);
 
   const totalPoolCount = useMemo(() => {
-    return deckCards.filter(c => c.section === 'pool').reduce((sum, c) => sum + c.count, 0);
+    return deckCards.filter(c => c.section === 'pool' || c.section === 'extras').reduce((sum, c) => sum + c.count, 0);
   }, [deckCards]);
 
   const totalDeckCount = totalMainCount + totalExtraCount + totalSideCount + totalPoolCount;
@@ -238,7 +241,10 @@ export function useDeckWorkspaceState({
     let result = [...deckCards];
 
     if (sectionFilter !== 'all') {
-      result = result.filter(c => c.section === sectionFilter);
+      result = result.filter(c => 
+        c.section === sectionFilter || 
+        (sectionFilter === 'pool' && c.section === 'extras')
+      );
     }
 
     if (searchFilter.trim()) {
@@ -263,7 +269,7 @@ export function useDeckWorkspaceState({
   const mainCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'main'), [filteredCenterCards]);
   const extraCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'extra'), [filteredCenterCards]);
   const sideCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'side'), [filteredCenterCards]);
-  const poolCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'pool'), [filteredCenterCards]);
+  const poolCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'pool' || c.section === 'extras'), [filteredCenterCards]);
 
   // Acciones de Gestión de Cartas en el Deck
   const handleAddCardToDeck = async (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'pool') => {
@@ -282,13 +288,15 @@ export function useDeckWorkspaceState({
       }
     }
 
+    const sectionNormalized = sectionToUse === 'pool' ? 'extras' : sectionToUse;
+
     try {
-      const existing = deckCards.find(c => c.card_id === card.id && c.section === sectionToUse);
+      const existing = deckCards.find(c => c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized));
       let updatedCards: DeckCardDetail[];
 
       if (existing) {
         updatedCards = deckCards.map(c => 
-          c.card_id === card.id && c.section === sectionToUse 
+          c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized)
             ? { ...c, count: c.count + 1 }
             : c
         );
@@ -296,7 +304,7 @@ export function useDeckWorkspaceState({
         const newDetail: DeckCardDetail = {
           card_id: card.id,
           count: 1,
-          section: sectionToUse,
+          section: sectionNormalized,
           card_details: {
             name: card.name,
             type: card.type,
@@ -323,7 +331,7 @@ export function useDeckWorkspaceState({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           card_id: card.id,
-          section: sectionToUse,
+          section: sectionNormalized,
           count: 1,
         })
       });
@@ -336,20 +344,22 @@ export function useDeckWorkspaceState({
   const handleRemoveCardFromDeck = async (cardId: number, section: 'main' | 'extra' | 'side' | 'pool') => {
     if (!currentDeck) return;
 
+    const sectionNormalized = section === 'pool' ? 'extras' : section;
+
     try {
-      const existing = deckCards.find(c => c.card_id === cardId && c.section === section);
+      const existing = deckCards.find(c => c.card_id === cardId && (c.section === section || c.section === sectionNormalized));
       if (!existing) return;
 
       let updatedCards: DeckCardDetail[];
       if (existing.count > 1) {
         updatedCards = deckCards.map(c => 
-          c.card_id === cardId && c.section === section
+          c.card_id === cardId && (c.section === section || c.section === sectionNormalized)
             ? { ...c, count: c.count - 1 }
             : c
         );
       } else {
-        updatedCards = deckCards.filter(c => !(c.card_id === cardId && c.section === section));
-        if (selectedCardDetail?.card_id === cardId && selectedCardDetail.section === section) {
+        updatedCards = deckCards.filter(c => !(c.card_id === cardId && (c.section === section || c.section === sectionNormalized)));
+        if (selectedCardDetail?.card_id === cardId && (selectedCardDetail.section === section || selectedCardDetail.section === sectionNormalized)) {
           setSelectedCardDetail(null);
           setRightMode('details');
         }
@@ -364,7 +374,7 @@ export function useDeckWorkspaceState({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           card_id: cardId,
-          section: section,
+          section: sectionNormalized,
         })
       });
     } catch (err) {
@@ -376,26 +386,29 @@ export function useDeckWorkspaceState({
   const handleChangeCardSection = async (cardId: number, currentSection: string, targetSection: string) => {
     if (!currentDeck || currentSection === targetSection) return;
 
+    const fromSec = currentSection === 'pool' ? 'extras' : currentSection;
+    const toSec = targetSection === 'pool' ? 'extras' : targetSection;
+
     try {
-      const card = deckCards.find(c => c.card_id === cardId && c.section === currentSection);
+      const card = deckCards.find(c => c.card_id === cardId && (c.section === currentSection || c.section === fromSec));
       if (!card) return;
 
-      const remainingCards = deckCards.filter(c => !(c.card_id === cardId && c.section === currentSection));
-      const targetExisting = remainingCards.find(c => c.card_id === cardId && c.section === targetSection);
+      const remainingCards = deckCards.filter(c => !(c.card_id === cardId && (c.section === currentSection || c.section === fromSec)));
+      const targetExisting = remainingCards.find(c => c.card_id === cardId && (c.section === targetSection || c.section === toSec));
 
       let updatedCards: DeckCardDetail[];
       if (targetExisting) {
         updatedCards = remainingCards.map(c => 
-          c.card_id === cardId && c.section === targetSection
+          c.card_id === cardId && (c.section === targetSection || c.section === toSec)
             ? { ...c, count: c.count + card.count }
             : c
         );
       } else {
-        updatedCards = [...remainingCards, { ...card, section: targetSection as 'main' | 'extra' | 'side' | 'pool' }];
+        updatedCards = [...remainingCards, { ...card, section: toSec as 'main' | 'extra' | 'side' | 'pool' }];
       }
 
       setDeckCards(updatedCards);
-      setSelectedCardDetail(prev => prev ? { ...prev, section: targetSection as 'main' | 'extra' | 'side' | 'pool' } : null);
+      setSelectedCardDetail(prev => prev ? { ...prev, section: toSec as 'main' | 'extra' | 'side' | 'pool' } : null);
       setHasMutated(true);
       toast.success(`Carta movida a ${targetSection.toUpperCase()}`);
 
@@ -404,8 +417,8 @@ export function useDeckWorkspaceState({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           card_id: cardId,
-          from_section: currentSection,
-          to_section: targetSection,
+          from_section: fromSec,
+          to_section: toSec,
         })
       });
     } catch (err) {
