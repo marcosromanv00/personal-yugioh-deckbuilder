@@ -433,11 +433,6 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <div className="absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 border-red-400" />
                     <div className="absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 border-red-400" />
                     <div className="absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 border-red-400" />
-
-                    {/* Instruction text inside viewfinder */}
-                    <span className="text-[11px] font-mono font-medium tracking-wider text-red-200/90 bg-black/60 px-2 py-0.5 rounded-md border border-red-500/20">
-                      [ CÓDIGO 8 DÍGITOS ]
-                    </span>
                   </div>
 
                   <p className="relative z-10 text-[11px] text-zinc-300 font-medium mt-3 bg-zinc-950/80 backdrop-blur-xs px-3 py-1 rounded-full border border-zinc-800 shadow-md">
