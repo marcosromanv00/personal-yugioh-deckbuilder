@@ -55,7 +55,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   onCardRegistered,
   title = 'Escanear Código de Carta',
   subtitle = 'Apunta exclusivamente al código de 8 dígitos (esquina inferior izquierda)',
-  maxQuantity = 3,
+  maxQuantity = 999,
 }) => {
   // Video & Stream State
   const videoRef = useRef<HTMLVideoElement | null>(null);
