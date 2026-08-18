@@ -31,15 +31,24 @@ import {
   Swords,
   Link2,
   Unlink,
-  Settings
+  Settings,
+  Boxes,
+  Globe
 } from 'lucide-react';
 import { StorageLocation, UserCard, SleeveInventory, Deck, CompartmentsConfig } from '@/types/collection';
 import { Card, HoverCardBase } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { SearchPanel } from '@/components/deckbuilder/components/SearchPanel';
 import { PhysicalCardPickerModal } from './PhysicalCardPickerModal';
+import { PickListConsolidationModal } from './PickListConsolidationModal';
 import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
 import { getSleeveColorHex } from '@/lib/sleeves';
+import { 
+  getCategoryBadgeStyle, 
+  findDispersedCardsAcrossLocations, 
+  getLanguageDisplay,
+  DispersedCardSummary 
+} from '@/lib/collectionUtils';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { useToast } from '@/components/ui/ToastProvider';
 import { usePanelResize } from '@/components/deckbuilder/hooks/usePanelResize';
@@ -48,6 +57,7 @@ import {
   analyzeCardClassification, 
   analyzeLanePatterns, 
   analyzeGlobalCollectionPatterns,
+  LaneCluster,
   BestRecommendation 
 } from '@/lib/cardClassificationEngine';
 
@@ -144,6 +154,18 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   // Modo del Panel Derecho: 'details' (Detalles / Copias) vs 'analysis' (Análisis IA & Patrones)
   const [rightMode, setRightMode] = useState<'details' | 'analysis'>('details');
   const [aiSubView, setAiSubView] = useState<'lane' | 'card' | 'collection'>('lane');
+
+  // Modo de visualización de cuadrícula: 'collapsed' (comprimido en 1 tarjeta limpia con Nx) vs 'expanded' (copias individuales)
+  const [gridDisplayMode, setGridDisplayMode] = useState<'collapsed' | 'expanded'>('collapsed');
+  // Acordeón de variantes en el inspector (empieza colapsado para no ser invasivo)
+  const [isVariantsExpanded, setIsVariantsExpanded] = useState<boolean>(false);
+
+  // Estados para Modal de Ruta de Recolección (Pick-List)
+  const [isPickListOpen, setIsPickListOpen] = useState<boolean>(false);
+  const [selectedClusterForPickList, setSelectedClusterForPickList] = useState<LaneCluster | null>(null);
+  const [selectedDispersedForPickList, setSelectedDispersedForPickList] = useState<UserCard[] | null>(null);
+  const [pickListTitle, setPickListTitle] = useState<string>('');
+  const [pickListSubtitle, setPickListSubtitle] = useState<string>('');
 
   // Filtro por cluster/patrón detectado en el carril
   const [activeClusterFilter, setActiveClusterFilter] = useState<string | null>(null);
@@ -335,6 +357,18 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       locations
     );
   }, [allCollectionCards, cards, internalDecks, decks, locations]);
+
+  // Detección de cartas de la colección divididas en múltiples contenedores o idiomas
+  const allDispersedCards = useMemo(() => {
+    const pool = allCollectionCards.length > 0 ? allCollectionCards : cards;
+    return findDispersedCardsAcrossLocations(pool, locations);
+  }, [allCollectionCards, cards, locations]);
+
+  // Diagnóstico de dispersión para la carta activa seleccionada
+  const currentCardDispersedInfo = useMemo(() => {
+    if (!selectedUserCard) return null;
+    return allDispersedCards.find(d => d.cardId === selectedUserCard.card_id) || null;
+  }, [selectedUserCard, allDispersedCards]);
 
   // Importación YDK / Bulk
   const [ydkText, setYdkText] = useState('');
@@ -1289,14 +1323,28 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     return Array.from(groupsMap.values());
   }, [filteredCards]);
 
+  // Tarjetas a mostrar según el modo seleccionado (Agrupadas por tipo vs Desglosadas individualmente)
+  const displayedGridCards = useMemo(() => {
+    if (gridDisplayMode === 'collapsed') {
+      return groupedGridCards;
+    }
+    return filteredCards.map((uc) => ({
+      card_id: uc.card_id,
+      compartment_index: uc.compartment_index || 0,
+      card_details: uc.card_details,
+      totalQuantity: uc.quantity || 1,
+      representativeUserCard: uc,
+      allVariants: [uc],
+    }));
+  }, [gridDisplayMode, groupedGridCards, filteredCards]);
 
-  // Paginación para la grilla basada en tarjetas únicas agrupadas
+  // Paginación para la grilla
   const CARDS_PER_GRID_PAGE = 30;
-  const totalGridPages = Math.max(1, Math.ceil(groupedGridCards.length / CARDS_PER_GRID_PAGE));
+  const totalGridPages = Math.max(1, Math.ceil(displayedGridCards.length / CARDS_PER_GRID_PAGE));
   const paginatedGridCards = useMemo(() => {
     const start = (currentGridPage - 1) * CARDS_PER_GRID_PAGE;
-    return groupedGridCards.slice(start, start + CARDS_PER_GRID_PAGE);
-  }, [groupedGridCards, currentGridPage]);
+    return displayedGridCards.slice(start, start + CARDS_PER_GRID_PAGE);
+  }, [displayedGridCards, currentGridPage]);
 
   // Configuración de Binder
   const rows = location?.grid_layout?.rows || 3;
@@ -1744,11 +1792,41 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   menuWidth="w-56"
                   size="sm"
                 />
+
+                {/* Switcher: Agrupadas vs Desglosadas */}
+                <div className="flex items-center p-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setGridDisplayMode('collapsed')}
+                    className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      gridDisplayMode === 'collapsed'
+                        ? 'bg-white dark:bg-zinc-800 text-red-600 dark:text-red-400 shadow-2xs font-black'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                    title="Modo Comprimido: Muestra 1 tarjeta por carta sumando las cantidades"
+                  >
+                    <Boxes className="w-3 h-3" />
+                    <span>Agrupadas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGridDisplayMode('expanded')}
+                    className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      gridDisplayMode === 'expanded'
+                        ? 'bg-white dark:bg-zinc-800 text-red-600 dark:text-red-400 shadow-2xs font-black'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                    title="Modo Desglosado: Muestra cada copia física individual por separado"
+                  >
+                    <Layers className="w-3 h-3" />
+                    <span>Desglosadas</span>
+                  </button>
+                </div>
               </div>
 
               {/* Resumen de cartas mostradas */}
               <div className="text-[10.5px] font-mono text-zinc-400 dark:text-zinc-500 shrink-0 hidden sm:block">
-                Mostrando <strong>{filteredCards.length}</strong> de {cards.length} cartas
+                Mostrando <strong>{displayedGridCards.length}</strong> {gridDisplayMode === 'collapsed' ? 'únicas' : 'físicas'} ({filteredCards.reduce((sum, c) => sum + (c.quantity || 1), 0)} cartas)
               </div>
             </div>
           </div>
@@ -1842,6 +1920,11 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                                 <div className="absolute top-1 right-1 bg-zinc-950/90 text-purple-300 font-mono text-[9px] px-1 rounded border border-purple-500/30 font-bold">
                                   {cardInSlot.quantity}x
                                 </div>
+                                {/* Barra inferior de Categoría */}
+                                <div 
+                                  className={`absolute bottom-0.5 left-1 right-1 h-1 rounded-full overflow-hidden shadow-2xs ${getCategoryBadgeStyle(cardInSlot.status_flag).barColorClass}`}
+                                  title={`Estado: ${getCategoryBadgeStyle(cardInSlot.status_flag).label}`}
+                                />
                               </>
                             ) : (
                               <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-600">
@@ -1907,6 +1990,11 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                                 <div className="absolute top-1 right-1 bg-zinc-950/90 text-purple-300 font-mono text-[9px] px-1 rounded border border-purple-500/30 font-bold">
                                   {cardInSlot.quantity}x
                                 </div>
+                                {/* Barra inferior de Categoría */}
+                                <div 
+                                  className={`absolute bottom-0.5 left-1 right-1 h-1 rounded-full overflow-hidden shadow-2xs ${getCategoryBadgeStyle(cardInSlot.status_flag).barColorClass}`}
+                                  title={`Estado: ${getCategoryBadgeStyle(cardInSlot.status_flag).label}`}
+                                />
                               </>
                             ) : (
                               <span className="text-[9px] font-mono text-zinc-600">
@@ -2012,8 +2100,16 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                               <span className="truncate">
                                 {group.allVariants.length > 1 ? `${group.allVariants.length} Variantes` : (uc.rarity || 'Common')}
                               </span>
-                              <span className="uppercase text-zinc-400">{uc.condition?.replace('Played', 'P') || 'NM'}</span>
+                              <span className="inline-flex items-center gap-1 font-bold text-zinc-400">
+                                <span>{getLanguageDisplay(uc.language).flag}</span>
+                                <span>{getLanguageDisplay(uc.language).badge}</span>
+                              </span>
                             </div>
+                            {/* Barra inferior de Categoría */}
+                            <div 
+                              className={`w-full h-1 mt-1.5 rounded-full overflow-hidden shadow-2xs ${getCategoryBadgeStyle(uc.status_flag).barColorClass}`}
+                              title={`Estado: ${getCategoryBadgeStyle(uc.status_flag).label} (${getCategoryBadgeStyle(uc.status_flag).description})`}
+                            />
                           </div>
                         </motion.div>
                       );
@@ -2272,7 +2368,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                           <div
                             key={cluster.id}
                             onClick={() => setActiveClusterFilter(isFiltered ? null : cluster.id)}
-                            className={`p-3 rounded-xl border transition-all cursor-pointer space-y-1.5 shadow-2xs ${
+                            className={`p-3 rounded-xl border transition-all cursor-pointer space-y-2 shadow-2xs ${
                               isFiltered
                                 ? 'bg-red-50 dark:bg-red-950/20 border-red-500 text-red-900 dark:text-red-200'
                                 : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
@@ -2289,19 +2385,37 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                             <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug">
                               {cluster.description}
                             </p>
-                            <div className="flex items-center justify-between pt-1">
+                            <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
                               {cluster.suggestedAction && (
                                 <span className="text-[9.5px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
                                   💡 {cluster.suggestedAction}
                                 </span>
                               )}
-                              <span className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                                isFiltered 
-                                  ? 'bg-red-600 text-white' 
-                                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500'
-                              }`}>
-                                {isFiltered ? 'Filtro Activo' : 'Clic para filtrar grid'}
-                              </span>
+                              <div className="flex items-center gap-1.5 ml-auto">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedClusterForPickList(cluster);
+                                    setSelectedDispersedForPickList(null);
+                                    setPickListTitle(`Ruta: ${cluster.name}`);
+                                    setPickListSubtitle(cluster.description);
+                                    setIsPickListOpen(true);
+                                  }}
+                                  className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded-md text-[9px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+                                  title="Abrir lista de recolección física para este grupo"
+                                >
+                                  <Boxes className="w-3 h-3" />
+                                  <span>Ruta</span>
+                                </button>
+                                <span className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                  isFiltered 
+                                    ? 'bg-red-600 text-white' 
+                                    : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500'
+                                }`}>
+                                  {isFiltered ? 'Filtro Activo' : 'Filtrar grid'}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -2501,48 +2615,127 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                       </span>
                     </div>
                     <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100">
-                      Oportunidades de Construcción
+                      Diagnóstico & Agrupaciones Globales
                     </h4>
-                    <div className="grid grid-cols-2 gap-2 pt-1 text-[10.5px] font-mono">
+                    <div className="grid grid-cols-3 gap-1.5 pt-1 text-[10.5px] font-mono">
                       <div className="p-2 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                        <span className="text-zinc-500 block text-[9.5px]">Cores Listos:</span>
+                        <span className="text-zinc-500 block text-[9px]">Grupos/Cores:</span>
                         <span className="font-black text-purple-600 dark:text-purple-400 text-xs">
-                          {globalCollectionReport.archetypeCores.length} arquetipos
+                          {globalCollectionReport.globalClusters.length}
                         </span>
                       </div>
                       <div className="p-2 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                        <span className="text-zinc-500 block text-[9.5px]">Mazos Armables:</span>
+                        <span className="text-zinc-500 block text-[9px]">Decks Listos:</span>
                         <span className="font-black text-emerald-600 dark:text-emerald-400 text-xs">
-                          {globalCollectionReport.deckOpportunities.filter(d => d.readyToAssignCount > 0).length} mazos
+                          {globalCollectionReport.deckOpportunities.filter(d => d.readyToAssignCount > 0).length}
+                        </span>
+                      </div>
+                      <div className="p-2 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                        <span className="text-zinc-500 block text-[9px]">Dispersas:</span>
+                        <span className="font-black text-amber-600 dark:text-amber-400 text-xs">
+                          {allDispersedCards.length}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Cores de Arquetipos Listos */}
+                  {/* Grupos y Arquetipos Detectados en Toda la Colección */}
                   <div className="bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2.5 shadow-2xs">
-                    <h5 className="text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <TrendingUp className="w-3.5 h-3.5 text-purple-500" />
-                      <span>Cores de Arquetipos ({globalCollectionReport.archetypeCores.length})</span>
-                    </h5>
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Agrupaciones Globales ({globalCollectionReport.globalClusters.length})</span>
+                      </h5>
+                    </div>
 
                     <div className="space-y-2">
-                      {globalCollectionReport.archetypeCores.slice(0, 6).map((core, idx) => (
-                        <div key={idx} className="p-2.5 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1 shadow-2xs">
+                      {globalCollectionReport.globalClusters.map((cluster) => (
+                        <div key={cluster.id} className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1.5 shadow-2xs">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-black text-zinc-900 dark:text-zinc-100">{core.archetype}</span>
-                            <span className="text-[10px] font-mono font-bold text-purple-600 dark:text-purple-400">{core.totalCards} cartas ({core.deckReadinessPercentage}% deck)</span>
+                            <span className="text-xs font-black text-zinc-900 dark:text-zinc-100">{cluster.name}</span>
+                            <span className="text-[10px] font-mono font-bold text-purple-600 dark:text-purple-400">
+                              {cluster.count} cartas ({cluster.percentage}%)
+                            </span>
                           </div>
-                          <p className="text-[10px] text-zinc-500 truncate">
-                            Ej: {core.cardNames.join(', ')}
+                          <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug">
+                            {cluster.description}
                           </p>
-                          <span className="block text-[9.5px] font-mono text-emerald-600 dark:text-emerald-400 font-bold pt-0.5">
-                            💡 {core.suggestedAction}
-                          </span>
+                          <div className="flex items-center justify-between pt-1">
+                            {cluster.suggestedAction && (
+                              <span className="text-[9.5px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                💡 {cluster.suggestedAction}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedClusterForPickList(cluster);
+                                setSelectedDispersedForPickList(null);
+                                setPickListTitle(`Ruta Global: ${cluster.name}`);
+                                setPickListSubtitle(cluster.description);
+                                setIsPickListOpen(true);
+                              }}
+                              className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-colors"
+                              title="Iniciar recolección física de este grupo"
+                            >
+                              <Boxes className="w-3.5 h-3.5" />
+                              <span>Ruta de Recolección</span>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* Cartas Dispersas / Fragmentadas en Múltiples Ubicaciones */}
+                  {allDispersedCards.length > 0 && (
+                    <div className="bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/50 space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-mono font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>Cartas Dispersas ({allDispersedCards.length})</span>
+                        </h5>
+                      </div>
+                      <p className="text-[11px] text-zinc-500">
+                        Copias de la misma carta divididas en diferentes cajas, carpetas o idiomas.
+                      </p>
+
+                      <div className="space-y-2">
+                        {allDispersedCards.slice(0, 10).map((disp) => (
+                          <div key={disp.cardId} className="p-2.5 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 shadow-2xs">
+                            <div className="min-w-0">
+                              <h6 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                {disp.cardName}
+                              </h6>
+                              <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500 mt-0.5">
+                                <span className="font-bold text-amber-600 dark:text-amber-400">{disp.totalCopies}x copias</span>
+                                <span>•</span>
+                                <span>{disp.distinctLocationsCount} ubicaciones</span>
+                                <span>•</span>
+                                <span>{disp.languagesList.map(l => getLanguageDisplay(l).badge).join(', ')}</span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allCardsForDisp = (allCollectionCards.length > 0 ? allCollectionCards : cards).filter(c => c.card_id === disp.cardId);
+                                setSelectedDispersedForPickList(allCardsForDisp);
+                                setSelectedClusterForPickList(null);
+                                setPickListTitle(`Reunir ${disp.cardName}`);
+                                setPickListSubtitle(`Consolidar las ${disp.totalCopies} copias divididas en ${disp.distinctLocationsCount} ubicaciones.`);
+                                setIsPickListOpen(true);
+                              }}
+                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-mono font-bold shrink-0 cursor-pointer shadow-2xs flex items-center gap-1"
+                            >
+                              <Boxes className="w-3 h-3" />
+                              <span>Reunir</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Mazos con Piezas Disponibles */}
                   {globalCollectionReport.deckOpportunities.length > 0 && (
@@ -2579,143 +2772,230 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                ═══════════════════════════════════════════════════════════════════ */
             selectedUserCard && selectedUserCard.card_details ? (
               <div className="space-y-4">
-                {/* Vista previa de carta */}
-                <div className="flex gap-3.5 items-start bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={selectedUserCard.card_details.image_url_small || selectedUserCard.card_details.image_url}
-                    alt={selectedUserCard.card_details.name}
-                    className="w-20 rounded-xl shadow-md shrink-0 border border-zinc-200 dark:border-zinc-800"
-                  />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <h4 className="text-xs font-black text-zinc-900 dark:text-white leading-snug">
-                      {selectedUserCard.card_details.name}
-                    </h4>
-                    <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono uppercase font-semibold">
-                      {selectedUserCard.card_details.type}
-                    </p>
-                    {selectedUserCard.card_details.archetype && (
-                      <span className="inline-block text-[9.5px] font-mono text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800/60 px-2 py-0.5 rounded-md mt-1 font-bold">
-                        {selectedUserCard.card_details.archetype}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Desglose de Variantes y Rarezas por Copias */}
-                <div className="space-y-3 pt-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-purple-500" />
-                      <span>Desglose de Copias ({totalCopiesInContainer} en total)</span>
-                    </h4>
+                {/* Vista previa de carta con Badge de Categoría */}
+                <div className="bg-white dark:bg-zinc-950 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-2.5">
+                  <div className="flex gap-3.5 items-start">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedUserCard.card_details.image_url_small || selectedUserCard.card_details.image_url}
+                      alt={selectedUserCard.card_details.name}
+                      className="w-20 rounded-xl shadow-md shrink-0 border border-zinc-200 dark:border-zinc-800"
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <h4 className="text-xs font-black text-zinc-900 dark:text-white leading-snug">
+                        {selectedUserCard.card_details.name}
+                      </h4>
+                      <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono uppercase font-semibold">
+                        {selectedUserCard.card_details.type}
+                      </p>
+                      {selectedUserCard.card_details.archetype && (
+                        <span className="inline-block text-[9.5px] font-mono text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800/60 px-2 py-0.5 rounded-md mt-1 font-bold">
+                          {selectedUserCard.card_details.archetype}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {activeVariants.map((v, idx) => (
-                      <div key={v.id} className="p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 shadow-2xs">
-                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-1.5">
-                          <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
-                            Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
-                          </span>
-                          {activeVariants.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteVariantById(v.id)}
-                              className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
-                            >
-                              Eliminar
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          {/* Cantidad de copias para esta variante */}
-                          <div>
-                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                              Copias:
-                            </label>
-                            <input
-                              type="number"
-                              min="1"
-                              max="99"
-                              value={v.quantity || 1}
-                              onChange={(e) => handleUpdateVariantById(v.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-mono font-bold focus:border-purple-500 focus:outline-none"
-                            />
-                          </div>
-
-                          {/* Rareza de esta variante */}
-                          <div>
-                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                              Rareza:
-                            </label>
-                            <select
-                              value={v.rarity || 'Common'}
-                              onChange={(e) => handleUpdateVariantById(v.id, { rarity: e.target.value })}
-                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-bold focus:border-purple-500 focus:outline-none cursor-pointer"
-                            >
-                              <option value="Common">Common (Común)</option>
-                              <option value="Rare">Rare (Rara)</option>
-                              <option value="Super Rare">Super Rare</option>
-                              <option value="Ultra Rare">Ultra Rare</option>
-                              <option value="Secret Rare">Secret Rare</option>
-                              <option value="Ultimate Rare">Ultimate Rare</option>
-                              <option value="Ghost Rare">Ghost Rare</option>
-                              <option value="Starlight Rare">Starlight Rare</option>
-                              <option value="Collector's Rare">Collector&apos;s Rare</option>
-                              <option value="Quarter Century Secret Rare">25th Quarter Century</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Condición y Funda */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                              Condición:
-                            </label>
-                            <select
-                              value={v.condition || 'Near Mint'}
-                              onChange={(e) => handleUpdateVariantById(v.id, { condition: e.target.value as UserCard['condition'] })}
-                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
-                            >
-                              <option value="Near Mint">Near Mint (NM)</option>
-                              <option value="Lightly Played">Lightly Played (LP)</option>
-                              <option value="Moderately Played">Moderately Played (MP)</option>
-                              <option value="Heavily Played">Heavily Played (HP)</option>
-                              <option value="Damaged">Damaged (DMG)</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                              Funda / Sleeving:
-                            </label>
-                            <select
-                              value={v.sleeve_type || 'none'}
-                              onChange={(e) => handleUpdateVariantById(v.id, { sleeve_type: e.target.value as UserCard['sleeve_type'] })}
-                              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer"
-                            >
-                              <option value="none">Sin Funda</option>
-                              <option value="single">Funda Simple</option>
-                              <option value="double">Funda Doble</option>
-                              <option value="triple">Funda Triple</option>
-                            </select>
+                  {/* Badge de Categoría Actual */}
+                  {(() => {
+                    const cat = getCategoryBadgeStyle(selectedUserCard.status_flag);
+                    return (
+                      <div className={`p-2 rounded-xl border flex items-center justify-between gap-2 ${cat.badgeBgClass} ${cat.borderColorClass}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-2.5 h-2.5 rounded-full ${cat.dotColorClass} shrink-0`} />
+                          <div className="min-w-0">
+                            <span className={`text-[11px] font-mono font-black uppercase ${cat.textColorClass} block truncate`}>
+                              {cat.label}
+                            </span>
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+                              {cat.description}
+                            </p>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
+                </div>
 
+                {/* Alerta de Copias Dispersas en Otras Ubicaciones / Idiomas */}
+                {currentCardDispersedInfo && currentCardDispersedInfo.locations.length > 1 && (
+                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/60 rounded-2xl space-y-2.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10.5px] font-mono font-black uppercase text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Copias en otros lugares ({currentCardDispersedInfo.totalCopies}x total)</span>
+                      </span>
+                      <span className="text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-md">
+                        {currentCardDispersedInfo.distinctLocationsCount} ubicaciones
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug">
+                      Tienes copias de esta carta distribuidas en otras cajas, carpetas o idiomas:
+                    </p>
+
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {currentCardDispersedInfo.locations.map((loc, lIdx) => (
+                        <div key={lIdx} className="p-2 bg-white dark:bg-zinc-900 rounded-xl border border-amber-200 dark:border-amber-900/40 flex items-center justify-between text-[10.5px] font-mono">
+                          <span className="text-zinc-700 dark:text-zinc-300 truncate">
+                            📦 {loc.locationName} ({loc.compartmentName})
+                          </span>
+                          <span className="font-black text-amber-700 dark:text-amber-400 shrink-0">
+                            {loc.copiesCount}x ({loc.languages.map(l => getLanguageDisplay(l).badge).join(', ')})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allCardsForThis = (allCollectionCards.length > 0 ? allCollectionCards : cards).filter(c => c.card_id === selectedUserCard.card_id);
+                        setSelectedDispersedForPickList(allCardsForThis);
+                        setSelectedClusterForPickList(null);
+                        setPickListTitle(`Reunir: ${selectedUserCard.card_details?.name || 'Carta'}`);
+                        setPickListSubtitle(`Consolida las ${currentCardDispersedInfo.totalCopies} copias de esta carta en una sola ubicación.`);
+                        setIsPickListOpen(true);
+                      }}
+                      className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    >
+                      <Boxes className="w-3.5 h-3.5" />
+                      <span>Ruta para reunir todas las copias aquí</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Desglose de Variantes y Rarezas (Acordeón No-Invasivo) */}
+                <div className="border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-zinc-50/50 dark:bg-zinc-900/30 shadow-2xs">
                   <button
                     type="button"
-                    onClick={handleAddNewVariant}
-                    className="w-full py-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 font-bold text-xs rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    onClick={() => setIsVariantsExpanded(p => !p)}
+                    className="w-full p-3 flex items-center justify-between text-xs font-mono font-black text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100/80 dark:hover:bg-zinc-900 cursor-pointer transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    <span>➕ Añadir variante / rareza diferente</span>
+                    <span className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-purple-500" />
+                      <span>Copias en este contenedor ({totalCopiesInContainer})</span>
+                    </span>
+                    <span className="text-[10.5px] font-bold text-red-600 dark:text-red-400">
+                      {isVariantsExpanded ? '▲ Ocultar detalles' : '▼ Ver / Editar variantes'}
+                    </span>
                   </button>
+
+                  {isVariantsExpanded && (
+                    <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 space-y-3 bg-white dark:bg-zinc-950">
+                      <div className="space-y-3">
+                        {activeVariants.map((v, idx) => (
+                          <div key={v.id} className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-1.5">
+                              <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
+                                Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
+                              </span>
+                              {activeVariants.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteVariantById(v.id)}
+                                  className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
+                                >
+                                  Eliminar
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Cantidad de copias para esta variante */}
+                              <div>
+                                <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                                  Copias:
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="99"
+                                  value={v.quantity || 1}
+                                  onChange={(e) => handleUpdateVariantById(v.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                                  className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100 font-mono font-bold focus:border-purple-500 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Rareza de esta variante */}
+                              <div>
+                                <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                                  Rareza:
+                                </label>
+                                <PremiumDropdown
+                                  value={v.rarity || 'Common'}
+                                  onChange={(val) => handleUpdateVariantById(v.id, { rarity: val })}
+                                  align="full"
+                                  size="sm"
+                                  options={[
+                                    { value: 'Common', label: 'Common (Común)' },
+                                    { value: 'Rare', label: 'Rare (Rara)' },
+                                    { value: 'Super Rare', label: 'Super Rare' },
+                                    { value: 'Ultra Rare', label: 'Ultra Rare' },
+                                    { value: 'Secret Rare', label: 'Secret Rare' },
+                                    { value: 'Ultimate Rare', label: 'Ultimate Rare' },
+                                    { value: 'Ghost Rare', label: 'Ghost Rare' },
+                                    { value: 'Starlight Rare', label: 'Starlight Rare' },
+                                    { value: "Collector's Rare", label: "Collector's Rare" },
+                                    { value: 'Quarter Century Secret Rare', label: '25th Quarter Century' },
+                                  ]}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Condición y Funda */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                                  Condición:
+                                </label>
+                                <PremiumDropdown
+                                  value={v.condition || 'Near Mint'}
+                                  onChange={(val) => handleUpdateVariantById(v.id, { condition: val as UserCard['condition'] })}
+                                  align="full"
+                                  size="sm"
+                                  options={[
+                                    { value: 'Near Mint', label: 'Near Mint (NM)' },
+                                    { value: 'Lightly Played', label: 'Lightly Played (LP)' },
+                                    { value: 'Moderately Played', label: 'Moderately Played (MP)' },
+                                    { value: 'Heavily Played', label: 'Heavily Played (HP)' },
+                                    { value: 'Damaged', label: 'Damaged (DMG)' },
+                                  ]}
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
+                                  Funda / Sleeving:
+                                </label>
+                                <PremiumDropdown
+                                  value={v.sleeve_type || 'none'}
+                                  onChange={(val) => handleUpdateVariantById(v.id, { sleeve_type: val as UserCard['sleeve_type'] })}
+                                  align="full"
+                                  size="sm"
+                                  options={[
+                                    { value: 'none', label: 'Sin Funda' },
+                                    { value: 'single', label: 'Funda Simple' },
+                                    { value: 'double', label: 'Funda Doble' },
+                                    { value: 'triple', label: 'Funda Triple' },
+                                  ]}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddNewVariant}
+                        className="w-full py-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 font-bold text-xs rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        <span>➕ Añadir variante / rareza diferente</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Destino / Status flag */}
@@ -2723,16 +3003,18 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Destino / Clasificación
                   </label>
-                  <select
+                  <PremiumDropdown
                     value={selectedUserCard.status_flag || 'collection'}
-                    onChange={(e) => handleUpdateCard({ status_flag: e.target.value as UserCard['status_flag'] })}
-                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer font-bold"
-                  >
-                    <option value="collection">Colección Permanente</option>
-                    <option value="trade_sale">Venta / Trade</option>
-                    <option value="bulk">Bulk (Sobrantes)</option>
-                    <option value="workshop">Taller / Decks Activos</option>
-                  </select>
+                    onChange={(val) => handleUpdateCard({ status_flag: val as UserCard['status_flag'] })}
+                    align="full"
+                    size="md"
+                    options={[
+                      { value: 'collection', label: 'Colección Permanente' },
+                      { value: 'trade_sale', label: 'Venta / Trade' },
+                      { value: 'bulk', label: 'Bulk (Sobrantes)' },
+                      { value: 'workshop', label: 'Taller / Decks Activos' },
+                    ]}
+                  />
                 </div>
 
                 {/* Carril / Compartimento */}
@@ -2742,17 +3024,16 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                       <Layers className="w-3 h-3 text-purple-400" />
                       <span>Carril / Compartimento</span>
                     </label>
-                    <select
+                    <PremiumDropdown
                       value={selectedUserCard.compartment_index ?? 0}
-                      onChange={(e) => handleUpdateCard({ compartment_index: parseInt(e.target.value) })}
-                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer font-bold"
-                    >
-                      {location.compartments.names.map((compName, idx) => (
-                        <option key={idx} value={idx}>
-                          📦 {compName || `Carril ${idx + 1}`}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => handleUpdateCard({ compartment_index: val })}
+                      align="full"
+                      size="md"
+                      options={location.compartments.names.map((compName, idx) => ({
+                        value: idx,
+                        label: `📦 ${compName || `Carril ${idx + 1}`}`,
+                      }))}
+                    />
                   </div>
                 )}
 
@@ -2761,18 +3042,19 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
                   <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
                     Mover a Contenedor
                   </label>
-                  <select
+                  <PremiumDropdown
                     value={selectedUserCard.storage_location_id || 'inbox'}
-                    onChange={(e) => handleMoveCard(e.target.value)}
-                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:border-red-500 focus:outline-none shadow-2xs cursor-pointer"
-                  >
-                    <option value="inbox">📥 Bandeja Sin Clasificar (Inbox)</option>
-                    {locations.map((loc) => (
-                      <option key={loc.id} value={loc.id}>
-                        📦 {loc.name} ({loc.type})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleMoveCard(val)}
+                    align="full"
+                    size="md"
+                    options={[
+                      { value: 'inbox', label: '📥 Bandeja Sin Clasificar (Inbox)' },
+                      ...locations.map((loc) => ({
+                        value: loc.id,
+                        label: `📦 ${loc.name} (${loc.type})`,
+                      })),
+                    ]}
+                  />
                 </div>
 
                 {/* Notas */}
@@ -3079,6 +3361,35 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Ruta de Recolección (Pick-List) Interactiva */}
+      <PickListConsolidationModal
+        isOpen={isPickListOpen}
+        onClose={() => {
+          setIsPickListOpen(false);
+          setSelectedClusterForPickList(null);
+          setSelectedDispersedForPickList(null);
+        }}
+        cluster={selectedClusterForPickList}
+        selectedCards={selectedDispersedForPickList || undefined}
+        title={pickListTitle}
+        subtitle={pickListSubtitle}
+        allCollectionCards={allCollectionCards.length > 0 ? allCollectionCards : cards}
+        locations={locations}
+        defaultTargetLocationId={isInbox ? 'inbox' : location?.id}
+        defaultTargetCompartmentIndex={activeCompartment === -1 ? 0 : activeCompartment}
+        onSuccess={() => {
+          setHasMutated(true);
+          fetchCards();
+          // Recargar contexto global
+          fetch('/api/collection/cards')
+            .then(res => res.json())
+            .then(json => {
+              if (json.data) setAllCollectionCards(json.data);
+            })
+            .catch(console.warn);
+        }}
+      />
 
       </motion.div>
     </div>

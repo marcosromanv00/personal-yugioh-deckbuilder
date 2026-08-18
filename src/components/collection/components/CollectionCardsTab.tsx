@@ -3,6 +3,8 @@ import { Search, MapPin, ChevronDown, Heart, RefreshCw, Trash } from 'lucide-rea
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
 import { getSleeveColorHex } from '@/lib/sleeves';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
+import { getCategoryBadgeStyle, getLanguageDisplay } from '@/lib/collectionUtils';
 
 
 interface CollectionCardsTabProps {
@@ -79,38 +81,32 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
             <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
             <span className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Ubicación:</span>
           </div>
-          <div className="relative">
-            <select
-              value={locationFilter}
-              onChange={(e) => {
-                setLocationFilter(e.target.value);
-                setDeckFilter('');
-              }}
-              className="pl-3 pr-7 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-xs font-bold text-zinc-900 dark:text-zinc-100 rounded-xl focus:outline-none focus:border-red-500 appearance-none cursor-pointer shadow-xs"
-            >
-              <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Todas las ubicaciones</option>
-              <option value="inbox" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">📥 Sin Clasificar (Inbox)</option>
-              <option value="in_deck" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">⚔️ En Deck</option>
-              {locations.map(l => (
-                <option key={l.id} value={l.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">📦 {l.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-3 h-3 text-zinc-400 absolute right-2 top-2.5 pointer-events-none" />
-          </div>
+          <PremiumDropdown
+            value={locationFilter}
+            onChange={(val) => {
+              setLocationFilter(val);
+              setDeckFilter('');
+            }}
+            size="sm"
+            menuWidth="min-w-56"
+            options={[
+              { value: '', label: 'Todas las ubicaciones' },
+              { value: 'inbox', label: '📥 Sin Clasificar (Inbox)' },
+              { value: 'in_deck', label: '⚔️ En Deck' },
+              ...locations.map((l) => ({ value: l.id, label: `📦 ${l.name}` })),
+            ]}
+          />
           {locationFilter === 'in_deck' && (
-            <div className="relative">
-              <select
-                value={deckFilter}
-                onChange={(e) => setDeckFilter(e.target.value)}
-                className="pl-3 pr-7 py-1.5 bg-white dark:bg-zinc-900 border border-red-500/40 text-xs font-bold text-red-600 dark:text-red-300 rounded-xl focus:outline-none appearance-none cursor-pointer shadow-xs"
-              >
-                <option value="" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Todos los decks</option>
-                {decks.map(d => (
-                  <option key={d.id} value={d.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{d.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="w-3 h-3 text-zinc-400 absolute right-2 top-2.5 pointer-events-none" />
-            </div>
+            <PremiumDropdown
+              value={deckFilter}
+              onChange={(val) => setDeckFilter(val)}
+              size="sm"
+              menuWidth="min-w-52"
+              options={[
+                { value: '', label: 'Todos los decks' },
+                ...decks.map((d) => ({ value: d.id, label: d.name })),
+              ]}
+            />
           )}
           {locationFilter && (
             <button
@@ -222,15 +218,22 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                       {uc.card_details?.name || 'Cargando...'}
                     </h4>
                     
-                    <div className="flex flex-wrap gap-1 mt-1">
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-bold">
                         {uc.rarity || 'Common'}
                       </span>
-                      <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-zinc-100 dark:bg-zinc-800 text-red-600 dark:text-red-400 font-mono font-bold">
-                        {uc.condition || 'NM'}
+                      <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-zinc-500">
+                        <span>{getLanguageDisplay(uc.language).flag}</span>
+                        <span>{getLanguageDisplay(uc.language).badge}</span>
                       </span>
                     </div>
                   </div>
+
+                  {/* Barra inferior de Categoría */}
+                  <div 
+                    className={`w-full h-1 mt-2 rounded-full overflow-hidden shadow-2xs ${getCategoryBadgeStyle(uc.status_flag).barColorClass}`}
+                    title={`Estado: ${getCategoryBadgeStyle(uc.status_flag).label}`}
+                  />
 
                   <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-1.5">
                     <div className="flex items-center justify-between text-[10px]">
@@ -257,16 +260,18 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
 
                     <div className="flex items-center justify-between text-[10px]">
                       <span className="text-zinc-500 text-[9px] font-bold">Destino:</span>
-                      <select
+                      <PremiumDropdown
                         value={uc.status_flag}
-                        onChange={(e) => handleUpdateCardStatus(uc.id, e.target.value)}
-                        className="bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-[9px] font-bold text-zinc-900 dark:text-zinc-100 rounded-lg px-1.5 py-0.5 focus:outline-none"
-                      >
-                        <option value="collection" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Colección</option>
-                        <option value="trade_sale" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Venta</option>
-                        <option value="workshop" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Taller</option>
-                        <option value="bulk" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Bulk</option>
-                      </select>
+                        onChange={(val) => handleUpdateCardStatus(uc.id, val)}
+                        size="xs"
+                        menuWidth="min-w-32"
+                        options={[
+                          { value: 'collection', label: 'Colección' },
+                          { value: 'trade_sale', label: 'Venta' },
+                          { value: 'workshop', label: 'Taller' },
+                          { value: 'bulk', label: 'Bulk' },
+                        ]}
+                      />
                     </div>
 
                     {uc.notes && (

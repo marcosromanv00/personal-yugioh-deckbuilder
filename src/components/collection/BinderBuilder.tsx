@@ -21,6 +21,8 @@ import { useBinderBuilderState } from './hooks/useBinderBuilderState';
 import { UserCard } from '@/types/collection';
 import { Card } from '../deckbuilder/types';
 import { getSleeveColorHex } from '@/lib/sleeves';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
+import { getCategoryBadgeStyle } from '@/lib/collectionUtils';
 
 
 interface PageGridProps {
@@ -124,6 +126,12 @@ const PageGrid = React.memo(({
                             <Shield className="w-3.5 h-3.5 text-cyan-400 fill-cyan-500/20" />
                           </div>
                         )}
+
+                        {/* Barra inferior de Categoría */}
+                        <div 
+                          className={`absolute bottom-0.5 left-1 right-1 h-1 rounded-full overflow-hidden shadow-2xs z-30 ${getCategoryBadgeStyle(uc.status_flag).barColorClass}`}
+                          title={`Estado: ${getCategoryBadgeStyle(uc.status_flag).label}`}
+                        />
                       </>
                     )}
                   </div>
@@ -645,20 +653,22 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
                   <label className="block text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">
                     Rareza
                   </label>
-                  <select
+                  <PremiumDropdown
                     value={activeCardDetails.rarity}
-                    onChange={(e) => updateCardInSlot(activeCardDetails.id, { rarity: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:border-purple-500 focus:outline-none"
-                  >
-                    <option value="Common">Common (Común)</option>
-                    <option value="Rare">Rare (Rara)</option>
-                    <option value="Super Rare">Super Rare</option>
-                    <option value="Ultra Rare">Ultra Rare</option>
-                    <option value="Secret Rare">Secret Rare</option>
-                    <option value="Ultimate Rare">Ultimate Rare</option>
-                    <option value="Ghost Rare">Ghost Rare</option>
-                    <option value="Starlight Rare">Starlight Rare</option>
-                  </select>
+                    onChange={(val) => updateCardInSlot(activeCardDetails.id, { rarity: val })}
+                    align="full"
+                    size="md"
+                    options={[
+                      { value: 'Common', label: 'Common (Común)' },
+                      { value: 'Rare', label: 'Rare (Rara)' },
+                      { value: 'Super Rare', label: 'Super Rare' },
+                      { value: 'Ultra Rare', label: 'Ultra Rare' },
+                      { value: 'Secret Rare', label: 'Secret Rare' },
+                      { value: 'Ultimate Rare', label: 'Ultimate Rare' },
+                      { value: 'Ghost Rare', label: 'Ghost Rare' },
+                      { value: 'Starlight Rare', label: 'Starlight Rare' },
+                    ]}
+                  />
                 </div>
 
                 {/* Sleeve Type */}
@@ -666,16 +676,18 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
                   <label className="block text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5">
                     Funda / Sleeve
                   </label>
-                  <select
+                  <PremiumDropdown
                     value={activeCardDetails.sleeve_type || 'none'}
-                    onChange={(e) => updateCardInSlot(activeCardDetails.id, { sleeve_type: e.target.value as any })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:border-purple-500 focus:outline-none"
-                  >
-                    <option value="none">Sin Funda</option>
-                    <option value="single">Funda Simple</option>
-                    <option value="double">Funda Doble</option>
-                    <option value="triple">Funda Triple</option>
-                  </select>
+                    onChange={(val) => updateCardInSlot(activeCardDetails.id, { sleeve_type: val as 'none' | 'single' | 'double' | 'triple' })}
+                    align="full"
+                    size="md"
+                    options={[
+                      { value: 'none', label: 'Sin Funda' },
+                      { value: 'single', label: 'Funda Simple' },
+                      { value: 'double', label: 'Funda Doble' },
+                      { value: 'triple', label: 'Funda Triple' },
+                    ]}
+                  />
                 </div>
 
                 {/* Proxy & Quantity Row */}
