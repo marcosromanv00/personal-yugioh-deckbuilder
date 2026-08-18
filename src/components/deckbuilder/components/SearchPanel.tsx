@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles, FileText, Upload, Check, AlertCircle } from 'lucide-react';
+import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles, FileText, Upload, Check, AlertCircle, Camera } from 'lucide-react';
 import { CardFilters, FilterState } from '../CardFilters';
 import { Card, HoverCardBase } from '../types';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
+import { CardCodeScannerModal, YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
 
 export interface ParsedBulkItem {
   id: string;
@@ -262,6 +263,13 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const [unmatchedBulkCards, setUnmatchedBulkCards] = useState<string[]>([]);
   const [parsedBulkItems, setParsedBulkItems] = useState<ParsedBulkItem[]>([]);
   const [fileName, setFileName] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  const handleScannerCardRegistered = (card: YgoDetectedCard, quantity: number) => {
+    const lineToAdd = Array(quantity).fill(card.id.toString()).join('\n');
+    setBulkText((prev) => (prev.trim() ? `${prev.trim()}\n${lineToAdd}` : lineToAdd));
+    setBulkSuccessMsg(`¡Añadida carta escaneada: ${card.name} (${quantity}x)!`);
+  };
 
 
   const [localQuery, setLocalQuery] = React.useState(searchQuery);
@@ -617,9 +625,20 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               )}
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
-                  {bulkMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega lista de nombres, IDs o formato YDK:'}
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono">
+                    {bulkMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega lista de nombres, IDs o formato YDK:'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsScannerOpen(true)}
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                    title="Escanear código de 8 dígitos con cámara"
+                  >
+                    <Camera className="w-3 h-3" />
+                    <span>Cámara</span>
+                  </button>
+                </div>
                 <textarea
                   rows={5}
                   inputMode={bulkMode === 'ids' ? 'numeric' : 'text'}
@@ -941,6 +960,15 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest" style={{ writingMode: 'vertical-rl' }}>Búsqueda</span>
         </div>
       )}
+
+      {/* MODAL DE ESCANEO DE CÓDIGOS OCR */}
+      <CardCodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onCardRegistered={handleScannerCardRegistered}
+        title="Escanear Código de Carta"
+        subtitle="Apunta al código numérico de 8 dígitos de la esquina inferior"
+      />
     </section>
   );
 };

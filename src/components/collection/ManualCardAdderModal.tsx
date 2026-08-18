@@ -15,10 +15,12 @@ import {
   AlertCircle,
   Printer,
   Loader2,
+  Camera,
 } from 'lucide-react';
 import { StorageLocation, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
+import { CardCodeScannerModal, YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
 
 interface ManualCardAdderModalProps {
   isOpen: boolean;
@@ -128,6 +130,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // Active card derived item
   const activeCard = queuedCards.find((c) => c.id === activeCardId) || null;
@@ -192,7 +195,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
   }, [searchQuery, typeFilter, isOpen, activeLeftTab, handleSearch]);
 
   // Add a card from search to the central queue
-  const handleAddCardToQueue = (card: YgoCardResult) => {
+  const handleAddCardToQueue = (card: YgoCardResult, qty: number = 1) => {
     setErrorMsg('');
     setSuccessMsg('');
 
@@ -204,7 +207,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
       const updated = [...queuedCards];
       updated[existingIndex] = {
         ...existing,
-        quantity: existing.quantity + 1,
+        quantity: existing.quantity + qty,
       };
       setQueuedCards(updated);
       setActiveCardId(existing.id);
@@ -224,7 +227,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
         level: card.level,
         attribute: card.attribute,
         race: card.race,
-        quantity: 1,
+        quantity: qty,
         storage_location_id: defaultLocationId,
         rarity: 'Common',
         condition: 'Near Mint',
@@ -237,6 +240,11 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
       setQueuedCards((prev) => [...prev, newItem]);
       setActiveCardId(newItem.id);
     }
+  };
+
+  const handleScannerCardRegistered = (card: YgoDetectedCard, quantity: number) => {
+    handleAddCardToQueue(card as YgoCardResult, quantity);
+    setSuccessMsg(`¡Añadida carta escaneada: ${card.name} (${quantity}x)!`);
   };
 
   // Process bulk text and populate the central queue
@@ -478,7 +486,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
             <div className="w-full lg:w-80 xl:w-96 p-4 border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-zinc-800 flex flex-col min-h-0 bg-zinc-50/50 dark:bg-zinc-950/40 shrink-0">
               
               {/* Left Sub-Tabs */}
-              <div className="flex border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-3 gap-2 shrink-0">
+              <div className="flex border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-3 gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setActiveLeftTab('search')}
@@ -501,7 +509,16 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>En Lote (Bulk)</span>
+                  <span>En Lote</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="py-1.5 px-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 transition-all cursor-pointer shadow-xs"
+                  title="Escanear código de 8 dígitos con cámara"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Cámara</span>
                 </button>
               </div>
 
@@ -1032,6 +1049,15 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
 
           </div>
 
+          {/* MODAL DE ESCANEO DE CÓDIGOS OCR */}
+          <CardCodeScannerModal
+            isOpen={isScannerOpen}
+            onClose={() => setIsScannerOpen(false)}
+            onCardRegistered={handleScannerCardRegistered}
+            title="Escanear Código de Carta"
+            subtitle="Apunta al código numérico de 8 dígitos de la esquina inferior"
+            maxQuantity={99}
+          />
         </motion.div>
       </div>
     </AnimatePresence>

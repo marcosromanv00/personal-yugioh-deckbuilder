@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, FileText, Check, AlertCircle, Loader2, Hash } from 'lucide-react';
+import { X, Upload, FileText, Check, AlertCircle, Loader2, Hash, Camera } from 'lucide-react';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
+import { CardCodeScannerModal, YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
 
 interface YdkUploadModalProps {
   isOpen: boolean;
@@ -20,6 +21,12 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resultMessage, setResultMessage] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  const handleScannerCardRegistered = (card: YgoDetectedCard, quantity: number) => {
+    const lineToAdd = Array(quantity).fill(card.id.toString()).join('\n');
+    setYdkText((prev) => (prev.trim() ? `${prev.trim()}\n${lineToAdd}` : lineToAdd));
+  };
 
   if (!isOpen) return null;
 
@@ -157,9 +164,20 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
 
             {/* Paste Text Fallback */}
             <div>
-              <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
-                {importMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega el contenido .ydk aquí:'}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono">
+                  {importMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega el contenido .ydk aquí:'}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                  title="Escanear código de 8 dígitos con cámara"
+                >
+                  <Camera className="w-3 h-3" />
+                  <span>Cámara</span>
+                </button>
+              </div>
               <textarea
                 rows={4}
                 inputMode={importMode === 'ids' ? 'numeric' : 'text'}
@@ -210,6 +228,15 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
               </button>
             </div>
           </form>
+
+          {/* MODAL DE ESCANEO DE CÓDIGOS OCR */}
+          <CardCodeScannerModal
+            isOpen={isScannerOpen}
+            onClose={() => setIsScannerOpen(false)}
+            onCardRegistered={handleScannerCardRegistered}
+            title="Escanear Código de Carta"
+            subtitle="Apunta al código numérico de 8 dígitos de la esquina inferior"
+          />
         </motion.div>
       </div>
     </AnimatePresence>
