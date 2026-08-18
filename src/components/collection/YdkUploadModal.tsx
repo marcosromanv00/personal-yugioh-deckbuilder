@@ -80,12 +80,12 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 bg-black/80 backdrop-blur-md">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-zinc-900 dark:text-zinc-100 shadow-2xl relative"
+          className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl p-6 text-zinc-900 dark:text-zinc-100 shadow-2xl relative flex flex-col h-dvh sm:h-auto"
         >
           <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800 mb-4">
             <h2 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
@@ -164,7 +164,15 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
                     : '#main\n46986414\n#extra\n44508094\n!side'
                 }
                 value={ydkText}
-                onChange={(e) => setYdkText(e.target.value)}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // En modo IDs: convertir cualquier carácter no-numérico (excepto \n) en espacio
+                  // para compatibilidad con teclados numéricos móviles que insertan comas, puntos, etc.
+                  const sanitized = importMode === 'ids'
+                    ? raw.replace(/[^\d\n]/g, ' ')
+                    : raw;
+                  setYdkText(sanitized);
+                }}
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
               />
             </div>

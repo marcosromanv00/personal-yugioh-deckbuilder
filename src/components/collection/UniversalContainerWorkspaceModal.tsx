@@ -394,7 +394,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     const result: number[] = [];
 
     for (let line of lines) {
-      line = line.trim();
+      // Sanitizar: reemplazar cualquier carácter no numérico por espacio
+      // para compatibilidad con teclados numéricos móviles (comas, puntos, guiones, etc.)
+      line = line.replace(/[^\d]/g, ' ').trim();
       if (!line || line.startsWith('#') || line.startsWith('!')) continue;
 
       const tokens = line.split(/[\s,xX]+/).filter(Boolean);
@@ -1459,7 +1461,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center py-2 sm:py-4 px-6 sm:px-12 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:py-4 sm:px-12 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
       onClick={() => onClose(hasMutated)}
     >
       {/* VENTANA FLOTANTE — hereda tema del sistema (dark/light) con ancho ajustado */}
@@ -1469,7 +1471,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         onClick={(e) => e.stopPropagation()}
-        className={`${theme === 'dark' ? 'dark' : ''} w-full max-w-[82vw] xl:max-w-360 2xl:max-w-380 h-[92vh] max-h-240 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10 select-auto text-zinc-900 dark:text-zinc-100`}
+        className={`${theme === 'dark' ? 'dark' : ''} w-full sm:max-w-[82vw] xl:max-w-360 2xl:max-w-380 h-dvh sm:h-[92vh] sm:max-h-240 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative z-10 select-auto text-zinc-900 dark:text-zinc-100`}
       >
         {/* BOTÓN NAVEGACIÓN ANTERIOR (FLECHA IZQUIERDA) — posicionada dentro para heredar z-context */}
         {prevContainer && (
@@ -3418,7 +3420,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       <AnimatePresence>
         {isAssignDeckModalOpen && (
           <div 
-            className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 font-sans"
+            className="fixed inset-0 z-60 flex items-center justify-center p-0 sm:p-4 bg-black/80 font-sans"
             onClick={() => setIsAssignDeckModalOpen(false)}
           >
             <motion.div
@@ -3426,7 +3428,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-2xl space-y-4 text-zinc-900 dark:text-zinc-100 max-h-[90vh] overflow-y-auto"
+              className="w-full max-w-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl p-5 shadow-2xl space-y-4 text-zinc-900 dark:text-zinc-100 h-dvh sm:h-auto sm:max-h-[90vh] overflow-y-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
