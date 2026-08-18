@@ -224,6 +224,7 @@ export interface Deck {
   is_active?: boolean;
   created_at: string;
   cards?: DeckCardDetail[];
+  sleeves?: { sleeve_id: string; section?: string; section_type?: string }[] | DeckSleeve[];
 }
 export interface YdkParseResult {
   mainDeckCardIds: number[];
