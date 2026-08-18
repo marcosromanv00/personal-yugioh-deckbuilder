@@ -36,18 +36,40 @@ export function parseYdkContent(ydkText: string): YdkParseResult {
       continue;
     }
 
-    // Verificar si la línea es un passcode numérico de carta
-    const passcode = parseInt(line, 10);
-    if (!isNaN(passcode) && passcode > 0) {
-      if (currentSection === 'main') {
-        mainDeckCardIds.push(passcode);
-      } else if (currentSection === 'extra') {
-        extraDeckCardIds.push(passcode);
-      } else if (currentSection === 'side') {
-        sideDeckCardIds.push(passcode);
+    // Sanitizar línea numérica de posibles separadores
+    const cleanNumeric = line.replace(/[^\d]/g, ' ').replace(/\s+/g, ' ').trim();
+    const tokens = cleanNumeric ? cleanNumeric.split(' ').filter(Boolean) : [];
+
+    if (tokens.length === 1) {
+      const passcode = parseInt(tokens[0], 10);
+      if (!isNaN(passcode) && passcode > 0) {
+        const targetDeck = currentSection === 'extra' 
+          ? extraDeckCardIds 
+          : currentSection === 'side' 
+          ? sideDeckCardIds 
+          : mainDeckCardIds;
+        targetDeck.push(passcode);
       } else {
-        // Si no había sección definida aún, por defecto lo colocamos en main
-        mainDeckCardIds.push(passcode);
+        unknownPasscodes.push(line);
+      }
+    } else if (tokens.length === 2) {
+      const v1 = parseInt(tokens[0], 10);
+      const v2 = parseInt(tokens[1], 10);
+      const targetDeck = currentSection === 'extra' 
+        ? extraDeckCardIds 
+        : currentSection === 'side' 
+        ? sideDeckCardIds 
+        : mainDeckCardIds;
+
+      if (v1 <= 100 && v2 > 100) {
+        for (let i = 0; i < v1; i++) targetDeck.push(v2);
+      } else if (v2 <= 100 && v1 > 100) {
+        for (let i = 0; i < v2; i++) targetDeck.push(v1);
+      } else if (v1 > 100 && v2 > 100) {
+        targetDeck.push(v1);
+        targetDeck.push(v2);
+      } else {
+        unknownPasscodes.push(line);
       }
     } else if (line.length > 0) {
       unknownPasscodes.push(line);

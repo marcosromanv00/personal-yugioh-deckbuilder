@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { StorageLocation, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
+import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 
 interface ManualCardAdderModalProps {
   isOpen: boolean;
@@ -240,7 +241,10 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
 
   // Process bulk text and populate the central queue
   const handleAnalyzeBulk = async () => {
-    if (!bulkText.trim()) return;
+    const cleanedText = sanitizeBulkInput(bulkText, false);
+    setBulkText(cleanedText);
+
+    if (!cleanedText.trim()) return;
 
     setAnalyzingBulk(true);
     setErrorMsg('');
@@ -251,7 +255,7 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
       const res = await fetch('/api/collection/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: bulkText }),
+        body: JSON.stringify({ text: cleanedText }),
       });
 
       if (res.ok) {

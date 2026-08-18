@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles, FileText, Upload, Check, AlertCircle } from 'lucide-react';
 import { CardFilters, FilterState } from '../CardFilters';
 import { Card, HoverCardBase } from '../types';
+import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 
 export interface ParsedBulkItem {
   id: string;
@@ -288,13 +289,17 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (event) => {
-      setBulkText(event.target?.result as string || '');
+      const raw = (event.target?.result as string) || '';
+      setBulkText(sanitizeBulkInput(raw, bulkMode === 'ids'));
     };
     reader.readAsText(file);
   };
 
   const handleProcessBulkText = async () => {
-    if (!bulkText.trim()) return;
+    const cleanedText = sanitizeBulkInput(bulkText, bulkMode === 'ids');
+    setBulkText(cleanedText);
+
+    if (!cleanedText.trim()) return;
 
     setAnalyzingBulk(true);
     setBulkErrorMsg('');
@@ -306,7 +311,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       const res = await fetch('/api/collection/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: bulkText }),
+        body: JSON.stringify({ text: cleanedText }),
       });
 
       if (res.ok) {
@@ -624,7 +629,11 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                       : 'Ejemplos:\n3x Ash Blossom & Joyous Spring\n2x Infinite Impermanence\n#main\n46986414'
                   }
                   value={bulkText}
-                  onChange={(e) => setBulkText(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const sanitized = bulkMode === 'ids' ? sanitizeBulkInput(raw, true) : raw;
+                    setBulkText(sanitized);
+                  }}
                   className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
                 />
               </div>

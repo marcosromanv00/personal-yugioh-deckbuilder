@@ -12,6 +12,7 @@ import {
   BestRecommendation 
 } from '@/lib/cardClassificationEngine';
 import { findDispersedCardsAcrossLocations } from '@/lib/collectionUtils';
+import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 import { GridCardGroup, DeckInContainer, RightPanelMode, AISubView, DetailsCopiesMode, MobileTab } from './types';
 
 interface UseContainerWorkspaceStateProps {
@@ -341,39 +342,50 @@ export const useContainerWorkspaceState = ({
 
   // Parser para listas numéricas de cantidad + ID
   const parseQuantityIdList = (text: string): number[] => {
-    const lines = text.split('\n');
+    const lines = text.split(/\r?\n/);
     const result: number[] = [];
 
-    for (let line of lines) {
-      line = line.replace(/[^\d]/g, ' ').trim();
-      if (!line || line.startsWith('#') || line.startsWith('!')) continue;
+    for (let rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!')) continue;
 
-      const tokens = line.split(/[\s,xX]+/).filter(Boolean);
+      // Reemplazar caracteres no numéricos por espacio
+      const cleanLine = trimmed.replace(/[^\d]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!cleanLine) continue;
+
+      const tokens = cleanLine.split(' ').filter(Boolean);
       if (tokens.length === 1) {
         const id = parseInt(tokens[0], 10);
         if (!isNaN(id) && id > 100) {
           result.push(id);
         }
-      } else if (tokens.length >= 2) {
+      } else if (tokens.length === 2) {
         const v1 = parseInt(tokens[0], 10);
         const v2 = parseInt(tokens[1], 10);
 
         if (!isNaN(v1) && !isNaN(v2)) {
-          let qty = 1;
-          let cardId = 0;
-
-          if (v1 > 1000) {
-            cardId = v1;
-            qty = Math.min(v2, 100);
-          } else if (v2 > 1000) {
-            qty = Math.min(v1, 100);
-            cardId = v2;
+          if (v1 <= 100 && v2 > 100) {
+            for (let i = 0; i < v1; i++) result.push(v2);
+          } else if (v2 <= 100 && v1 > 100) {
+            for (let i = 0; i < v2; i++) result.push(v1);
+          } else {
+            result.push(v1);
+            result.push(v2);
           }
-
-          if (cardId > 0 && qty > 0) {
-            for (let i = 0; i < qty; i++) {
-              result.push(cardId);
-            }
+        }
+      } else if (tokens.length > 2) {
+        let i = 0;
+        while (i < tokens.length) {
+          const v = parseInt(tokens[i], 10);
+          const nextV = i + 1 < tokens.length ? parseInt(tokens[i + 1], 10) : null;
+          if (v <= 100 && nextV !== null && nextV > 100) {
+            for (let k = 0; k < v; k++) result.push(nextV);
+            i += 2;
+          } else if (v > 100) {
+            result.push(v);
+            i += 1;
+          } else {
+            i += 1;
           }
         }
       }
@@ -780,7 +792,10 @@ export const useContainerWorkspaceState = ({
   // Importación YDK / Bulk Handler
   const handleYdkImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ydkText.trim()) {
+    const cleanedText = sanitizeBulkInput(ydkText, importSubTab === 'id_list');
+    setYdkText(cleanedText);
+
+    if (!cleanedText.trim()) {
       setImportError('Por favor selecciona un archivo .ydk o pega el listado de cartas');
       return;
     }

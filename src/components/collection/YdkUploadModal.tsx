@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, FileText, Check, AlertCircle, Loader2, Hash } from 'lucide-react';
+import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 
 interface YdkUploadModalProps {
   isOpen: boolean;
@@ -29,14 +30,18 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (event) => {
-      setYdkText(event.target?.result as string || '');
+      const raw = (event.target?.result as string) || '';
+      setYdkText(sanitizeBulkInput(raw, importMode === 'ids'));
     };
     reader.readAsText(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ydkText.trim()) {
+    const cleanedText = sanitizeBulkInput(ydkText, importMode === 'ids');
+    setYdkText(cleanedText);
+
+    if (!cleanedText.trim()) {
       setError('Por favor sube un archivo .ydk o pega el contenido / lista de IDs');
       return;
     }
@@ -47,13 +52,13 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
 
     try {
       if (onImportToDeck) {
-        await onImportToDeck(ydkText);
+        await onImportToDeck(cleanedText);
         setResultMessage('¡Éxito! Baraja cargada en el editor con las cartas indicadas.');
       } else {
         const res = await fetch('/api/collection/inbox', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ydkText }),
+          body: JSON.stringify({ ydkText: cleanedText }),
         });
 
         const json = await res.json();
@@ -166,11 +171,7 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
                 value={ydkText}
                 onChange={(e) => {
                   const raw = e.target.value;
-                  // En modo IDs: convertir cualquier carácter no-numérico (excepto \n) en espacio
-                  // para compatibilidad con teclados numéricos móviles que insertan comas, puntos, etc.
-                  const sanitized = importMode === 'ids'
-                    ? raw.replace(/[^\d\n]/g, ' ')
-                    : raw;
+                  const sanitized = importMode === 'ids' ? sanitizeBulkInput(raw, true) : raw;
                   setYdkText(sanitized);
                 }}
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"

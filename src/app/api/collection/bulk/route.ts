@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 
 const isSupabaseConfigured = () => {
   return process.env.NEXT_PUBLIC_SUPABASE_URL && 
@@ -17,24 +18,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'El texto es obligatorio' }, { status: 400 });
     }
 
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const sanitizedText = sanitizeBulkInput(text, false);
+    const lines = sanitizedText.split('\n').map(l => l.trim()).filter(Boolean);
     const parsedItems: { raw: string; name: string; quantity: number; section: string }[] = [];
     let currentSection = 'main';
 
-    // RegExp to match: "3 Ash Blossom", "1x Nibiru", "Raigeki x2", "3 88962829", "Ash Blossom"
-    const qtyStartRegex = /^(\d+)\s*x?\s+(.+)$/i;
-    const qtyEndRegex = /^(.+?)\s+x?\s*(\d+)$/i;
+    // RegExp para nombres con cantidad: "3 Ash Blossom", "1x Nibiru", "Raigeki x2", "Ash Blossom"
+    const qtyStartRegex = /^(\d+)[\s,xX.:\-]+(.+)$/i;
+    const qtyEndRegex = /^(.+?)[\s,xX.:\-]+(\d+)$/i;
 
     for (const line of lines) {
-      if (line.startsWith('#main')) {
+      if (line.toLowerCase().startsWith('#main')) {
         currentSection = 'main';
         continue;
       }
-      if (line.startsWith('#extra')) {
+      if (line.toLowerCase().startsWith('#extra')) {
         currentSection = 'extra';
         continue;
       }
-      if (line.startsWith('!side') || line.startsWith('#side')) {
+      if (line.toLowerCase().startsWith('!side') || line.toLowerCase().startsWith('#side')) {
         currentSection = 'side';
         continue;
       }
@@ -42,6 +44,45 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      // Comprobar si la línea está compuesta únicamente por números y espacios (IDs numéricos)
+      const numOnlyLine = line.replace(/[^\d]/g, ' ').replace(/\s+/g, ' ').trim();
+      const numTokens = numOnlyLine ? numOnlyLine.split(' ').filter(Boolean) : [];
+
+      // Si la línea original no tiene letras o es claramente numérica (ej: "3,66569334", "3 57946551", "17155634 25687552")
+      const hasLetters = /[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(line);
+
+      if (!hasLetters && numTokens.length > 0) {
+        if (numTokens.length === 1) {
+          parsedItems.push({ raw: line, name: numTokens[0], quantity: 1, section: currentSection });
+        } else if (numTokens.length === 2) {
+          const v1 = parseInt(numTokens[0], 10);
+          const v2 = parseInt(numTokens[1], 10);
+          if (v1 <= 100 && v2 > 100) {
+            parsedItems.push({ raw: line, name: String(v2), quantity: v1, section: currentSection });
+          } else if (v2 <= 100 && v1 > 100) {
+            parsedItems.push({ raw: line, name: String(v1), quantity: v2, section: currentSection });
+          } else {
+            parsedItems.push({ raw: line, name: String(v1), quantity: 1, section: currentSection });
+            parsedItems.push({ raw: line, name: String(v2), quantity: 1, section: currentSection });
+          }
+        } else {
+          let i = 0;
+          while (i < numTokens.length) {
+            const v = parseInt(numTokens[i], 10);
+            const nextV = i + 1 < numTokens.length ? parseInt(numTokens[i + 1], 10) : null;
+            if (v <= 100 && nextV !== null && nextV > 100) {
+              parsedItems.push({ raw: line, name: String(nextV), quantity: v, section: currentSection });
+              i += 2;
+            } else {
+              parsedItems.push({ raw: line, name: String(v), quantity: 1, section: currentSection });
+              i += 1;
+            }
+          }
+        }
+        continue;
+      }
+
+      // Si contiene texto / nombres de cartas
       let quantity = 1;
       let cardName = line;
 
@@ -57,8 +98,8 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Quitar comillas o caracteres extra
-      cardName = cardName.replace(/^["'«“]|["'»”]$/g, '').trim();
+      // Quitar comillas o corchetes extra en los extremos
+      cardName = cardName.replace(/^["'«“(\[]+|["'»”)\]]+$/g, '').trim();
       if (cardName) {
         parsedItems.push({ raw: line, name: cardName, quantity, section: currentSection });
       }
