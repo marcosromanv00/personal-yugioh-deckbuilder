@@ -268,7 +268,31 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const handleScannerCardRegistered = (card: YgoDetectedCard, quantity: number) => {
     const lineToAdd = Array(quantity).fill(card.id.toString()).join('\n');
     setBulkText((prev) => (prev.trim() ? `${prev.trim()}\n${lineToAdd}` : lineToAdd));
-    setBulkSuccessMsg(`¡Añadida carta escaneada: ${card.name} (${quantity}x)!`);
+
+    const cardObj: Card = {
+      id: card.id,
+      name: card.name,
+      type: card.type,
+      desc: card.desc || '',
+      image_url: card.image_url,
+      image_url_small: card.image_url_small || card.image_url,
+      archetype: card.archetype,
+      atk: card.atk,
+      def: card.def,
+      level: card.level,
+      attribute: card.attribute,
+      race: card.race,
+    };
+
+    const typeLower = (card.type || '').toLowerCase();
+    const isExtra = typeLower.includes('fusion') || typeLower.includes('synchro') || typeLower.includes('xyz') || typeLower.includes('link');
+    const targetSection = isExtra ? 'extra' : 'main';
+
+    for (let i = 0; i < quantity; i++) {
+      addCardToDeck(cardObj, targetSection);
+    }
+
+    setBulkSuccessMsg(`¡${card.name} (${quantity}x) agregada directamente al mazo!`);
   };
 
 

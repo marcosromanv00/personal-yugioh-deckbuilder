@@ -242,9 +242,39 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
     }
   };
 
-  const handleScannerCardRegistered = (card: YgoDetectedCard, quantity: number) => {
+  const handleScannerCardRegistered = async (card: YgoDetectedCard, quantity: number) => {
     handleAddCardToQueue(card as YgoCardResult, quantity);
-    setSuccessMsg(`¡Añadida carta escaneada: ${card.name} (${quantity}x)!`);
+
+    try {
+      const locId = defaultLocationId === 'inbox' ? null : defaultLocationId;
+      const res = await fetch('/api/collection/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          card_id: card.id,
+          storage_location_id: locId,
+          quantity: quantity,
+          rarity: 'Common',
+          condition: 'Near Mint',
+          language: 'en',
+          status_flag: 'collection',
+          sleeve_type: 'none',
+          is_proxy: false,
+          notes: '',
+        }),
+      });
+
+      if (res.ok) {
+        setSuccessMsg(`¡${card.name} (${quantity}x) guardada directamente en el contenedor!`);
+        onSuccess();
+      } else {
+        const json = await res.json();
+        setErrorMsg(json.error || 'Error al guardar en el contenedor');
+      }
+    } catch (e) {
+      console.error('Error al registrar carta escaneada directamente:', e);
+      setErrorMsg('Error de red al guardar la carta en el contenedor');
+    }
   };
 
   // Process bulk text and populate the central queue

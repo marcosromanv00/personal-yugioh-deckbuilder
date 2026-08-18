@@ -67,9 +67,11 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   const [activeDeviceId, setActiveDeviceId] = useState<string>('');
   const [hasTorch, setHasTorch] = useState<boolean>(false);
   const [torchOn, setTorchOn] = useState<boolean>(false);
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const [hasZoomSupport, setHasZoomSupport] = useState<boolean>(false);
-  const [maxHardwareZoom, setMaxHardwareZoom] = useState<number>(1);
+
+  // Zoom State (1.0x to 5.0x)
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [maxHardwareZoom, setMaxHardwareZoom] = useState<number>(1.0);
+  const [appliedHardwareZoom, setAppliedHardwareZoom] = useState<number>(1.0);
 
   // Scanning & OCR State
   const [isOcrProcessing, setIsOcrProcessing] = useState<boolean>(false);
@@ -127,10 +129,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
         setHasTorch(Boolean(capabilities?.torch));
         if (capabilities?.zoom && capabilities.zoom.max > 1) {
-          setHasZoomSupport(true);
           setMaxHardwareZoom(capabilities.zoom.max);
         } else {
-          setHasZoomSupport(false);
+          setMaxHardwareZoom(1.0);
         }
       }
 
@@ -154,19 +155,34 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     }
   }, [stream]);
 
-  // Set Zoom
-  const handleSetZoom = async (newZoom: number) => {
-    setZoomLevel(newZoom);
-    if (!stream) return;
-    const track = stream.getVideoTracks()[0];
-    if (!track) return;
-    try {
-      // @ts-expect-error zoom constraint
-      await track.applyConstraints({ advanced: [{ zoom: newZoom }] });
-    } catch (e) {
-      console.warn('No se pudo aplicar zoom por hardware:', e);
-    }
-  };
+  // Set Zoom (1.0x to 5.0x) with hardware + digital hybrid scaling
+  const handleSetZoom = useCallback(
+    async (newZoom: number) => {
+      const clamped = Math.max(1.0, Math.min(5.0, Math.round(newZoom * 10) / 10));
+      setZoomLevel(clamped);
+
+      if (!stream) return;
+      const track = stream.getVideoTracks()[0];
+      if (!track) return;
+
+      const hardwareTarget = Math.min(maxHardwareZoom, clamped);
+      if (maxHardwareZoom > 1.0) {
+        try {
+          // @ts-expect-error zoom constraint
+          await track.applyConstraints({ advanced: [{ zoom: hardwareTarget }] });
+          setAppliedHardwareZoom(hardwareTarget);
+        } catch (e) {
+          console.warn('No se pudo aplicar zoom por hardware:', e);
+        }
+      } else {
+        setAppliedHardwareZoom(1.0);
+      }
+    },
+    [stream, maxHardwareZoom]
+  );
+
+  // Digital zoom factor applied via CSS transform to reach desired zoomLevel
+  const digitalZoomFactor = zoomLevel / appliedHardwareZoom;
 
   // Toggle Torch
   const toggleTorch = async () => {
@@ -224,7 +240,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     }
   }, []);
 
-  // Compute crop box mapping from onscreen viewfinder to real video pixels accurately taking object-cover centering into account
+  // Compute crop box mapping from onscreen viewfinder to real video pixels accurately taking object-cover & digital zoom into account
   const getCropRect = useCallback((): ViewfinderCropRect | null => {
     const video = videoRef.current;
     const vf = viewfinderRef.current;
@@ -249,15 +265,25 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     const offsetX = (dWidth - renderedWidth) / 2;
     const offsetY = (dHeight - renderedHeight) / 2;
 
-    // Viewfinder relative coordinates within displayed video element
-    const vfRelX = vfRect.left - videoRect.left;
-    const vfRelY = vfRect.top - videoRect.top;
+    // Viewfinder relative coordinates in current DOM layout
+    const vfCenterX = vfRect.left + vfRect.width / 2 - videoRect.left;
+    const vfCenterY = vfRect.top + vfRect.height / 2 - videoRect.top;
+
+    // Account for digital zoom (CSS transform scale around center)
+    const digZoom = Math.max(1.0, digitalZoomFactor);
+    const unzoomedCenterX = dWidth / 2 + (vfCenterX - dWidth / 2) / digZoom;
+    const unzoomedCenterY = dHeight / 2 + (vfCenterY - dHeight / 2) / digZoom;
+    const unzoomedWidth = vfRect.width / digZoom;
+    const unzoomedHeight = vfRect.height / digZoom;
+
+    const unzoomedLeft = unzoomedCenterX - unzoomedWidth / 2;
+    const unzoomedTop = unzoomedCenterY - unzoomedHeight / 2;
 
     // Map to actual video pixels
-    const cropX = Math.round((vfRelX - offsetX) / scale);
-    const cropY = Math.round((vfRelY - offsetY) / scale);
-    const cropW = Math.round(vfRect.width / scale);
-    const cropH = Math.round(vfRect.height / scale);
+    const cropX = Math.round((unzoomedLeft - offsetX) / scale);
+    const cropY = Math.round((unzoomedTop - offsetY) / scale);
+    const cropW = Math.round(unzoomedWidth / scale);
+    const cropH = Math.round(unzoomedHeight / scale);
 
     return {
       x: Math.max(0, Math.min(cropX, vWidth - 1)),
@@ -265,7 +291,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       width: Math.min(cropW, vWidth - cropX),
       height: Math.min(cropH, vHeight - cropY),
     };
-  }, []);
+  }, [digitalZoomFactor]);
 
   // Single OCR Scan Step
   const performScan = useCallback(async () => {
@@ -314,7 +340,8 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       setScannedCode(null);
       setCameraError('');
       setLastRegisteredNotice(null);
-      setZoomLevel(1);
+      setZoomLevel(1.0);
+      setAppliedHardwareZoom(1.0);
     }
     return () => {
       stopStream();
@@ -378,7 +405,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors"
+              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
               title="Cerrar escáner"
             >
               <X className="w-5 h-5" />
@@ -406,6 +433,11 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   playsInline
                   muted
                   autoPlay
+                  style={{
+                    transform: digitalZoomFactor > 1.01 ? `scale(${digitalZoomFactor})` : undefined,
+                    transformOrigin: 'center center',
+                    transition: 'transform 0.15s ease-out',
+                  }}
                   className="w-full h-full object-cover"
                 />
 
@@ -440,27 +472,25 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   </p>
                 </div>
 
-                {/* Quick controls on top of camera */}
+                {/* Quick controls on top of camera (Zoom Slider, Torch, Switch Camera) */}
                 <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-                  {/* Zoom Controls */}
-                  {hasZoomSupport && maxHardwareZoom > 1 && (
-                    <div className="flex items-center bg-black/60 backdrop-blur-md rounded-full p-0.5 border border-zinc-800 text-[10px] font-mono">
-                      {[1, 2, Math.min(3, Math.floor(maxHardwareZoom))].map((z) => (
-                        <button
-                          key={z}
-                          type="button"
-                          onClick={() => handleSetZoom(z)}
-                          className={`px-2 py-1 rounded-full transition-colors ${
-                            zoomLevel === z
-                              ? 'bg-red-600 text-white font-bold'
-                              : 'text-zinc-300 hover:text-white'
-                          }`}
-                        >
-                          {z}x
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {/* Zoom Slider Control (1.0x to 5.0x) */}
+                  <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-md rounded-full px-2.5 py-1 border border-zinc-800 text-xs font-mono shadow-md">
+                    <ZoomIn className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                    <input
+                      type="range"
+                      min="1.0"
+                      max="5.0"
+                      step="0.1"
+                      value={zoomLevel}
+                      onChange={(e) => handleSetZoom(parseFloat(e.target.value))}
+                      className="w-16 sm:w-24 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-red-500"
+                      title="Ajustar zoom (1.0x a 5.0x)"
+                    />
+                    <span className="text-[10px] font-bold text-zinc-200 min-w-8 text-right">
+                      {zoomLevel.toFixed(1)}x
+                    </span>
+                  </div>
 
                   {hasTorch && (
                     <button
@@ -573,7 +603,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleResetScan}
-                    className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors text-[10px] font-mono flex flex-col items-center"
+                    className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors text-[10px] font-mono flex flex-col items-center cursor-pointer"
                     title="Descartar y escanear otra"
                   >
                     <RefreshCw className="w-4 h-4 mb-0.5" />
@@ -589,7 +619,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       type="button"
                       disabled={quantity <= 1}
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-colors"
+                      className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-colors cursor-pointer"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
@@ -600,7 +630,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       type="button"
                       disabled={quantity >= maxQuantity}
                       onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
-                      className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-colors"
+                      className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-colors cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -610,7 +640,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleRegister}
-                    className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-red-950 flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-red-950 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Check className="w-4 h-4" />
                     <span>Registrar Carta ({quantity}x)</span>
@@ -638,7 +668,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   type="button"
                   onClick={performScan}
                   disabled={isOcrProcessing || loadingCard}
-                  className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-red-400" />
                   <span>Escanear Ahora</span>
