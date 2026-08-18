@@ -161,6 +161,15 @@ export type LaneClusterCategory =
   | 'surplus_sale' 
   | 'bulk';
 
+export interface SubArchetypeItem {
+  id: string;
+  archetypeName: string;
+  count: number;
+  uniqueCount: number;
+  cardIds: number[];
+  userCardIds: string[];
+}
+
 export interface LaneCluster {
   id: string;
   name: string;
@@ -175,6 +184,7 @@ export interface LaneCluster {
   suggestedAction?: string;
   suggestedTargetLocationId?: string | null;
   suggestedTargetLocationName?: string;
+  subArchetypes?: SubArchetypeItem[];
 }
 
 export interface LanePatternReport {
@@ -311,7 +321,7 @@ export function analyzeCardClassification(
     totalArchetypeCards = archetypeCards.reduce((sum, uc) => sum + (uc.quantity || 1), 0);
     uniqueArchetypeCards = new Set(archetypeCards.map(uc => uc.card_id)).size;
   }
-  const isViableCore = Boolean(archetype && (totalArchetypeCards >= 6 || uniqueArchetypeCards >= 3));
+  const isViableCore = Boolean(archetype && (totalArchetypeCards >= 10 && uniqueArchetypeCards >= 4));
 
   const archetypeCore: ArchetypeCoreAnalysis = {
     archetype,
@@ -583,7 +593,6 @@ export function analyzeLanePatterns(
   }
 
   const clusters: LaneCluster[] = [];
-  const singleArchetypeCards: UserCard[] = [];
   const surplusSaleCards: UserCard[] = [];
   const funSynergyCards: UserCard[] = [];
 
@@ -607,9 +616,11 @@ export function analyzeLanePatterns(
     }
   }
 
-  // Añadir arquetipos relevantes (>= 2 copias)
+  // Separar arquetipos principales (>= 4 únicas y >= 10 en total) de los sub-arquetipos
+  const subArchetypesList: SubArchetypeItem[] = [];
+
   archetypeCounts.forEach((data, archName) => {
-    if (data.count >= 2) {
+    if (data.uniqueIds.size >= 4 && data.count >= 10) {
       const pct = Math.round((data.count / totalCards) * 100);
       clusters.push({
         id: `arch-${archName}`,
@@ -625,27 +636,39 @@ export function analyzeLanePatterns(
         suggestedAction: `Agrupar lote ${archName}`,
       });
     } else {
-      // Cartas de arquetipos con 1 sola copia
-      const singleCard = laneCards.find(c => c.card_details?.archetype === archName);
-      if (singleCard) singleArchetypeCards.push(singleCard);
+      subArchetypesList.push({
+        id: `subarch-${archName}`,
+        archetypeName: archName,
+        count: data.count,
+        uniqueCount: data.uniqueIds.size,
+        cardIds: Array.from(data.uniqueIds),
+        userCardIds: data.userCardIds,
+      });
     }
   });
 
-  // Añadir Arquetipos Menores / Cartas Rogues sueltas (1 copia)
-  if (singleArchetypeCards.length > 0) {
-    const count = singleArchetypeCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+  // Ordenar sub-arquetipos de mayor a menor cantidad
+  subArchetypesList.sort((a, b) => b.count - a.count);
+
+  // Añadir la categoría única consolidada con todos los sub-arquetipos bajo el umbral
+  if (subArchetypesList.length > 0) {
+    const subTotalCount = subArchetypesList.reduce((acc, s) => acc + s.count, 0);
+    const subUniqueCardIds = Array.from(new Set(subArchetypesList.flatMap(s => s.cardIds)));
+    const subUserCardIds = subArchetypesList.flatMap(s => s.userCardIds);
+
     clusters.push({
       id: 'cluster-minor-archetypes',
-      name: 'Arquetipos Menores & Rogues',
+      name: 'Otros Arquetipos & Rogues',
       category: 'fun_synergy',
-      count,
-      uniqueCount: new Set(singleArchetypeCards.map(c => c.card_id)).size,
-      percentage: Math.round((count / totalCards) * 100),
+      count: subTotalCount,
+      uniqueCount: subUniqueCardIds.length,
+      percentage: Math.round((subTotalCount / totalCards) * 100),
       color: 'rose',
-      cardIds: Array.from(new Set(singleArchetypeCards.map(c => c.card_id))),
-      userCardIds: singleArchetypeCards.map(c => c.id),
-      description: `${count} cartas de arquetipos únicos individuales para proyectos fun o rogue.`,
-      suggestedAction: 'Ver sinergias o guardar en Binder',
+      cardIds: subUniqueCardIds,
+      userCardIds: subUserCardIds,
+      description: `${subTotalCount} cartas divididas en ${subArchetypesList.length} sub-arquetipos bajo el umbral.`,
+      suggestedAction: 'Explorar sub-arquetipos',
+      subArchetypes: subArchetypesList,
     });
   }
 
@@ -841,8 +864,10 @@ export function analyzeGlobalCollectionPatterns(
   const globalClusters: LaneCluster[] = [];
   const totalAllCards = Math.max(1, allCards.reduce((sum, c) => sum + (c.quantity || 1), 0));
 
+  const globalSubArchetypesList: SubArchetypeItem[] = [];
+
   archMap.forEach((val, archName) => {
-    if (val.uniqueIds.size >= 3 || val.count >= 6) {
+    if (val.uniqueIds.size >= 4 && val.count >= 10) {
       const readiness = Math.min(100, Math.round((val.count / 18) * 100));
       archetypeCores.push({
         archetype: archName,
@@ -852,9 +877,7 @@ export function analyzeGlobalCollectionPatterns(
         cardNames: Array.from(val.cardNames).slice(0, 5),
         suggestedAction: readiness >= 70 ? 'Listo para armar Deck' : 'Lote / Core para Venta',
       });
-    }
 
-    if (val.count >= 2) {
       globalClusters.push({
         id: `global-arch-${archName}`,
         name: `Arquetipo: ${archName}`,
@@ -869,27 +892,38 @@ export function analyzeGlobalCollectionPatterns(
         suggestedAction: `Reunir lote ${archName}`,
       });
     } else {
-      const singleCard = allCards.find(c => c.card_details?.archetype === archName);
-      if (singleCard) singleArchetypeCards.push(singleCard);
+      globalSubArchetypesList.push({
+        id: `global-subarch-${archName}`,
+        archetypeName: archName,
+        count: val.count,
+        uniqueCount: val.uniqueIds.size,
+        cardIds: Array.from(val.uniqueIds),
+        userCardIds: val.userCardIds,
+      });
     }
   });
   archetypeCores.sort((a, b) => b.totalCards - a.totalCards);
+  globalSubArchetypesList.sort((a, b) => b.count - a.count);
 
-  // Añadir Arquetipos Menores Globales
-  if (singleArchetypeCards.length > 0) {
-    const count = singleArchetypeCards.reduce((acc, c) => acc + (c.quantity || 1), 0);
+  // Añadir categoría consolidada de Arquetipos Menores Globales con sus subgrupos
+  if (globalSubArchetypesList.length > 0) {
+    const subTotalCount = globalSubArchetypesList.reduce((acc, s) => acc + s.count, 0);
+    const subUniqueCardIds = Array.from(new Set(globalSubArchetypesList.flatMap(s => s.cardIds)));
+    const subUserCardIds = globalSubArchetypesList.flatMap(s => s.userCardIds);
+
     globalClusters.push({
       id: 'global-minor-archetypes',
-      name: 'Arquetipos Menores & Rogues',
+      name: 'Otros Arquetipos & Rogues',
       category: 'fun_synergy',
-      count,
-      uniqueCount: new Set(singleArchetypeCards.map(c => c.card_id)).size,
-      percentage: Math.round((count / totalAllCards) * 100),
+      count: subTotalCount,
+      uniqueCount: subUniqueCardIds.length,
+      percentage: Math.round((subTotalCount / totalAllCards) * 100),
       color: 'rose',
-      cardIds: Array.from(new Set(singleArchetypeCards.map(c => c.card_id))),
-      userCardIds: singleArchetypeCards.map(c => c.id),
-      description: `${count} cartas de arquetipos menores o decks fun distribuidas en la colección.`,
-      suggestedAction: 'Explorar sinergias',
+      cardIds: subUniqueCardIds,
+      userCardIds: subUserCardIds,
+      description: `${subTotalCount} cartas divididas en ${globalSubArchetypesList.length} sub-arquetipos menores en la colección.`,
+      suggestedAction: 'Explorar sub-arquetipos',
+      subArchetypes: globalSubArchetypesList,
     });
   }
 
