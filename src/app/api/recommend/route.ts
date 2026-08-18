@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { getImplicitSynergiesForArchetype } from '@/lib/constants/archetypeSynergies';
 
 interface DeckCardInput {
   id: number;
@@ -273,6 +274,26 @@ export async function POST(req: NextRequest) {
         });
       }
     });
+
+    // 5.1 Recomendación de Sinergias Implícitas y Soporte No Nominal
+    if (inferredArchetype) {
+      const implicitSynergies = getImplicitSynergiesForArchetype(inferredArchetype);
+      const deckNamesSet = new Set(cards.map(c => c.name.toLowerCase()));
+
+      implicitSynergies.forEach(syn => {
+        if (!deckNamesSet.has(syn.cardName.toLowerCase())) {
+          recommendations.push({
+            type: 'missing_archetype_card',
+            cardId: 0,
+            cardName: syn.cardName,
+            image_url: null,
+            usagePercent: Math.round(syn.weight * 100),
+            averageCopies: syn.recommendedCopies || 1,
+            message: `Sinergia clave (${syn.role.toUpperCase()}) para ${inferredArchetype}: "${syn.cardName}". ${syn.reason}`
+          });
+        }
+      });
+    }
 
     // 6. Recomendación de Staples
     let popularCards: PopularCardItem[] = [];

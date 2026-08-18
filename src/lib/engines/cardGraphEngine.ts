@@ -1,3 +1,5 @@
+import { getArchetypesForCard, getImplicitSynergiesForArchetype } from '@/lib/constants/archetypeSynergies';
+
 /**
  * Motor de Grafos Relacionales de Cartas de Yu-Gi-Oh!
  * Analiza el texto de efecto, tipo y arquetipo de cada carta para construir
@@ -11,7 +13,8 @@ export type RelationType =
   | 'recycles' 
   | 'protects' 
   | 'fusion_material' 
-  | 'tribute_requirement';
+  | 'tribute_requirement'
+  | 'archetype_synergy';
 
 export interface GraphNode {
   id: number;
@@ -47,7 +50,7 @@ interface CardInput {
 }
 
 /**
- * Detecta relaciones semánticas entre las cartas presentes en un deck.
+ * Detecta relaciones semánticas y sinergias implícitas entre las cartas presentes en un deck.
  */
 export function buildDeckCardGraph(cards: CardInput[]): DeckGraphData {
   const nodes: GraphNode[] = [];
@@ -58,10 +61,15 @@ export function buildDeckCardGraph(cards: CardInput[]): DeckGraphData {
   // Poblar mapas
   cards.forEach((card) => {
     cardMap.set(card.id, card);
-    if (card.archetype) {
-      const list = archetypeMap.get(card.archetype) || [];
+    
+    // Inferir arquetipo efectivo (nominal o implícito)
+    const implicitMatches = getArchetypesForCard(card.name);
+    const effectiveArchetype = card.archetype || (implicitMatches[0] ? implicitMatches[0].archetype : undefined);
+
+    if (effectiveArchetype) {
+      const list = archetypeMap.get(effectiveArchetype) || [];
       list.push(card);
-      archetypeMap.set(card.archetype, list);
+      archetypeMap.set(effectiveArchetype, list);
     }
 
     // Clasificar rol heurístico
@@ -171,6 +179,24 @@ export function buildDeckCardGraph(cards: CardInput[]): DeckGraphData {
             description: `Extiende invocando a miembros de "${source.archetype}"`,
             weight: 2,
           });
+        }
+      }
+
+      // 3. Sinergias implícitas y soporte no nominal curado
+      if (targetArchetype) {
+        const implicitSynergies = getImplicitSynergiesForArchetype(targetArchetype);
+        const match = implicitSynergies.find(s => s.cardName.toLowerCase() === source.name.toLowerCase());
+        if (match) {
+          const alreadyLinked = edges.some(e => e.sourceId === source.id && e.targetId === target.id);
+          if (!alreadyLinked) {
+            edges.push({
+              sourceId: source.id,
+              targetId: target.id,
+              relation: 'archetype_synergy',
+              description: `Sinergia de ${targetArchetype} (${match.role}): ${match.reason}`,
+              weight: Math.min(3, Math.max(1, Math.round(match.weight * 3))),
+            });
+          }
         }
       }
     });
