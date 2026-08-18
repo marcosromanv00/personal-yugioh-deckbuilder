@@ -646,10 +646,11 @@ export const useContainerWorkspaceState = ({
       if (res.ok) {
         const json = await res.json();
         const insertedCard: UserCard = json.data;
-        setCards(prev => [insertedCard, ...prev]);
-        setSelectedUserCard(insertedCard);
+        if (insertedCard) {
+          setCards(prev => [insertedCard, ...prev]);
+          setSelectedUserCard(insertedCard);
+        }
         setHasMutated(true);
-        if (isMobile) setMobileTab('right');
         fetchCards();
         if (page && slot) {
           toast.success(`${card.name} colocada en Pág. ${page}, Slot ${slot}`, { title: '¡Carta añadida!' });

@@ -79,8 +79,10 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   const [detectedCard, setDetectedCard] = useState<YgoDetectedCard | null>(null);
   const [loadingCard, setLoadingCard] = useState<boolean>(false);
   const [quantity, setQuantity] = useState<number>(1);
-  const [continuousMode, setContinuousMode] = useState<boolean>(true);
   const [lastRegisteredNotice, setLastRegisteredNotice] = useState<string | null>(null);
+
+  // Ref para debounce de estabilidad de 300ms al detectar un código nuevo
+  const pendingCodeRef = useRef<{ code: string; firstSeen: number } | null>(null);
 
   // Stop camera tracks cleanly
   const stopStream = useCallback(() => {
@@ -240,7 +242,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     }
   }, []);
 
-  // Compute crop box mapping from onscreen viewfinder to real video pixels accurately taking object-cover & digital zoom into account
+  // Compute crop box mapping from onscreen viewfinder to real video pixels with +10% radius expansion
   const getCropRect = useCallback((): ViewfinderCropRect | null => {
     const video = videoRef.current;
     const vf = viewfinderRef.current;
@@ -280,22 +282,30 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     const unzoomedTop = unzoomedCenterY - unzoomedHeight / 2;
 
     // Map to actual video pixels
-    const cropX = Math.round((unzoomedLeft - offsetX) / scale);
-    const cropY = Math.round((unzoomedTop - offsetY) / scale);
-    const cropW = Math.round(unzoomedWidth / scale);
-    const cropH = Math.round(unzoomedHeight / scale);
+    const rawCropX = Math.round((unzoomedLeft - offsetX) / scale);
+    const rawCropY = Math.round((unzoomedTop - offsetY) / scale);
+    const rawCropW = Math.round(unzoomedWidth / scale);
+    const rawCropH = Math.round(unzoomedHeight / scale);
+
+    // Ampliar un 10% el radio de detección en cada dirección (+20% total de ancho y alto)
+    const marginX = Math.round(rawCropW * 0.10);
+    const marginY = Math.round(rawCropH * 0.10);
+    const cropX = Math.max(0, rawCropX - marginX);
+    const cropY = Math.max(0, rawCropY - marginY);
+    const cropW = Math.min(rawCropW + marginX * 2, vWidth - cropX);
+    const cropH = Math.min(rawCropH + marginY * 2, vHeight - cropY);
 
     return {
-      x: Math.max(0, Math.min(cropX, vWidth - 1)),
-      y: Math.max(0, Math.min(cropY, vHeight - 1)),
-      width: Math.min(cropW, vWidth - cropX),
-      height: Math.min(cropH, vHeight - cropY),
+      x: cropX,
+      y: cropY,
+      width: cropW,
+      height: cropH,
     };
   }, [digitalZoomFactor]);
 
-  // Single OCR Scan Step
+  // Single OCR Scan Step with 300ms Debounce on new card detection
   const performScan = useCallback(async () => {
-    if (!videoRef.current || isOcrProcessing || detectedCard || loadingCard) return;
+    if (!videoRef.current || isOcrProcessing || loadingCard) return;
 
     const cropRect = getCropRect();
     if (!cropRect) return;
@@ -306,29 +316,54 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     setIsOcrProcessing(true);
     try {
       const match = await recognizeCardPasscode(canvas);
-      if (match && match.code && match.code !== scannedCode) {
-        setScannedCode(match.code);
-        await fetchCardInfo(match.code);
+      if (match && match.code) {
+        // Si es el mismo código que ya tenemos activo, reseteamos el pending y no cambiamos nada
+        if (match.code === scannedCode) {
+          pendingCodeRef.current = null;
+          return;
+        }
+
+        const now = Date.now();
+        // Si no hay carta cargada actualmente, cargamos inmediatamente
+        if (!detectedCard) {
+          setScannedCode(match.code);
+          pendingCodeRef.current = null;
+          await fetchCardInfo(match.code);
+        } else {
+          // Si ya hay una carta en pantalla y leemos un código nuevo,
+          // aplicamos debounce de estabilidad de 300ms antes de cambiar
+          if (pendingCodeRef.current?.code === match.code) {
+            if (now - pendingCodeRef.current.firstSeen >= 300) {
+              setScannedCode(match.code);
+              pendingCodeRef.current = null;
+              await fetchCardInfo(match.code);
+            }
+          } else {
+            pendingCodeRef.current = { code: match.code, firstSeen: now };
+          }
+        }
+      } else {
+        pendingCodeRef.current = null;
       }
     } catch (e) {
       console.error('Error durante performScan:', e);
     } finally {
       setIsOcrProcessing(false);
     }
-  }, [isOcrProcessing, detectedCard, loadingCard, getCropRect, scannedCode, fetchCardInfo]);
+  }, [isOcrProcessing, loadingCard, getCropRect, scannedCode, detectedCard, fetchCardInfo]);
 
-  // Periodic scanner loop
+  // Periodic scanner loop (continúa activo incluso si hay carta detectada para permitir detección automática de la siguiente)
   useEffect(() => {
-    if (!isOpen || !stream || detectedCard || loadingCard) return;
+    if (!isOpen || !stream || loadingCard) return;
 
     const interval = setInterval(() => {
-      if (!isOcrProcessing && !detectedCard && !loadingCard) {
+      if (!isOcrProcessing && !loadingCard) {
         performScan();
       }
-    }, 550);
+    }, 400);
 
     return () => clearInterval(interval);
-  }, [isOpen, stream, detectedCard, loadingCard, isOcrProcessing, performScan]);
+  }, [isOpen, stream, loadingCard, isOcrProcessing, performScan]);
 
   // Manage open/close camera lifecycle
   useEffect(() => {
@@ -342,28 +377,27 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       setLastRegisteredNotice(null);
       setZoomLevel(1.0);
       setAppliedHardwareZoom(1.0);
+      pendingCodeRef.current = null;
     }
     return () => {
       stopStream();
     };
   }, [isOpen]);
 
-  // Handle register action
+  // Handle register action (mantiene el escáner activo para seguir agregando cartas)
   const handleRegister = () => {
     if (!detectedCard) return;
 
-    onCardRegistered(detectedCard, quantity);
     const registeredName = detectedCard.name;
+    const registeredQty = quantity;
 
-    if (continuousMode) {
-      setLastRegisteredNotice(`+${quantity}x ${registeredName}`);
-      setTimeout(() => setLastRegisteredNotice(null), 2500);
-      setDetectedCard(null);
-      setScannedCode(null);
-      setQuantity(1);
-    } else {
-      onClose();
-    }
+    onCardRegistered(detectedCard, registeredQty);
+
+    setLastRegisteredNotice(`+${registeredQty}x ${registeredName}`);
+    setTimeout(() => setLastRegisteredNotice(null), 2500);
+    setDetectedCard(null);
+    setScannedCode(null);
+    setQuantity(1);
   };
 
   // Reset to scan another card
@@ -446,15 +480,15 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   {/* Surrounding semi-dark mask */}
                   <div className="absolute inset-0 bg-black/40" />
 
-                  {/* Horizontal strip target container */}
+                  {/* Horizontal strip target container (+10% en cada dirección) */}
                   <div
                     ref={viewfinderRef}
-                    className="relative z-10 w-72 max-w-[85%] h-20 rounded-2xl border-2 border-red-500/80 bg-red-500/5 shadow-[0_0_25px_rgba(239,68,68,0.25)] flex items-center justify-center overflow-hidden"
+                    className="relative z-10 w-80 max-w-[90%] h-24 rounded-2xl border-2 border-red-500/80 bg-red-500/5 shadow-[0_0_25px_rgba(239,68,68,0.25)] flex items-center justify-center overflow-hidden"
                   >
                     {/* Laser scanning line animation */}
                     {!detectedCard && (
                       <motion.div
-                        animate={{ y: [-35, 35, -35] }}
+                        animate={{ y: [-42, 42, -42] }}
                         transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
                         className="absolute inset-x-0 h-0.5 bg-linear-to-r from-transparent via-red-400 to-transparent shadow-[0_0_8px_#f87171]"
                       />
@@ -649,19 +683,10 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
               </div>
             ) : (
               <div className="flex items-center justify-between gap-2 pt-1">
-                {/* Continuous Scan Toggle */}
-                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-zinc-300">
-                  <input
-                    type="checkbox"
-                    checked={continuousMode}
-                    onChange={(e) => setContinuousMode(e.target.checked)}
-                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-red-600 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-red-600"
-                  />
-                  <span className="flex items-center gap-1">
-                    <Layers className="w-3.5 h-3.5 text-zinc-400" />
-                    Escaneo Continuo
-                  </span>
-                </label>
+                <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-mono">
+                  <Layers className="w-3.5 h-3.5 text-red-500" />
+                  <span>Escáner activo</span>
+                </div>
 
                 {/* Manual Trigger Scan button */}
                 <button

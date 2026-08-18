@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, X, Camera } from 'lucide-react';
 import { StorageLocation } from '@/types/collection';
 import { MobileTab } from './types';
 
@@ -13,6 +13,7 @@ interface ContainerWorkspaceHeaderProps {
   displayedGridCardsCount: number;
   hasMutated: boolean;
   onClose: (hasMutated?: boolean) => void;
+  onOpenScanner?: () => void;
   mobileTab: MobileTab;
   setMobileTab: (tab: MobileTab) => void;
   cardsCount: number;
@@ -30,6 +31,7 @@ export const ContainerWorkspaceHeader: React.FC<ContainerWorkspaceHeaderProps> =
   displayedGridCardsCount,
   hasMutated,
   onClose,
+  onOpenScanner,
   mobileTab,
   setMobileTab,
   cardsCount,
@@ -128,8 +130,20 @@ export const ContainerWorkspaceHeader: React.FC<ContainerWorkspaceHeaderProps> =
           </button>
         </div>
 
-        {/* BOTÓN CERRAR */}
+        {/* ACCIONES DEL HEADER (ESCANEAR + CERRAR) */}
         <div className="flex items-center gap-2 shrink-0">
+          {onOpenScanner && (
+            <button
+              type="button"
+              onClick={onOpenScanner}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+              title="Escanear cartas con cámara directamente a este contenedor"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Escanear</span>
+            </button>
+          )}
+
           <button
             onClick={() => onClose(hasMutated)}
             className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
