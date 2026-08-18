@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { 
   Heart, 
   Trash2, 
@@ -9,7 +10,8 @@ import {
   Printer, 
   Shield, 
   StickyNote, 
-  Check
+  Check,
+  BrainCircuit
 } from 'lucide-react';
 import { Card, DeckCard, HoverCardBase } from '../types';
 import { SleeveInventory } from '@/types/collection';
@@ -447,6 +449,19 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
           <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 max-h-36 overflow-y-auto scrollbar-thin">
             {cardData.desc}
           </p>
+        </div>
+      )}
+
+      {/* ── LINK TO KNOWLEDGE BASE (BANCO DE REGLAS) ── */}
+      {cardData.name && (
+        <div className="mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+          <Link
+            href={`/knowledge`}
+            className="w-full py-2 px-3 rounded-xl bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs font-display"
+          >
+            <BrainCircuit className="w-4 h-4" />
+            <span>Ver en Banco de Reglas</span>
+          </Link>
         </div>
       )}
 

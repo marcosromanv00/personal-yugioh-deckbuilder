@@ -536,26 +536,26 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('search')}
-              className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`py-1.5 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 activeTab === 'search'
                   ? 'bg-red-600 text-white shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               <Search className="w-3.5 h-3.5" />
-              <span>Búsqueda</span>
+              <span>BUSCAR CARTA</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('bulk')}
-              className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`py-1.5 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 activeTab === 'bulk'
                   ? 'bg-red-600 text-white shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Carga Bulk / YDK</span>
+              <Upload className="w-3.5 h-3.5" />
+              <span>IMPORTAR BULK</span>
             </button>
           </div>
 

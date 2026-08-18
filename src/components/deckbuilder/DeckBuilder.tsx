@@ -645,6 +645,15 @@ export default function DeckBuilder() {
               <span>📦</span>
               <span className="hidden sm:inline">Colección</span>
             </Link>
+
+            <Link
+              href="/knowledge"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+              title="Banco de Reglas e Interpretaciones del Agente"
+            >
+              <span>🧠</span>
+              <span className="hidden sm:inline">Banco de Reglas</span>
+            </Link>
           </div>
 
           {/* ZONA DERECHA: Botón AI Copilot + Menú Desplegable Deck + Theme Toggle */}
