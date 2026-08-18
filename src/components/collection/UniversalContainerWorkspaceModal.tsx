@@ -61,6 +61,7 @@ interface UniversalContainerWorkspaceModalProps {
   sleeves?: SleeveInventory[];
   decks?: Deck[];
   onDeckClick?: (deck: Deck) => void;
+  onMutate?: () => void;
 }
 
 export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorkspaceModalProps> = ({
@@ -72,6 +73,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
   sleeves = [],
   decks = [],
   onDeckClick,
+  onMutate,
 }) => {
   const { theme } = useTheme();
   const toast = useToast();
@@ -1104,6 +1106,42 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
       setCurrentLocation(updatedLocation);
 
+      // 2. Si se asignó un mazo nuevo, persistir su storage_location_id en yg_decks
+      if (newDeckId) {
+        await fetch('/api/decks', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: newDeckId,
+            storage_location_id: activeLoc.id
+          })
+        });
+
+        setInternalDecks(prev =>
+          prev.map(d => (d.id === newDeckId ? { ...d, storage_location_id: activeLoc.id } : d))
+        );
+      }
+
+      // Si el carril tenía otro deck antes que ya no está en ningún carril de este contenedor, desvincular
+      const previousDeckInLane = existingComp.deck_ids?.[assignCompartmentIdx];
+      if (previousDeckInLane && previousDeckInLane !== newDeckId) {
+        const isStillInOtherLane = currentDeckIds.some((dId, idx) => idx !== assignCompartmentIdx && dId === previousDeckInLane);
+        if (!isStillInOtherLane) {
+          await fetch('/api/decks', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: previousDeckInLane,
+              storage_location_id: null
+            })
+          });
+          setInternalDecks(prev =>
+            prev.map(d => (d.id === previousDeckInLane ? { ...d, storage_location_id: undefined } : d))
+          );
+        }
+      }
+
+      // 3. Mover cartas físicas si el usuario marcó el checkbox
       if (shouldMoveCardsOnAssign && newDeckId) {
         await fetch('/api/collection/cards', {
           method: 'PUT',
@@ -1126,6 +1164,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       }
 
       setHasMutated(true);
+      if (onMutate) onMutate();
       setIsAssignDeckModalOpen(false);
     } catch (err: unknown) {
       const error = err as Error;
@@ -1155,6 +1194,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       const targetName = activeLoc.compartments?.names?.[targetCompIdx] || `Carril ${targetCompIdx + 1}`;
       toast.success(`Cartas del mazo movidas a ${targetName}`, { title: '¡Mazo Reubicado!' });
       setHasMutated(true);
+      if (onMutate) onMutate();
       await fetchCards();
     } catch (err: unknown) {
       const error = err as Error;

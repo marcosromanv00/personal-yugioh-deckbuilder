@@ -164,7 +164,16 @@ export const DecksTab: React.FC<DecksTabProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filteredDecks.map((deck) => {
-            const storedIn = locations.find(l => l.id === deck.storage_location_id);
+            const storedIn = locations.find(
+              l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
+            );
+            let laneName = '';
+            if (storedIn && storedIn.compartments?.deck_ids) {
+              const laneIdx = storedIn.compartments.deck_ids.indexOf(deck.id);
+              if (laneIdx !== -1 && storedIn.compartments.names?.[laneIdx]) {
+                laneName = storedIn.compartments.names[laneIdx];
+              }
+            }
             const totalCards = deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0;
             const isActive = deck.is_active !== false;
             const formatStr = deck.format || 'TCG';
@@ -226,9 +235,12 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                     <div className="flex items-center justify-between text-xs font-mono text-zinc-500">
                       <span>Almacenamiento:</span>
                       {storedIn ? (
-                        <span className="text-red-600 dark:text-red-400 font-bold flex items-center gap-1 truncate max-w-35">
+                        <span 
+                          className="text-red-600 dark:text-red-400 font-bold flex items-center gap-1 truncate max-w-45"
+                          title={`Almacenado en: ${storedIn.name}${laneName ? ` (${laneName})` : ''}`}
+                        >
                           <Box className="w-3 h-3 shrink-0" />
-                          <span className="truncate">{storedIn.name}</span>
+                          <span className="truncate">{storedIn.name}{laneName ? ` (${laneName})` : ''}</span>
                         </span>
                       ) : (
                         <span className="text-amber-600 dark:text-amber-400 italic text-[11px] font-bold">

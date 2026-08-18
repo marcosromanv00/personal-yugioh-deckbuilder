@@ -137,9 +137,12 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
       setName(deck.name || '');
       setFormat(deck.format || 'TCG');
       setIsActive(deck.is_active !== false);
-      setStorageLocationId(deck.storage_location_id || '');
+      const assignedLoc = locations.find(
+        l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
+      );
+      setStorageLocationId(deck.storage_location_id || assignedLoc?.id || '');
     }
-  }, [isOpen, deck]);
+  }, [isOpen, deck, locations]);
 
   if (!isOpen || !deck) return null;
 

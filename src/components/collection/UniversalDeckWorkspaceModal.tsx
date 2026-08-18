@@ -140,10 +140,13 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
       setName(deck.name || '');
       setFormat(deck.format || 'TCG');
       setIsActive(deck.is_active !== false);
-      setStorageLocationId(deck.storage_location_id || '');
+      const assignedLoc = locations.find(
+        l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
+      );
+      setStorageLocationId(deck.storage_location_id || assignedLoc?.id || '');
       setDeckCards(deck.cards || []);
     }
-  }, [deck]);
+  }, [deck, locations]);
 
   // Cargar fundas y cartas físicas asociadas a este deck
   const fetchDeckData = useCallback(async () => {

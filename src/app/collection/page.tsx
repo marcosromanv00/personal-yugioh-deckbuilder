@@ -318,6 +318,7 @@ export default function CollectionPage() {
       <UniversalContainerWorkspaceModal
         isOpen={state.isWorkspaceOpen}
         onClose={state.handleCloseWorkspace}
+        onMutate={state.fetchCollectionDataSilently}
         location={state.selectedLocation}
         locations={state.locations}
         onSelectLocation={(loc) => {

@@ -33,7 +33,9 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
   const [isDecksExpanded, setIsDecksExpanded] = useState(false);
 
   // Filtrar los decks almacenados en este contenedor específico
-  const storedDecks = decks.filter(d => d.storage_location_id === location.id);
+  const storedDecks = decks.filter(
+    d => d.storage_location_id === location.id || Boolean(location.compartments?.deck_ids?.includes(d.id))
+  );
 
   const getContainerIcon = () => {
     switch (location.type) {

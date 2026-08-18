@@ -47,7 +47,16 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
       ) : (
         <div className="space-y-2.5 overflow-y-auto min-h-0 pr-1 flex-1 scrollbar-thin">
           {decks.map((deck) => {
-            const storedIn = locations.find(l => l.id === deck.storage_location_id);
+            const storedIn = locations.find(
+              l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
+            );
+            let laneName = '';
+            if (storedIn && storedIn.compartments?.deck_ids) {
+              const laneIdx = storedIn.compartments.deck_ids.indexOf(deck.id);
+              if (laneIdx !== -1 && storedIn.compartments.names?.[laneIdx]) {
+                laneName = storedIn.compartments.names[laneIdx];
+              }
+            }
             const isActive = deck.is_active !== false;
 
             return (
@@ -81,7 +90,10 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
 
                 <div className="flex flex-col items-end gap-1">
                   {storedIn ? (
-                    <span className="text-[9px] font-mono font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-900/30 px-2 py-0.5 rounded-md truncate max-w-24">
+                    <span 
+                      className="text-[9px] font-mono font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-900/30 px-2 py-0.5 rounded-md truncate max-w-28 text-right"
+                      title={`Almacenado en: ${storedIn.name}${laneName ? ` (${laneName})` : ''}`}
+                    >
                       📦 {storedIn.name}
                     </span>
                   ) : (
