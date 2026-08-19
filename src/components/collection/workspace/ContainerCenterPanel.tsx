@@ -73,6 +73,15 @@ interface ContainerCenterPanelProps {
   currentBinderViewIndex: number;
   setCurrentBinderViewIndex: React.Dispatch<React.SetStateAction<number>>;
   totalBinderViews: number;
+
+  // Multi-selection
+  isSelectMode?: boolean;
+  setIsSelectMode?: (mode: boolean | ((prev: boolean) => boolean)) => void;
+  selectedCardIds?: string[];
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  onToggleSelectGroup?: (group: GridCardGroup) => void;
+  onToggleSelectCard?: (userCardId: string) => void;
 }
 
 export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
@@ -133,6 +142,14 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
   currentBinderViewIndex,
   setCurrentBinderViewIndex,
   totalBinderViews,
+
+  isSelectMode = false,
+  setIsSelectMode,
+  selectedCardIds = [],
+  onSelectAll,
+  onClearSelection,
+  onToggleSelectGroup,
+  onToggleSelectCard,
 }) => {
   return (
     <main 
@@ -140,23 +157,17 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
         if (containerType !== 'binder') {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'copy';
-          if (!isDragOverCenter) setIsDragOverCenter(true);
+          setIsDragOverCenter(true);
         }
       }}
-      onDragLeave={(e) => {
-        if (containerType !== 'binder') {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            setIsDragOverCenter(false);
-          }
-        }
-      }}
+      onDragLeave={() => setIsDragOverCenter(false)}
       onDrop={(e) => {
         if (containerType !== 'binder') {
           handleDropCardToBox(e);
         }
       }}
-      className={`${mobileTab === 'center' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden relative transition-colors ${
-        isDragOverCenter && containerType !== 'binder' ? 'ring-2 ring-red-500/80 bg-red-500/5' : ''
+      className={`${mobileTab === 'center' ? 'flex flex-1' : 'hidden'} lg:flex flex-1 flex-col h-full bg-white dark:bg-zinc-950 overflow-hidden relative ${
+        isDragOverCenter ? 'ring-4 ring-red-500/50 bg-red-950/10' : ''
       }`}
     >
       {/* Overlay Drag & Drop para Contenedores Tipo Caja / Inbox */}
@@ -199,6 +210,11 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
         displayedGridCardsCount={displayedGridCards.length}
         filteredCards={filteredCards}
         onOpenAssignDeckModal={onOpenAssignDeckModal}
+        isSelectMode={isSelectMode}
+        setIsSelectMode={setIsSelectMode}
+        selectedCardIds={selectedCardIds}
+        onSelectAll={onSelectAll}
+        onClearSelection={onClearSelection}
       />
 
       {/* Banner de Click to Place para Binders */}
@@ -218,7 +234,7 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
             </div>
             <button
               onClick={() => setSelectedSearchCard(null)}
-              className="px-2.5 py-1 rounded bg-red-900 hover:bg-red-800 text-red-100 font-bold"
+              className="px-2.5 py-1 rounded bg-red-900 hover:bg-red-800 text-red-100 font-bold cursor-pointer"
             >
               Cancelar
             </button>
@@ -255,6 +271,9 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
             currentBinderViewIndex={currentBinderViewIndex}
             setCurrentBinderViewIndex={setCurrentBinderViewIndex}
             totalBinderViews={totalBinderViews}
+            isSelectMode={isSelectMode}
+            selectedCardIds={selectedCardIds}
+            onToggleSelectCard={onToggleSelectCard}
           />
         ) : (
           <ContainerGridView
@@ -267,6 +286,9 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
             currentGridPage={currentGridPage}
             setCurrentGridPage={setCurrentGridPage}
             totalGridPages={totalGridPages}
+            isSelectMode={isSelectMode}
+            selectedCardIds={selectedCardIds}
+            onToggleSelectGroup={onToggleSelectGroup}
           />
         )}
       </div>

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Box } from 'lucide-react';
+import { Box, Check } from 'lucide-react';
 import { UserCard } from '@/types/collection';
 import { getSleeveColorHex } from '@/lib/sleeves';
 import { getCategoryBadgeStyle, getLanguageDisplay } from '@/lib/collectionUtils';
@@ -18,6 +18,9 @@ interface ContainerGridViewProps {
   currentGridPage: number;
   setCurrentGridPage: React.Dispatch<React.SetStateAction<number>>;
   totalGridPages: number;
+  isSelectMode?: boolean;
+  selectedCardIds?: string[];
+  onToggleSelectGroup?: (group: GridCardGroup) => void;
 }
 
 export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
@@ -30,6 +33,9 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
   currentGridPage,
   setCurrentGridPage,
   totalGridPages,
+  isSelectMode = false,
+  selectedCardIds = [],
+  onToggleSelectGroup,
 }) => {
   if (filteredCards.length === 0) {
     return (
@@ -50,25 +56,36 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
         {paginatedGridCards.map((group) => {
           const uc = group.representativeUserCard;
-          const isSelected = selectedUserCard?.card_id === group.card_id;
+          const isInspected = selectedUserCard?.card_id === group.card_id;
+          const isGroupSelected = group.allVariants.some(v => selectedCardIds.includes(v.id));
+          const isSelected = isSelectMode ? isGroupSelected : isInspected;
           const sleeveColor = uc.sleeve_type !== 'none' && uc.sleeve_color ? getSleeveColorHex(uc.sleeve_color) : undefined;
+          
           return (
             <motion.div
               key={`${group.card_id}_${group.compartment_index}`}
               whileHover={{ y: -3, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
-                onSelectCard(uc);
-                if (isMobile) setMobileTab('right');
+                if (isSelectMode) {
+                  onToggleSelectGroup?.(group);
+                } else {
+                  onSelectCard(uc);
+                  if (isMobile) setMobileTab('right');
+                }
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                onSelectCard(uc);
-                if (isMobile) setMobileTab('right');
+                if (isSelectMode) {
+                  onToggleSelectGroup?.(group);
+                } else {
+                  onSelectCard(uc);
+                  if (isMobile) setMobileTab('right');
+                }
               }}
               className={`relative rounded-xl p-1.5 border transition-all cursor-pointer overflow-hidden group shadow-sm ${
                 isSelected
-                  ? 'border-red-500 bg-red-950/20 ring-2 ring-red-500/50 shadow-md'
+                  ? 'border-red-500 bg-red-950/20 ring-2 ring-red-500/60 shadow-md'
                   : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 hover:bg-zinc-900'
               }`}
               style={{
@@ -85,14 +102,27 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
                     loading="lazy"
                   />
                 )}
-                <div className="absolute top-1 right-1 bg-zinc-950/90 text-white font-mono text-[9px] px-1.5 py-0.5 rounded border border-zinc-700 font-black shadow-xs">
-                  {group.totalQuantity}x
-                </div>
-                {uc.is_proxy && (
+
+                {/* Checkbox de Selección Múltiple */}
+                {isSelectMode ? (
+                  <div 
+                    className={`absolute top-1 left-1 w-5 h-5 rounded-md flex items-center justify-center transition-all shadow-md z-10 ${
+                      isGroupSelected
+                        ? 'bg-red-600 text-white ring-1 ring-white/40 scale-105'
+                        : 'bg-black/60 border border-white/50 text-transparent hover:border-white'
+                    }`}
+                  >
+                    {isGroupSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                  </div>
+                ) : uc.is_proxy ? (
                   <div className="absolute top-1 left-1 bg-red-600 text-white font-mono text-[8px] px-1 py-0.5 rounded font-black uppercase shadow-xs">
                     Proxy
                   </div>
-                )}
+                ) : null}
+
+                <div className="absolute top-1 right-1 bg-zinc-950/90 text-white font-mono text-[9px] px-1.5 py-0.5 rounded border border-zinc-700 font-black shadow-xs">
+                  {group.totalQuantity}x
+                </div>
               </div>
               <div className="mt-1.5 px-1">
                 <h4 className="text-[11px] font-black text-zinc-200 truncate group-hover:text-red-400 transition-colors">

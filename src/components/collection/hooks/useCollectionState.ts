@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory } from '@/types/collection';
+import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 
@@ -62,6 +62,12 @@ export function useCollectionState() {
   const [loadingSleeves, setLoadingSleeves] = useState(false);
   const [isSleeveFormOpen, setIsSleeveFormOpen] = useState(false);
   const [editingSleeve, setEditingSleeve] = useState<SleeveInventory | null>(null);
+
+  // Modo de Selección Múltiple y Desglose de Copias en Colección
+  const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
+  const [cardToSplit, setCardToSplit] = useState<UserCard | null>(null);
 
   // 1. Obtener contenedores, inbox y decks en segundo plano (silencioso)
   const fetchCollectionDataSilently = useCallback(async () => {
@@ -225,6 +231,170 @@ export function useCollectionState() {
       }
     } catch (err) {
       console.error('Error al cambiar estado de carta:', err);
+    }
+  };
+
+  // --- Lógica de Selección Múltiple y Acciones Bulk en Colección ---
+  const selectedCards = useMemo(() => {
+    return allCollectionCards.filter(c => selectedCardIds.includes(c.id));
+  }, [allCollectionCards, selectedCardIds]);
+
+  const selectedCardsCount = selectedCardIds.length;
+
+  const selectedPhysicalCount = useMemo(() => {
+    return selectedCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  }, [selectedCards]);
+
+  const canSplitSingleCard = useMemo(() => {
+    if (selectedCardIds.length === 1) {
+      const target = allCollectionCards.find(c => c.id === selectedCardIds[0]);
+      return (target?.quantity || 1) > 1;
+    }
+    return false;
+  }, [selectedCardIds, allCollectionCards]);
+
+  const toggleSelectCard = useCallback((id: string) => {
+    setSelectedCardIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const selectAllCards = useCallback(() => {
+    setSelectedCardIds(allCollectionCards.map(c => c.id));
+  }, [allCollectionCards]);
+
+  const clearCardSelection = useCallback(() => {
+    setSelectedCardIds([]);
+  }, []);
+
+  const handleBulkMove = async (targetLocationId: string | null, targetCompartmentIndex: number = 0) => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch_update',
+          card_ids: selectedCardIds,
+          updates: {
+            storage_location_id: targetLocationId,
+            compartment_index: targetCompartmentIndex,
+          }
+        }),
+      });
+
+      if (res.ok) {
+        clearCardSelection();
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
+        fetchCollectionDataSilently();
+      }
+    } catch (e) {
+      console.error('Error al mover lote en colección:', e);
+    }
+  };
+
+  const handleBulkChangeStatus = async (newStatus: CardStatusFlag) => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch_update',
+          card_ids: selectedCardIds,
+          updates: {
+            status_flag: newStatus,
+          }
+        }),
+      });
+
+      if (res.ok) {
+        clearCardSelection();
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
+      }
+    } catch (e) {
+      console.error('Error al cambiar estado en lote:', e);
+    }
+  };
+
+  const handleBulkChangeCondition = async (newCondition: CardCondition, sleeveType?: SleeveType) => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const updates: Record<string, unknown> = { condition: newCondition };
+      if (sleeveType !== undefined) {
+        updates.sleeve_type = sleeveType;
+      }
+
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch_update',
+          card_ids: selectedCardIds,
+          updates,
+        }),
+      });
+
+      if (res.ok) {
+        clearCardSelection();
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
+      }
+    } catch (e) {
+      console.error('Error al cambiar condición en lote:', e);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedCardIds,
+        }),
+      });
+
+      if (res.ok) {
+        clearCardSelection();
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
+        fetchCollectionDataSilently();
+      }
+    } catch (e) {
+      console.error('Error al eliminar en lote:', e);
+    }
+  };
+
+  const handleOpenSplitModal = (card?: UserCard) => {
+    const target = card || (selectedCardIds.length === 1 ? allCollectionCards.find(c => c.id === selectedCardIds[0]) : null);
+    if (target && (target.quantity || 1) > 1) {
+      setCardToSplit(target);
+      setIsSplitModalOpen(true);
+    }
+  };
+
+  const handleCloseSplitModal = () => {
+    setIsSplitModalOpen(false);
+    setCardToSplit(null);
+  };
+
+  const handleSplitCopies = async (userCardId: string, splitQuantity: number) => {
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'split_copy',
+          user_card_id: userCardId,
+          split_quantity: splitQuantity,
+        }),
+      });
+
+      if (res.ok) {
+        fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
+      }
+    } catch (e) {
+      console.error('Error al separar copias en colección:', e);
     }
   };
 
@@ -480,6 +650,29 @@ export function useCollectionState() {
     setIsBinderBuilderOpen,
     selectedBinderId,
     setSelectedBinderId,
-    handleCloseBinderBuilder: () => handleCloseWorkspace(true)
+    handleCloseBinderBuilder: () => handleCloseWorkspace(true),
+
+    // Multi-select & Bulk Actions
+    isSelectMode,
+    setIsSelectMode,
+    selectedCardIds,
+    selectedCards,
+    selectedCardsCount,
+    selectedPhysicalCount,
+    canSplitSingleCard,
+    toggleSelectCard,
+    selectAllCards,
+    clearCardSelection,
+    handleBulkMove,
+    handleBulkChangeStatus,
+    handleBulkChangeCondition,
+    handleBulkDelete,
+
+    // Split Copy Modal
+    isSplitModalOpen,
+    cardToSplit,
+    handleOpenSplitModal,
+    handleCloseSplitModal,
+    handleSplitCopies,
   };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertCircle, Layers, Boxes, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Layers, Boxes, Plus, Trash2, Scissors } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { getCategoryBadgeStyle, getLanguageDisplay, DispersedCardSummary } from '@/lib/collectionUtils';
@@ -25,6 +25,7 @@ interface ContainerCardDetailsInspectorProps {
   onUpdateCard: (fields: Partial<UserCard>) => void;
   onMoveCard: (newLocId: string | null) => void;
   onDeleteCard: () => void;
+  onOpenSplitModal?: (card?: UserCard) => void;
 }
 
 export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspectorProps> = ({
@@ -45,6 +46,7 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
   onUpdateCard,
   onMoveCard,
   onDeleteCard,
+  onOpenSplitModal,
 }) => {
   const cat = getCategoryBadgeStyle(selectedUserCard.status_flag);
 
@@ -197,15 +199,28 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                       <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
                         Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
                       </span>
-                      {activeVariants.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => onDeleteVariantById(v.id)}
-                          className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
-                        >
-                          Eliminar
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2.5">
+                        {(v.quantity || 1) > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenSplitModal?.(v)}
+                            className="text-[10.5px] text-purple-600 dark:text-purple-400 hover:text-purple-500 font-mono font-bold hover:underline cursor-pointer flex items-center gap-1"
+                            title="Hacer copia individual a partir de este grupo"
+                          >
+                            <Scissors className="w-3 h-3" />
+                            <span>Separar</span>
+                          </button>
+                        )}
+                        {activeVariants.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteVariantById(v.id)}
+                            className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
+                          >
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -310,15 +325,28 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                     <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
                       Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
                     </span>
-                    {activeVariants.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteVariantById(v.id)}
-                        className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
-                      >
-                        Eliminar
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2.5">
+                      {(v.quantity || 1) > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenSplitModal?.(v)}
+                          className="text-[10.5px] text-purple-600 dark:text-purple-400 hover:text-purple-500 font-mono font-bold hover:underline cursor-pointer flex items-center gap-1"
+                          title="Hacer copia individual a partir de este grupo"
+                        >
+                          <Scissors className="w-3 h-3" />
+                          <span>Separar</span>
+                        </button>
+                      )}
+                      {activeVariants.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteVariantById(v.id)}
+                          className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold hover:underline cursor-pointer"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

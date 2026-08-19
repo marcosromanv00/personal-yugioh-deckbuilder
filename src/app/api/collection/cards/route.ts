@@ -264,6 +264,119 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: true, count: updatedCards?.length || 0 });
     }
 
+    // Caso especial: Actualización genérica en lote (Bulk Update: Estado, Condición, Funda, Ubicación, etc.)
+    if (body.action === 'batch_update' && Array.isArray(body.card_ids) && body.card_ids.length > 0) {
+      const { updates } = body;
+      if (!updates || typeof updates !== 'object') {
+        return NextResponse.json({ error: 'Objeto de actualizaciones requerido' }, { status: 400 });
+      }
+
+      if (!isSupabaseConfigured) {
+        return NextResponse.json({ success: true, message: 'Modo demo: Lote actualizado', count: body.card_ids.length });
+      }
+
+      const cleanUpdates: Record<string, unknown> = {};
+      if (updates.storage_location_id !== undefined) {
+        cleanUpdates.storage_location_id = updates.storage_location_id;
+        cleanUpdates.binder_page = null;
+        cleanUpdates.binder_slot = null;
+      }
+      if (updates.compartment_index !== undefined) cleanUpdates.compartment_index = updates.compartment_index;
+      if (updates.status_flag !== undefined) cleanUpdates.status_flag = updates.status_flag;
+      if (updates.condition !== undefined) cleanUpdates.condition = updates.condition;
+      if (updates.sleeve_type !== undefined) cleanUpdates.sleeve_type = updates.sleeve_type;
+      if (updates.sleeve_color !== undefined) cleanUpdates.sleeve_color = updates.sleeve_color;
+      if (updates.sleeve_brand !== undefined) cleanUpdates.sleeve_brand = updates.sleeve_brand;
+      if (updates.is_favorite !== undefined) cleanUpdates.is_favorite = updates.is_favorite;
+      if (updates.notes !== undefined) cleanUpdates.notes = updates.notes;
+
+      const { data: updatedBatch, error: batchUpErr } = await supabase
+        .from('yg_user_cards')
+        .update(cleanUpdates)
+        .in('id', body.card_ids)
+        .select('id');
+
+      if (batchUpErr) throw batchUpErr;
+      return NextResponse.json({ success: true, count: updatedBatch?.length || 0 });
+    }
+
+    // Caso especial: Separar copias (Hacer copia individual a partir de un grupo con quantity > 1)
+    if (body.action === 'split_copy' && body.user_card_id && typeof body.split_quantity === 'number') {
+      const { user_card_id, split_quantity } = body;
+      const qtyToSplit = Math.max(1, Math.floor(split_quantity));
+
+      if (!isSupabaseConfigured) {
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Modo demo: Copia individual separada', 
+          splitCount: qtyToSplit 
+        });
+      }
+
+      // 1. Obtener registro original
+      const { data: originalCard, error: fetchErr } = await supabase
+        .from('yg_user_cards')
+        .select('*')
+        .eq('id', user_card_id)
+        .single();
+
+      if (fetchErr || !originalCard) {
+        return NextResponse.json({ error: 'No se encontró el registro de la carta original' }, { status: 404 });
+      }
+
+      const currentQty = originalCard.quantity || 1;
+      if (currentQty <= qtyToSplit) {
+        return NextResponse.json({ 
+          error: `No se pueden separar ${qtyToSplit} copias de un registro que sólo contiene ${currentQty}` 
+        }, { status: 400 });
+      }
+
+      // 2. Reducir la cantidad del registro original
+      const remainingQty = currentQty - qtyToSplit;
+      const { data: updatedSource, error: updateErr } = await supabase
+        .from('yg_user_cards')
+        .update({ quantity: remainingQty })
+        .eq('id', user_card_id)
+        .select('*, card_details:yg_cards(*)')
+        .single();
+
+      if (updateErr) throw updateErr;
+
+      // 3. Crear el nuevo registro independiente con la cantidad separada
+      const { data: newRecord, error: insertErr } = await supabase
+        .from('yg_user_cards')
+        .insert([{
+          card_id: originalCard.card_id,
+          storage_location_id: originalCard.storage_location_id,
+          compartment_index: originalCard.compartment_index ?? 0,
+          quantity: qtyToSplit,
+          rarity: originalCard.rarity || 'Common',
+          condition: originalCard.condition || 'Near Mint',
+          language: originalCard.language || 'en',
+          status_flag: originalCard.status_flag || 'collection',
+          sleeve_type: originalCard.sleeve_type || 'none',
+          sleeve_brand: originalCard.sleeve_brand || null,
+          sleeve_color: originalCard.sleeve_color || null,
+          sleeve_condition: originalCard.sleeve_condition || null,
+          is_proxy: !!originalCard.is_proxy,
+          is_favorite: !!originalCard.is_favorite,
+          notes: originalCard.notes || '',
+          binder_page: null,
+          binder_slot: null,
+        }])
+        .select('*, card_details:yg_cards(*)')
+        .single();
+
+      if (insertErr) throw insertErr;
+
+      return NextResponse.json({
+        success: true,
+        updatedSource,
+        newRecord,
+        message: `Se separaron ${qtyToSplit} copia(s) a un registro independiente.`
+      });
+    }
+
     if (!id) {
       return NextResponse.json({ error: 'ID de registro de carta es obligatorio' }, { status: 400 });
     }
@@ -520,25 +633,46 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE: Eliminar carta de la colección
+// DELETE: Eliminar carta(s) de la colección
 export async function DELETE(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const id = searchParams.get('id');
+    const idsParam = searchParams.get('ids');
     const cardId = searchParams.get('card_id');
 
-    if (!id && !cardId) {
+    let bodyIds: string[] | undefined;
+    try {
+      const body = await req.json();
+      if (Array.isArray(body?.ids)) bodyIds = body.ids;
+      else if (Array.isArray(body?.card_ids)) bodyIds = body.card_ids;
+    } catch {
+      // Body is optional for DELETE
+    }
+
+    const targetIds: string[] = [];
+    if (id) targetIds.push(id);
+    if (idsParam) {
+      targetIds.push(...idsParam.split(',').map(s => s.trim()).filter(Boolean));
+    }
+    if (bodyIds && bodyIds.length > 0) {
+      targetIds.push(...bodyIds);
+    }
+
+    const uniqueTargetIds = Array.from(new Set(targetIds));
+
+    if (uniqueTargetIds.length === 0 && !cardId) {
       return NextResponse.json({ error: 'ID o card_id de registro es obligatorio' }, { status: 400 });
     }
 
     const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (isSupabaseConfigured) {
-      if (id) {
+      if (uniqueTargetIds.length > 0) {
         const { error } = await supabase
           .from('yg_user_cards')
           .delete()
-          .eq('id', id);
+          .in('id', uniqueTargetIds);
 
         if (error) {
           throw error;
@@ -555,7 +689,7 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: uniqueTargetIds.length || 1 });
 
   } catch (error: unknown) {
     const err = error as Error;

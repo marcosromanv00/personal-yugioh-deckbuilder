@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Search, Layers, Box, Swords, CheckCircle2, Tag, Package, Settings, ArrowUpDown } from 'lucide-react';
+import { Search, Layers, Box, Swords, CheckCircle2, Tag, Package, Settings, ArrowUpDown, CheckSquare, CheckCheck, X } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
 import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
 import { DeckInContainer } from './types';
@@ -27,6 +27,11 @@ interface ContainerCenterHeaderProps {
   displayedGridCardsCount: number;
   filteredCards: UserCard[];
   onOpenAssignDeckModal: () => void;
+  isSelectMode?: boolean;
+  setIsSelectMode?: (mode: boolean | ((prev: boolean) => boolean)) => void;
+  selectedCardIds?: string[];
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
 }
 
 export const ContainerCenterHeader: React.FC<ContainerCenterHeaderProps> = ({
@@ -50,8 +55,14 @@ export const ContainerCenterHeader: React.FC<ContainerCenterHeaderProps> = ({
   displayedGridCardsCount,
   filteredCards,
   onOpenAssignDeckModal,
+  isSelectMode = false,
+  setIsSelectMode,
+  selectedCardIds = [],
+  onSelectAll,
+  onClearSelection,
 }) => {
   const loc = currentLocation || location;
+  const selectedCount = selectedCardIds.length;
 
   // Dropdown de carriles cuando hay > 5
   const carrilDropdownOptions = useMemo<DropdownOption<number>[]>(() => {
@@ -130,15 +141,64 @@ export const ContainerCenterHeader: React.FC<ContainerCenterHeaderProps> = ({
       {/* Fila 1: Buscador y Selector de Carriles */}
       <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 flex-wrap sm:flex-nowrap relative z-30 overflow-visible">
         {/* Buscador dentro del contenedor */}
-        <div className="relative flex-1 min-w-36 max-w-xs">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
-          <input
-            type="text"
-            value={containerSearch}
-            onChange={(e) => setContainerSearch(e.target.value)}
-            placeholder="Filtrar cartas..."
-            className="w-full pl-8.5 pr-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
-          />
+        <div className="flex items-center gap-2 flex-1 min-w-36 max-w-sm">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
+            <input
+              type="text"
+              value={containerSearch}
+              onChange={(e) => setContainerSearch(e.target.value)}
+              placeholder="Filtrar cartas..."
+              className="w-full pl-8.5 pr-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Botón de Modo Selección */}
+          {setIsSelectMode && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsSelectMode(p => !p)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 select-none ${
+                  isSelectMode
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800'
+                }`}
+                title={isSelectMode ? 'Desactivar modo selección' : 'Activar selección múltiple de cartas'}
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Selección</span>
+                {selectedCount > 0 && (
+                  <span className="text-[10px] bg-red-950 text-white px-1.5 py-0.2 rounded-full font-bold">
+                    {selectedCount}
+                  </span>
+                )}
+              </button>
+
+              {isSelectMode && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onSelectAll}
+                    className="p-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 text-xs font-mono transition-colors cursor-pointer"
+                    title="Seleccionar todas las cartas visibles"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5 text-red-500" />
+                  </button>
+                  {selectedCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={onClearSelection}
+                      className="p-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 text-xs font-mono transition-colors cursor-pointer"
+                      title="Deseleccionar todas"
+                    >
+                      <X className="w-3.5 h-3.5 text-zinc-400" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Selector de Carriles */}

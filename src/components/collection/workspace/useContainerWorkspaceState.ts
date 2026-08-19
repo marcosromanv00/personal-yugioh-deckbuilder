@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { StorageLocation, UserCard, SleeveInventory, Deck, CompartmentsConfig } from '@/types/collection';
+import { StorageLocation, UserCard, SleeveInventory, Deck, CompartmentsConfig, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { Card, HoverCardBase } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -105,6 +105,12 @@ export const useContainerWorkspaceState = ({
   const [aiSubView, setAiSubView] = useState<AISubView>('lane');
   const [detailsCopiesMode, setDetailsCopiesMode] = useState<DetailsCopiesMode>('grouped');
   const [isVariantsExpanded, setIsVariantsExpanded] = useState<boolean>(false);
+
+  // Modo de Selección Múltiple y Acciones en Bloque
+  const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
+  const [cardToSplit, setCardToSplit] = useState<UserCard | null>(null);
 
   // Estados para Modal de Ruta de Recolección (Pick-List)
   const [isPickListOpen, setIsPickListOpen] = useState<boolean>(false);
@@ -942,6 +948,270 @@ export const useContainerWorkspaceState = ({
     }
   };
 
+  // --- Lógica de Selección Múltiple y Desglose de Copias ---
+
+  // Obtener array de UserCards seleccionadas
+  const selectedCards = useMemo(() => {
+    return cards.filter(c => selectedCardIds.includes(c.id));
+  }, [cards, selectedCardIds]);
+
+  const selectedCardsCount = selectedCardIds.length;
+
+  const selectedPhysicalCount = useMemo(() => {
+    return selectedCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  }, [selectedCards]);
+
+  const canSplitSingleCard = useMemo(() => {
+    if (selectedCardIds.length === 1) {
+      const target = cards.find(c => c.id === selectedCardIds[0]);
+      return (target?.quantity || 1) > 1;
+    }
+    if (selectedUserCard && (selectedUserCard.quantity || 1) > 1) {
+      return true;
+    }
+    return false;
+  }, [selectedCardIds, cards, selectedUserCard]);
+
+  // Alternar selección de una carta individual
+  const toggleSelectCard = useCallback((id: string) => {
+    setSelectedCardIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  // Alternar selección de un grupo de cartas (ej. en GridView)
+  const toggleSelectGroup = useCallback((group: GridCardGroup) => {
+    const groupIds = group.allVariants.map(v => v.id);
+    setSelectedCardIds(prev => {
+      const allSelected = groupIds.every(id => prev.includes(id));
+      if (allSelected) {
+        return prev.filter(id => !groupIds.includes(id));
+      } else {
+        const set = new Set([...prev, ...groupIds]);
+        return Array.from(set);
+      }
+    });
+  }, []);
+
+  // Seleccionar todas las cartas filtradas visibles
+  const selectAllFilteredCards = useCallback((filteredList?: UserCard[]) => {
+    const targetCards = filteredList || cards;
+    const allIds = targetCards.map(c => c.id);
+    setSelectedCardIds(Array.from(new Set(allIds)));
+  }, [cards]);
+
+  // Limpiar selección de cartas
+  const clearCardSelection = useCallback(() => {
+    setSelectedCardIds([]);
+  }, []);
+
+  // Mover en bloque
+  const handleBulkMove = async (targetLocationId: string | null, targetCompartmentIndex: number = 0) => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch_update',
+          card_ids: selectedCardIds,
+          updates: {
+            storage_location_id: targetLocationId,
+            compartment_index: targetCompartmentIndex,
+          }
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Error al mover cartas');
+      }
+
+      // Si el destino es diferente al contenedor actual, removerlas de la vista local
+      const currentLocId = isInbox ? null : (location?.id || null);
+      if (targetLocationId !== currentLocId) {
+        setCards(prev => prev.filter(c => !selectedCardIds.includes(c.id)));
+      } else {
+        setCards(prev => prev.map(c => 
+          selectedCardIds.includes(c.id) ? { ...c, compartment_index: targetCompartmentIndex } : c
+        ));
+      }
+
+      setHasMutated(true);
+      toast.success(`${selectedCardIds.length} cartas movidas correctamente`, { title: '¡Mover en Bloque!' });
+      clearCardSelection();
+      fetchCards();
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err.message || 'Error al mover lote de cartas', { title: 'Error' });
+    }
+  };
+
+  // Cambiar estado en bloque
+  const handleBulkChangeStatus = async (newStatus: CardStatusFlag) => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch_update',
+          card_ids: selectedCardIds,
+          updates: {
+            status_flag: newStatus,
+          }
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Error al cambiar estado');
+      }
+
+      setCards(prev => prev.map(c =>
+        selectedCardIds.includes(c.id) ? { ...c, status_flag: newStatus } : c
+      ));
+
+      setHasMutated(true);
+      toast.success(`Estado actualizado para ${selectedCardIds.length} cartas`, { title: '¡Estado en Bloque!' });
+      clearCardSelection();
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err.message || 'Error al cambiar estado en lote', { title: 'Error' });
+    }
+  };
+
+  // Cambiar condición y/o fundas en bloque
+  const handleBulkChangeCondition = async (newCondition: CardCondition, sleeveType?: SleeveType) => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const updates: Record<string, unknown> = { condition: newCondition };
+      if (sleeveType !== undefined) {
+        updates.sleeve_type = sleeveType;
+      }
+
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch_update',
+          card_ids: selectedCardIds,
+          updates,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Error al actualizar condición');
+      }
+
+      setCards(prev => prev.map(c => {
+        if (!selectedCardIds.includes(c.id)) return c;
+        return {
+          ...c,
+          condition: newCondition,
+          ...(sleeveType !== undefined ? { sleeve_type: sleeveType } : {})
+        };
+      }));
+
+      setHasMutated(true);
+      toast.success(`Condición actualizada para ${selectedCardIds.length} cartas`, { title: '¡Condición en Bloque!' });
+      clearCardSelection();
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err.message || 'Error al actualizar condición en lote', { title: 'Error' });
+    }
+  };
+
+  // Eliminar en bloque
+  const handleBulkDelete = async () => {
+    if (selectedCardIds.length === 0) return;
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedCardIds,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Error al eliminar cartas');
+      }
+
+      setCards(prev => prev.filter(c => !selectedCardIds.includes(c.id)));
+      if (selectedUserCard && selectedCardIds.includes(selectedUserCard.id)) {
+        setSelectedUserCard(null);
+      }
+
+      setHasMutated(true);
+      toast.success(`${selectedCardIds.length} cartas eliminadas de la colección`, { title: '¡Eliminado en Bloque!' });
+      clearCardSelection();
+      fetchCards();
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err.message || 'Error al eliminar lote de cartas', { title: 'Error' });
+    }
+  };
+
+  // Abrir Modal de Desglose de Copias
+  const handleOpenSplitModal = (card?: UserCard) => {
+    const target = card || (selectedCardIds.length === 1 ? cards.find(c => c.id === selectedCardIds[0]) : selectedUserCard);
+    if (target && (target.quantity || 1) > 1) {
+      setCardToSplit(target);
+      setIsSplitModalOpen(true);
+    } else {
+      toast.info('Para separar copias necesitas seleccionar una carta con al menos 2 copias', { title: 'Copias insuficientes' });
+    }
+  };
+
+  const handleCloseSplitModal = () => {
+    setIsSplitModalOpen(false);
+    setCardToSplit(null);
+  };
+
+  // Ejecutar separación de copias
+  const handleSplitCopies = async (userCardId: string, splitQuantity: number) => {
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'split_copy',
+          user_card_id: userCardId,
+          split_quantity: splitQuantity,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Error al separar copias');
+      }
+
+      const { updatedSource, newRecord } = json;
+
+      setCards(prev => {
+        const next = prev.map(c => c.id === userCardId ? updatedSource : c);
+        if (newRecord) {
+          return [newRecord, ...next];
+        }
+        return next;
+      });
+
+      if (newRecord) {
+        setSelectedUserCard(newRecord);
+      }
+
+      setHasMutated(true);
+      toast.success(`Se separaron ${splitQuantity} copia(s) a un nuevo registro independiente`, { title: '¡Copia Individual Creada!' });
+      fetchCards();
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err.message || 'Error al separar copias', { title: 'Error' });
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1445,6 +1715,30 @@ export const useContainerWorkspaceState = ({
     handleUpdateVariantById,
     handleAddNewVariant,
     handleDeleteVariantById,
+
+    // Multi-Selection & Bulk Actions
+    isSelectMode,
+    setIsSelectMode,
+    selectedCardIds,
+    selectedCards,
+    selectedCardsCount,
+    selectedPhysicalCount,
+    canSplitSingleCard,
+    toggleSelectCard,
+    toggleSelectGroup,
+    selectAllFilteredCards,
+    clearCardSelection,
+    handleBulkMove,
+    handleBulkChangeStatus,
+    handleBulkChangeCondition,
+    handleBulkDelete,
+
+    // Split Modal
+    isSplitModalOpen,
+    cardToSplit,
+    handleOpenSplitModal,
+    handleCloseSplitModal,
+    handleSplitCopies,
 
     // Physical Picker Modal
     pickerCard,

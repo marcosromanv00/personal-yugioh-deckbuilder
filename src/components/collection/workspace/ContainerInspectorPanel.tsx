@@ -71,6 +71,7 @@ interface ContainerInspectorPanelProps {
   onUpdateCard: (fields: Partial<UserCard>) => void;
   onMoveCard: (newLocId: string | null) => void;
   onDeleteCard: () => void;
+  onOpenSplitModal?: (card?: UserCard) => void;
 }
 
 export const ContainerInspectorPanel: React.FC<ContainerInspectorPanelProps> = ({
@@ -123,6 +124,7 @@ export const ContainerInspectorPanel: React.FC<ContainerInspectorPanelProps> = (
   onUpdateCard,
   onMoveCard,
   onDeleteCard,
+  onOpenSplitModal,
 }) => {
   return (
     <div 
@@ -279,6 +281,7 @@ export const ContainerInspectorPanel: React.FC<ContainerInspectorPanelProps> = (
             onUpdateCard={onUpdateCard}
             onMoveCard={onMoveCard}
             onDeleteCard={onDeleteCard}
+            onOpenSplitModal={onOpenSplitModal}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 dark:text-zinc-500 space-y-2">

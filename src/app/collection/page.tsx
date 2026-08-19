@@ -28,6 +28,8 @@ import { DecksTab } from '@/components/collection/components/DecksTab';
 import { DecksPanel } from '@/components/collection/components/DecksPanel';
 
 import { UniversalContainerWorkspaceModal } from '@/components/collection/UniversalContainerWorkspaceModal';
+import { BulkActionsFloatingBar } from '@/components/collection/BulkActionsFloatingBar';
+import { CardCopySplitModal } from '@/components/collection/CardCopySplitModal';
 import { StorageFormModal } from '@/components/collection/StorageFormModal';
 import { SmartOrganizeModal } from '@/components/collection/SmartOrganizeModal';
 import { SleevingAdvisorModal } from '@/components/collection/SleevingAdvisorModal';
@@ -270,6 +272,13 @@ export default function CollectionPage() {
                 handleToggleFavorite={state.handleToggleFavorite}
                 handleDeleteCard={state.handleDeleteCard}
                 handleUpdateCardStatus={state.handleUpdateCardStatus}
+                isSelectMode={state.isSelectMode}
+                setIsSelectMode={state.setIsSelectMode}
+                selectedCardIds={state.selectedCardIds}
+                onToggleSelectCard={state.toggleSelectCard}
+                onSelectAll={state.selectAllCards}
+                onClearSelection={state.clearCardSelection}
+                onOpenSplitModal={state.handleOpenSplitModal}
                 onCardContextMenu={(uc) => {
                   const targetLoc = uc.storage_location_id 
                     ? state.locations.find(l => l.id === uc.storage_location_id) || null
@@ -371,6 +380,31 @@ export default function CollectionPage() {
         sleeves={state.sleeves}
         onSuccess={state.fetchCollectionDataSilently}
       />
+
+      {/* Modal de Separar Copia Individual en Colección Principal */}
+      <CardCopySplitModal
+        isOpen={state.isSplitModalOpen}
+        onClose={state.handleCloseSplitModal}
+        userCard={state.cardToSplit}
+        onConfirmSplit={state.handleSplitCopies}
+      />
+
+      {/* Barra Flotante de Acciones en Bloque en Vista Principal de Colección */}
+      {!state.isWorkspaceOpen && (state.activeTab === 'complete' || state.activeTab === 'favorites') && (
+        <BulkActionsFloatingBar
+          selectedCount={state.selectedCardsCount}
+          totalPhysicalCount={state.selectedPhysicalCount}
+          locations={state.locations}
+          currentLocationId={null}
+          onClearSelection={state.clearCardSelection}
+          onMove={state.handleBulkMove}
+          onChangeStatus={state.handleBulkChangeStatus}
+          onChangeCondition={state.handleBulkChangeCondition}
+          onDelete={state.handleBulkDelete}
+          onSplitSingleCard={() => state.handleOpenSplitModal()}
+          canSplitSingleCard={state.canSplitSingleCard}
+        />
+      )}
     </div>
   );
 }

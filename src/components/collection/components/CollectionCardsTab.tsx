@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, MapPin, ChevronDown, Heart, RefreshCw, Trash } from 'lucide-react';
+import { Search, MapPin, ChevronDown, Heart, RefreshCw, Trash, CheckSquare, CheckCheck, X, Scissors, Check } from 'lucide-react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
 import { getSleeveColorHex } from '@/lib/sleeves';
@@ -25,6 +25,13 @@ interface CollectionCardsTabProps {
   handleDeleteCard: (id: string) => Promise<void>;
   handleUpdateCardStatus: (id: string, status: string) => Promise<void>;
   onCardContextMenu?: (uc: UserCard) => void;
+  isSelectMode?: boolean;
+  setIsSelectMode?: (mode: boolean | ((prev: boolean) => boolean)) => void;
+  selectedCardIds?: string[];
+  onToggleSelectCard?: (id: string) => void;
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  onOpenSplitModal?: (card?: UserCard) => void;
 }
 
 /**
@@ -49,7 +56,16 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
   handleDeleteCard,
   handleUpdateCardStatus,
   onCardContextMenu,
+  isSelectMode = false,
+  setIsSelectMode,
+  selectedCardIds = [],
+  onToggleSelectCard,
+  onSelectAll,
+  onClearSelection,
+  onOpenSplitModal,
 }) => {
+  const selectedCount = selectedCardIds.length;
+
   return (
     <div className="space-y-6">
       {/* Header Disclaimer for Favorites Mode */}
@@ -62,16 +78,65 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
         </div>
       )}
 
-      {/* General Search Input */}
-      <div className="relative w-full">
-        <input
-          type="text"
-          placeholder="Buscar por nombre, rareza, notas..."
-          value={allSearchQuery}
-          onChange={(e) => setAllSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-2xl text-xs font-bold focus:outline-none shadow-xs transition-colors"
-        />
-        <Search className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
+      {/* General Search Input & Selection Toggle */}
+      <div className="flex items-center gap-2.5 w-full">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Buscar por nombre, rareza, notas..."
+            value={allSearchQuery}
+            onChange={(e) => setAllSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-2xl text-xs font-bold focus:outline-none shadow-xs transition-colors"
+          />
+          <Search className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
+        </div>
+
+        {/* Botón Modo Selección */}
+        {setIsSelectMode && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsSelectMode(p => !p)}
+              className={`px-3 py-2.5 rounded-2xl text-xs font-bold font-mono transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 select-none ${
+                isSelectMode
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800'
+              }`}
+              title={isSelectMode ? 'Desactivar selección múltiple' : 'Activar selección múltiple de cartas'}
+            >
+              <CheckSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Selección</span>
+              {selectedCount > 0 && (
+                <span className="text-[10px] bg-red-950 text-white px-1.5 py-0.2 rounded-full font-bold">
+                  {selectedCount}
+                </span>
+              )}
+            </button>
+
+            {isSelectMode && (
+              <>
+                <button
+                  type="button"
+                  onClick={onSelectAll}
+                  className="p-2.5 rounded-2xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 text-xs font-mono transition-colors cursor-pointer"
+                  title="Seleccionar todas las cartas de esta vista"
+                >
+                  <CheckCheck className="w-4 h-4 text-red-500" />
+                </button>
+                {selectedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={onClearSelection}
+                    className="p-2.5 rounded-2xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 text-xs font-mono transition-colors cursor-pointer"
+                    title="Deseleccionar todas"
+                  >
+                    <X className="w-4 h-4 text-zinc-400" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Location / Deck filters (only in Complete Tab) */}
@@ -163,16 +228,29 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
           {allCollectionCards.map((uc) => {
             const storedIn = locations.find(l => l.id === uc.storage_location_id);
+            const isCardSelected = selectedCardIds.includes(uc.id);
+
             return (
               <div 
                 key={uc.id}
+                onClick={() => {
+                  if (isSelectMode) {
+                    onToggleSelectCard?.(uc.id);
+                  }
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  if (onCardContextMenu) {
+                  if (isSelectMode) {
+                    onToggleSelectCard?.(uc.id);
+                  } else if (onCardContextMenu) {
                     onCardContextMenu(uc);
                   }
                 }}
-                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 flex flex-col justify-between hover:border-red-500/50 transition-all duration-200 relative group shadow-xs cursor-pointer"
+                className={`bg-white dark:bg-zinc-900 rounded-2xl p-3 flex flex-col justify-between transition-all duration-200 relative group shadow-xs cursor-pointer ${
+                  isCardSelected
+                    ? 'border-2 border-red-500 bg-red-50/40 dark:bg-red-950/20 ring-2 ring-red-500/50'
+                    : 'border border-zinc-200 dark:border-zinc-800 hover:border-red-500/50'
+                }`}
               >
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -189,18 +267,35 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                     }
                     onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                   />
+
+                  {/* Checkbox de selección múltiple */}
+                  {isSelectMode && (
+                    <div 
+                      className={`absolute top-1.5 left-1.5 w-5 h-5 rounded-md flex items-center justify-center transition-all shadow-md z-10 ${
+                        isCardSelected
+                          ? 'bg-red-600 text-white ring-1 ring-white/40'
+                          : 'bg-black/60 border border-white/50 text-transparent hover:border-white'
+                      }`}
+                    >
+                      {isCardSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    </div>
+                  )}
+
                   {uc.quantity > 1 && (
                     <span className="absolute top-1.5 right-1.5 bg-zinc-900/90 text-white font-black text-[10px] px-2 py-0.5 rounded-lg shadow-xs font-mono">
                       x{uc.quantity}
                     </span>
                   )}
-                  {uc.is_proxy && (
+                  {uc.is_proxy && !isSelectMode && (
                     <span className="absolute top-1.5 left-1.5 bg-red-600 text-white font-black text-[9px] px-1.5 py-0.2 rounded-md font-mono uppercase">
                       PROXY
                     </span>
                   )}
                   <button
-                    onClick={() => handleToggleFavorite(uc)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite(uc);
+                    }}
                     className={`absolute bottom-3.5 right-1.5 p-1.5 rounded-full transition-all cursor-pointer bg-white/90 dark:bg-zinc-900/90 shadow-xs ${
                       uc.is_favorite
                         ? 'text-red-500 opacity-100'
@@ -281,8 +376,24 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                     )}
 
                     <div className="flex items-center justify-end gap-1.5 pt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {uc.quantity > 1 && onOpenSplitModal && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenSplitModal(uc);
+                          }}
+                          className="p-1 hover:bg-purple-100 dark:hover:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-lg transition-colors cursor-pointer"
+                          title="Hacer copia individual (Separar)"
+                        >
+                          <Scissors className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
-                        onClick={() => handleDeleteCard(uc.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCard(uc.id);
+                        }}
                         className="p-1 hover:bg-red-100 dark:hover:bg-red-950/40 text-zinc-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
                         title="Eliminar carta"
                       >

@@ -13,6 +13,8 @@ import { ContainerWorkspaceHeader } from './workspace/ContainerWorkspaceHeader';
 import { ContainerCenterPanel } from './workspace/ContainerCenterPanel';
 import { ContainerInspectorPanel } from './workspace/ContainerInspectorPanel';
 import { ContainerDeckAssignmentModal } from './workspace/ContainerDeckAssignmentModal';
+import { BulkActionsFloatingBar } from './BulkActionsFloatingBar';
+import { CardCopySplitModal } from './CardCopySplitModal';
 import { Card } from '@/components/deckbuilder/types';
 import { CardCodeScannerModal, YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
 
@@ -229,6 +231,13 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             currentBinderViewIndex={state.currentBinderViewIndex}
             setCurrentBinderViewIndex={state.setCurrentBinderViewIndex}
             totalBinderViews={state.totalBinderViews}
+            isSelectMode={state.isSelectMode}
+            setIsSelectMode={state.setIsSelectMode}
+            selectedCardIds={state.selectedCardIds}
+            onSelectAll={() => state.selectAllFilteredCards(state.filteredCards)}
+            onClearSelection={state.clearCardSelection}
+            onToggleSelectGroup={state.toggleSelectGroup}
+            onToggleSelectCard={state.toggleSelectCard}
           />
 
           {/* DIVIDER REDIMENSIONABLE DERECHO */}
@@ -342,6 +351,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             onUpdateCard={state.handleUpdateCard}
             onMoveCard={state.handleMoveCard}
             onDeleteCard={state.handleDeleteCard}
+            onOpenSplitModal={state.handleOpenSplitModal}
           />
         </div>
 
@@ -422,6 +432,29 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           onCardRegistered={handleHeaderScannerCardRegistered}
           title={`Escanear a ${state.isInbox ? 'Sin Clasificar (Inbox)' : location?.name || 'Contenedor'}`}
           subtitle="Apunta al código de 8 dígitos para agregar directamente"
+        />
+
+        {/* Modal de Separar Copia Individual */}
+        <CardCopySplitModal
+          isOpen={state.isSplitModalOpen}
+          onClose={state.handleCloseSplitModal}
+          userCard={state.cardToSplit}
+          onConfirmSplit={state.handleSplitCopies}
+        />
+
+        {/* Barra Flotante de Acciones en Bloque */}
+        <BulkActionsFloatingBar
+          selectedCount={state.selectedCardsCount}
+          totalPhysicalCount={state.selectedPhysicalCount}
+          locations={locations}
+          currentLocationId={location?.id || null}
+          onClearSelection={state.clearCardSelection}
+          onMove={state.handleBulkMove}
+          onChangeStatus={state.handleBulkChangeStatus}
+          onChangeCondition={state.handleBulkChangeCondition}
+          onDelete={state.handleBulkDelete}
+          onSplitSingleCard={() => state.handleOpenSplitModal()}
+          canSplitSingleCard={state.canSplitSingleCard}
         />
 
       </motion.div>
