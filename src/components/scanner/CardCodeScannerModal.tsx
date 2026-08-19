@@ -26,6 +26,7 @@ import {
   terminateCardOcrWorker,
   ViewfinderCropRect,
 } from '@/lib/ocr/cardOcrEngine';
+import { OcrLearningMemory } from '@/lib/ocr/ocrLearningMemory';
 
 export interface YgoDetectedCard {
   id: number;
@@ -252,6 +253,11 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       }
 
       if (cardData && cardData.name) {
+        // Aprender corrección en memoria para que nunca más falle esta carta
+        if (code) {
+          OcrLearningMemory.learnCorrection(code, cardData.id.toString(), cardData.name);
+        }
+
         setDetectedCard(cardData);
         setScannerStage('card_found');
         setQuantity(1);
@@ -298,6 +304,10 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     if (cleanDigits.length >= 8) {
       const codeToUse = cleanDigits.slice(0, 8);
       const scanId = ++currentScanIdRef.current;
+      // Si el usuario corrigió un código previamente escaneado, guardar el aprendizaje
+      if (scannedCode && scannedCode !== codeToUse) {
+        OcrLearningMemory.learnCorrection(scannedCode, codeToUse, 'Corrección manual');
+      }
       fetchCardInfo(codeToUse, scanId);
     }
   };
@@ -363,7 +373,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     };
   }, [digitalZoomFactor]);
 
-  // Single OCR Scan Step with Strict Concurrency Lock, Presence Gate & Auto-Pause Guard
+  // Single OCR Scan Step with Strict Concurrency Lock, Dual-pass Binarization & Presence Guard
   const performScan = useCallback(async () => {
     // Si ya hay carta detectada o escaneo en progreso o consulta de red activa, no ejecutar nada
     if (
@@ -393,12 +403,21 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     // 2. Iniciar escaneo OCR con bloqueo single-flight y generation ID
     const scanId = ++currentScanIdRef.current;
     isScanningRef.current = true;
-    setScannerStage('object_detected');
+    if (scannerStage === 'idle') {
+      setScannerStage('reading_ocr');
+    }
 
     try {
-      // Pequeña transición a lectura activa
-      setScannerStage('reading_ocr');
-      const match = await recognizeCardPasscode(canvas);
+      // Intento 1: Binarización Normal Otsu con Quiet Zone
+      let match = await recognizeCardPasscode(canvas);
+
+      // Intento 2: Binarización Invertida (para cartas oscuras como XYZ / Link) si intento 1 no encontró 8 dígitos
+      if (!match && videoRef.current) {
+        const invertedCanvas = extractAndPreprocessViewfinder(videoRef.current, cropRect, true);
+        if (invertedCanvas) {
+          match = await recognizeCardPasscode(invertedCanvas);
+        }
+      }
 
       // Si el escaneo actual fue cancelado o invalidado por cambio de carta o registro, descartar de inmediato
       if (scanId !== currentScanIdRef.current || detectedCardRef.current) {
@@ -408,17 +427,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       if (match && match.code) {
         setScannedCode(match.code);
         await fetchCardInfo(match.code, scanId);
-      } else {
-        // Objeto presente pero sin dígitos claros en este fotograma
-        if (scanId === currentScanIdRef.current && !detectedCardRef.current) {
-          setScannerStage('object_detected');
-        }
       }
     } catch (e) {
       console.error('Error durante performScan:', e);
-      if (scanId === currentScanIdRef.current && !detectedCardRef.current) {
-        setScannerStage('idle');
-      }
     } finally {
       if (scanId === currentScanIdRef.current) {
         isScanningRef.current = false;
