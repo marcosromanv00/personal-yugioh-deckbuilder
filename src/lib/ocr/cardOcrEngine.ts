@@ -46,7 +46,7 @@ export interface ViewfinderCropRect {
 /**
  * Analiza rápidamente (<1ms) si el canvas preprocesado contiene características
  * visuales de texto/bordes (varianza de contraste suficiente) antes de invocar
- * el motor pesado de OCR Tesseract.js.
+ * el motor de OCR Tesseract.js.
  */
 export function hasCardVisualFeatures(canvas: HTMLCanvasElement): boolean {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -63,7 +63,7 @@ export function hasCardVisualFeatures(canvas: HTMLCanvasElement): boolean {
   let sampleCount = 0;
 
   for (let i = 0; i < data.length; i += 16) {
-    const lum = data[i]; // Ya está en escala de grises
+    const lum = data[i]; // Ya en escala de grises
     sum += lum;
     sumSq += lum * lum;
     sampleCount++;
@@ -75,13 +75,14 @@ export function hasCardVisualFeatures(canvas: HTMLCanvasElement): boolean {
   const variance = sumSq / sampleCount - mean * mean;
   const stdDev = Math.sqrt(Math.max(0, variance));
 
-  // Si la desviación estándar es muy baja (<25), el área es completamente plana/uniforme sin dígitos legibles
-  return stdDev > 25;
+  // Umbral optimizado (> 18) para permitir detección confiable incluso con luz tenue o fondos de baja saturación
+  return stdDev > 18;
 }
 
 /**
  * Recorta la franja del visor desde el elemento <video> y aplica un preprocesamiento
- * de estiramiento de contraste y escala de grises para maximizar la nitidez de los dígitos.
+ * de alta nitidez: escalado 3.0x, escala de grises, filtro convolucional de enfoque (Sharpening)
+ * y normalización de contraste para separar nítidamente los números de cualquier marco de color.
  */
 export function extractAndPreprocessViewfinder(
   video: HTMLVideoElement,
@@ -97,47 +98,81 @@ export function extractAndPreprocessViewfinder(
   const sw = Math.min(cropRect.width, video.videoWidth - sx);
   const sh = Math.min(cropRect.height, video.videoHeight - sy);
 
-  if (sw <= 10 || sh <= 10) return null;
+  if (sw <= 8 || sh <= 8) return null;
 
   const canvas = document.createElement('canvas');
-  // Escalamos 2.0x para balance óptimo entre nitidez de dígitos y consumo ligero de CPU/RAM
-  const scale = 2.0;
-  canvas.width = Math.round(sw * scale);
-  canvas.height = Math.round(sh * scale);
+  // Escalamos 3.0x para alimentar a Tesseract con glifos grandes, detallados y sin aliasing pixelado
+  const scale = 3.0;
+  const width = Math.round(sw * scale);
+  const height = Math.round(sh * scale);
+  canvas.width = width;
+  canvas.height = height;
 
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return null;
 
-  // Dibujar el recorte escalado
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  // Renderizar recorte escalado con suavizado de imagen
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, width, height);
 
-  // Preprocesamiento de píxeles: Escala de grises + estiramiento de histograma de contraste
-  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imgData.data;
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const src = imgData.data;
+  const len = src.length;
 
+  // 1. Paso de escala de grises y cálculo de histograma mín/máx
+  const gray = new Uint8Array(width * height);
   let minLum = 255;
   let maxLum = 0;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const lum = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-    data[i] = lum;
+  for (let i = 0, p = 0; i < len; i += 4, p++) {
+    // Luminancia perceptual
+    const lum = Math.round(0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]);
+    gray[p] = lum;
     if (lum < minLum) minLum = lum;
     if (lum > maxLum) maxLum = lum;
   }
 
   const range = maxLum - minLum || 1;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const lum = data[i];
-    // Estiramiento lineal del contraste sin eliminar anti-aliasing
-    const stretched = Math.round(((lum - minLum) / range) * 255);
-    data[i] = stretched;
-    data[i + 1] = stretched;
-    data[i + 2] = stretched;
-    data[i + 3] = 255;
+  // 2. Estiramiento de histograma normalizado
+  for (let p = 0; p < gray.length; p++) {
+    gray[p] = Math.round(((gray[p] - minLum) / range) * 255);
+  }
+
+  // 3. Filtro convolucional 3x3 de Enfoque / Realce de Bordes (Sharpen Kernel)
+  // [  0, -1,  0 ]
+  // [ -1,  5, -1 ]
+  // [  0, -1,  0 ]
+  const sharpened = new Uint8Array(width * height);
+
+  for (let y = 0; y < height; y++) {
+    const yOffset = y * width;
+    const yPrev = (y > 0 ? y - 1 : 0) * width;
+    const yNext = (y < height - 1 ? y + 1 : height - 1) * width;
+
+    for (let x = 0; x < width; x++) {
+      const xPrev = x > 0 ? x - 1 : 0;
+      const xNext = x < width - 1 ? x + 1 : width - 1;
+
+      const c = gray[yOffset + x];
+      const top = gray[yPrev + x];
+      const bottom = gray[yNext + x];
+      const left = gray[yOffset + xPrev];
+      const right = gray[yOffset + xNext];
+
+      const val = 5 * c - (top + bottom + left + right);
+      sharpened[yOffset + x] = Math.max(0, Math.min(255, val));
+    }
+  }
+
+  // 4. Copiar píxeles procesados al ImageData final
+  for (let p = 0, i = 0; p < sharpened.length; p++, i += 4) {
+    const val = sharpened[p];
+    src[i] = val;
+    src[i + 1] = val;
+    src[i + 2] = val;
+    src[i + 3] = 255;
   }
 
   ctx.putImageData(imgData, 0, 0);
@@ -145,8 +180,9 @@ export function extractAndPreprocessViewfinder(
 }
 
 /**
- * Escanea el canvas preprocesado con Tesseract y busca un código de 8 dígitos continuo,
- * ignorando automáticamente textos como '1st Edition', 'Limited Edition' y ruidos del borde.
+ * Escanea el canvas preprocesado con Tesseract y busca el código de 8 dígitos de la carta.
+ * Regla Estricta: Extrae siempre los primeros 8 dígitos leídos de izquierda a derecha,
+ * ignorando automáticamente el "1" de "1st Edition", "Limited Edition" o textos secundarios del borde.
  */
 export async function recognizeCardPasscode(
   canvas: HTMLCanvasElement
@@ -156,34 +192,27 @@ export async function recognizeCardPasscode(
     const result = await worker.recognize(canvas);
     const rawText = result.data.text || '';
 
-    // 1. Limpieza de textos y frases comunes en el borde de cartas Yu-Gi-Oh! (1st Edition, Limited, etc.)
+    // 1. Limpieza de textos y palabras clave del borde inferior
     const cleanedText = rawText
-      .replace(/\b1\s*(?:st|ST|St)?\b/gi, ' ') // "1st", "1ST", "1 st"
+      .replace(/\b1\s*(?:st|ST|St|ed|ED|Ed)?\b/gi, ' ')
       .replace(/\b(?:edition|limited|unlimited|kazuki|takahashi|konami|studio|dice|shueisha|tv|tokyo)\b/gi, ' ');
 
-    // 2. Buscar un bloque exacto de 8 dígitos aislado (evita confundir el "1" de "1st")
+    // 2. Buscar primero cualquier bloque aislado exacto de 8 dígitos (\b\d{8}\b)
     const match8 = cleanedText.match(/(?:^|\D)(\d{8})(?:\D|$)/) || rawText.match(/(?:^|\D)(\d{8})(?:\D|$)/);
     if (match8 && match8[1]) {
       return { code: match8[1], rawText };
     }
 
-    // 3. Extraer dígitos limpios tras eliminar palabras clave
-    const cleanedDigits = cleanedText.replace(/\D/g, '');
-    if (cleanedDigits.length === 8) {
-      return { code: cleanedDigits, rawText };
+    // 3. Extracción secuencial de dígitos limpios (de izquierda a derecha)
+    const cleanDigits = cleanedText.replace(/\D/g, '');
+    if (cleanDigits.length >= 8) {
+      // Regla estricta: Tomar exactamente los PRIMEROS 8 dígitos
+      return { code: cleanDigits.slice(0, 8), rawText };
     }
 
-    // 4. Si los dígitos tienen 9 caracteres y empiezan por "1" (residuo del "1" en "1st Edition")
+    // 4. Fallback sobre el texto bruto original: primeros 8 dígitos
     const rawDigits = rawText.replace(/\D/g, '');
-    if (rawDigits.length === 9 && rawDigits.startsWith('1')) {
-      return { code: rawDigits.slice(1), rawText };
-    }
-
-    // 5. Si tiene entre 8 y 10 dígitos, tomar el bloque de 8 dígitos más coherente (preferir últimos 8 si empieza con 1)
-    if (rawDigits.length >= 8 && rawDigits.length <= 10) {
-      if (rawDigits.startsWith('1') && rawDigits.length > 8) {
-        return { code: rawDigits.slice(-8), rawText };
-      }
+    if (rawDigits.length >= 8) {
       return { code: rawDigits.slice(0, 8), rawText };
     }
 

@@ -3,6 +3,42 @@ import { supabase } from '@/lib/supabase';
 
 const YGOPRODECK_API_URL = 'https://db.ygoprodeck.com/api/v7/cardinfo.php';
 
+// Diccionario de pares de confusión visual comunes en OCR para dígitos numéricos
+const OCR_DIGIT_CONFUSIONS: Record<string, string[]> = {
+  '8': ['9', '0', '3', '6'],
+  '9': ['8', '0', '6'],
+  '0': ['8', '6', '9', '1'],
+  '1': ['7', '0'],
+  '7': ['1'],
+  '3': ['8'],
+  '6': ['8', '5', '0', '9'],
+  '5': ['6'],
+};
+
+/**
+ * Genera combinaciones de 8 dígitos sustituyendo un dígito con sus variantes
+ * de confusión visual típicas de OCR (ej. 28616929 -> 29616929).
+ */
+function generateOcrCandidatePasscodes(code: string): number[] {
+  if (!/^\d{8}$/.test(code)) return [];
+  const candidates: Set<number> = new Set();
+  const chars = code.split('');
+
+  for (let i = 0; i < chars.length; i++) {
+    const originalChar = chars[i];
+    const alternates = OCR_DIGIT_CONFUSIONS[originalChar];
+    if (alternates) {
+      for (const alt of alternates) {
+        const candidateArr = [...chars];
+        candidateArr[i] = alt;
+        candidates.add(parseInt(candidateArr.join(''), 10));
+      }
+    }
+  }
+
+  return Array.from(candidates);
+}
+
 interface YGOPRODeckCard {
   id: number;
   name: string;
@@ -113,7 +149,27 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const { data, error } = await dbQuery;
+        let { data, error } = await dbQuery;
+
+        // Si la búsqueda por ID exacto falló pero es un código de 8 dígitos, intentar autocorrección inteligente
+        if ((!data || data.length === 0) && id && /^\d{8}$/.test(id)) {
+          const candidates = generateOcrCandidatePasscodes(id);
+          if (candidates.length > 0) {
+            const { data: correctedData, error: corrError } = await supabase
+              .from('yg_cards')
+              .select('*')
+              .in('id', candidates)
+              .limit(1);
+
+            if (!corrError && correctedData && correctedData.length > 0) {
+              return NextResponse.json({ 
+                data: correctedData,
+                autoCorrected: true,
+                originalScannedId: id
+              });
+            }
+          }
+        }
 
         if (!error && data && data.length > 0) {
           return NextResponse.json({ data });
@@ -143,7 +199,24 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const response = await fetch(url);
+    let response = await fetch(url);
+    
+    // Si YGOPRODeck no encontró el ID exacto, probar candidatos de confusión OCR
+    if (!response.ok && response.status === 400 && id && /^\d{8}$/.test(id)) {
+      const candidates = generateOcrCandidatePasscodes(id);
+      for (const candId of candidates) {
+        try {
+          const candRes = await fetch(`${YGOPRODECK_API_URL}?id=${candId}`);
+          if (candRes.ok) {
+            response = candRes;
+            break;
+          }
+        } catch {
+          // Continuar con el siguiente candidato
+        }
+      }
+    }
+
     if (!response.ok) {
       if (response.status === 400) {
         // Ningún resultado encontrado
