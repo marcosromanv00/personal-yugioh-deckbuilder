@@ -569,7 +569,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
           className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-none sm:rounded-3xl shadow-2xl text-zinc-100 flex flex-col h-dvh sm:h-auto overflow-hidden relative"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800 bg-zinc-900/90 z-20">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-3.5 border-b border-zinc-800 bg-zinc-900/90 z-20">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-xs">
                 <Camera className="w-4 h-4" />
@@ -588,7 +588,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+              className="p-2 sm:p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
               title="Cerrar escáner"
             >
               <X className="w-5 h-5" />
@@ -604,7 +604,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => startCamera(activeDeviceId)}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  className="px-5 py-2.5 sm:px-4 sm:py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
                 >
                   Reintentar Permisos
                 </button>
@@ -660,9 +660,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                 </div>
 
                 {/* Quick controls on top of camera (Zoom Slider, Torch, Switch Camera) */}
-                <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+                <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 sm:gap-2">
                   {/* Zoom Slider Control (1.0x to 5.0x) */}
-                  <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-md rounded-full px-2.5 py-1 border border-zinc-800 text-xs font-mono shadow-md">
+                  <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-md rounded-full px-2.5 py-1.5 sm:py-1 border border-zinc-800 text-xs font-mono shadow-md">
                     <ZoomIn className="w-3.5 h-3.5 text-red-400 shrink-0" />
                     <input
                       type="range"
@@ -671,10 +671,10 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       step="0.1"
                       value={zoomLevel}
                       onChange={(e) => handleSetZoom(parseFloat(e.target.value))}
-                      className="w-16 sm:w-24 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-red-500"
+                      className="w-16 sm:w-24 h-1.5 sm:h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-red-500"
                       title="Ajustar zoom (1.0x a 5.0x)"
                     />
-                    <span className="text-[10px] font-bold text-zinc-200 min-w-8 text-right">
+                    <span className="text-[10px] font-bold text-zinc-200 min-w-7 text-right">
                       {zoomLevel.toFixed(1)}x
                     </span>
                   </div>
@@ -683,14 +683,14 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <button
                       type="button"
                       onClick={toggleTorch}
-                      className={`p-2 rounded-full backdrop-blur-md transition-colors ${
+                      className={`p-2.5 sm:p-2 rounded-full backdrop-blur-md transition-colors cursor-pointer ${
                         torchOn
                           ? 'bg-amber-500 text-zinc-950 shadow-lg shadow-amber-500/30'
                           : 'bg-black/60 text-zinc-300 hover:bg-black/80'
                       }`}
                       title={torchOn ? 'Apagar flash' : 'Encender flash'}
                     >
-                      {torchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
+                      {torchOn ? <Zap className="w-4.5 h-4.5 sm:w-4 sm:h-4 fill-current" /> : <ZapOff className="w-4.5 h-4.5 sm:w-4 sm:h-4" />}
                     </button>
                   )}
 
@@ -698,45 +698,45 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <button
                       type="button"
                       onClick={handleSwitchCamera}
-                      className="p-2 rounded-full bg-black/60 backdrop-blur-md text-zinc-300 hover:bg-black/80 transition-colors"
+                      className="p-2.5 sm:p-2 rounded-full bg-black/60 backdrop-blur-md text-zinc-300 hover:bg-black/80 transition-colors cursor-pointer"
                       title="Cambiar cámara"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-4.5 h-4.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                 </div>
 
                 {/* Granular Reactive Status Indicator Pill */}
-                <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+                <div className="absolute top-3 left-3 z-20 flex items-center gap-2 max-w-[50%] sm:max-w-none">
                   {scannerStage === 'fetching_card' || loadingCard ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/90 border border-blue-500/50 text-[11px] font-mono text-blue-300 shadow-md">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
-                      <span>Consultando carta #{scannedCode || '...'}</span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/90 border border-blue-500/50 text-[11px] font-mono text-blue-300 shadow-md truncate">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
+                      <span className="truncate">Consultando #{scannedCode || '...'}</span>
                     </div>
                   ) : scannerStage === 'reading_ocr' ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-500/50 text-[11px] font-mono text-cyan-300 shadow-md">
-                      <ScanLine className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
-                      <span>Leyendo código de 8 dígitos...</span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-500/50 text-[11px] font-mono text-cyan-300 shadow-md truncate">
+                      <ScanLine className="w-3.5 h-3.5 animate-pulse text-cyan-400 shrink-0" />
+                      <span className="truncate">Leyendo código...</span>
                     </div>
                   ) : scannerStage === 'object_detected' ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/90 border border-amber-500/50 text-[11px] font-mono text-amber-300 shadow-md">
-                      <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-                      <span>Objeto detectado • Enfocando...</span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/90 border border-amber-500/50 text-[11px] font-mono text-amber-300 shadow-md truncate">
+                      <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-400 shrink-0" />
+                      <span className="truncate">Enfocando objeto...</span>
                     </div>
                   ) : scannerStage === 'card_found' ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/90 border border-emerald-500/60 text-[11px] font-mono text-emerald-300 shadow-md">
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>¡Carta identificada!</span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/90 border border-emerald-500/60 text-[11px] font-mono text-emerald-300 shadow-md truncate">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate">¡Carta identificada!</span>
                     </div>
                   ) : scannerStage === 'not_found' ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/90 border border-red-500/50 text-[11px] font-mono text-red-300 shadow-md">
-                      <AlertCircle className="w-3.5 h-3.5 text-red-400" />
-                      <span>Código no registrado</span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/90 border border-red-500/50 text-[11px] font-mono text-red-300 shadow-md truncate">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span className="truncate">No registrado</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-zinc-800 text-[11px] font-mono text-zinc-300 shadow-md">
-                      <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                      <span>Esperando carta en el visor...</span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-zinc-800 text-[11px] font-mono text-zinc-300 shadow-md truncate">
+                      <div className="w-2 h-2 rounded-full bg-red-500 animate-ping shrink-0" />
+                      <span className="truncate">Apunta al código...</span>
                     </div>
                   )}
                 </div>
@@ -762,7 +762,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
           {/* Bottom Card Preview & Registration Section */}
           <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex flex-col gap-3">
             {cameraError && !detectedCard && (
-              <div className="p-2.5 rounded-xl bg-red-950/40 border border-red-900/50 text-red-300 text-xs flex items-center justify-between gap-2">
+              <div className="p-3 sm:p-2.5 rounded-xl bg-red-950/40 border border-red-900/50 text-red-300 text-xs flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
                   <span className="truncate">{cameraError}</span>
@@ -770,10 +770,10 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleOpenManualEdit}
-                  className="px-2.5 py-1 rounded-lg bg-red-900/70 hover:bg-red-800 text-white font-mono font-bold text-[11px] shrink-0 flex items-center gap-1 border border-red-700/50 cursor-pointer shadow-xs"
+                  className="px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-red-900/70 hover:bg-red-800 text-white font-mono font-bold text-xs sm:text-[11px] shrink-0 flex items-center gap-1 border border-red-700/50 cursor-pointer shadow-xs active:scale-95 transition-transform"
                   title="Editar los dígitos leídos"
                 >
-                  <Pencil className="w-3 h-3" />
+                  <Pencil className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                   <span>Editar</span>
                 </button>
               </div>
@@ -782,13 +782,13 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             {detectedCard ? (
               <div className="flex flex-col gap-3">
                 {/* Detected Card Details Badge */}
-                <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-zinc-950 border border-emerald-500/40 shadow-md">
-                  <div className="relative w-12 h-16 shrink-0 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900">
+                <div className="flex items-center gap-3 p-3 sm:p-2.5 rounded-2xl bg-zinc-950 border border-emerald-500/40 shadow-md">
+                  <div className="relative w-14 h-18 sm:w-12 sm:h-16 shrink-0 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900">
                     <Image
                       src={detectedCard.image_url_small || detectedCard.image_url}
                       alt={detectedCard.name}
                       fill
-                      sizes="48px"
+                      sizes="56px"
                       className="object-cover"
                     />
                   </div>
@@ -816,72 +816,74 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleResetScan}
-                    className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors text-[10px] font-mono flex flex-col items-center cursor-pointer"
+                    className="px-3 py-2 sm:p-1.5 text-zinc-400 hover:text-zinc-200 bg-zinc-900 sm:bg-transparent border border-zinc-800 sm:border-transparent hover:bg-zinc-800 rounded-xl transition-all text-xs sm:text-[10px] font-mono flex items-center sm:flex-col gap-1 cursor-pointer active:scale-95 shrink-0"
                     title="Descartar y escanear otra"
                   >
-                    <RefreshCw className="w-4 h-4 mb-0.5" />
+                    <RefreshCw className="w-4 h-4 sm:mb-0.5" />
                     <span>Cambiar</span>
                   </button>
                 </div>
 
-                {/* Quantity Controls & Submit */}
+                {/* Quantity Controls & Submit (Mobile Friendly Touch Targets) */}
                 <div className="flex items-center justify-between gap-3 pt-1">
-                  {/* Stepper */}
-                  <div className="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                  {/* Stepper (48px height on mobile) */}
+                  <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-2xl sm:rounded-xl border border-zinc-800 shadow-inner">
                     <button
                       type="button"
                       disabled={quantity <= 1}
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-colors cursor-pointer"
+                      className="w-12 h-12 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-transform active:scale-95 cursor-pointer"
+                      title="Disminuir cantidad"
                     >
-                      <Minus className="w-3.5 h-3.5" />
+                      <Minus className="w-5 h-5 sm:w-3.5 sm:h-3.5" />
                     </button>
-                    <span className="w-8 text-center text-sm font-bold font-mono text-zinc-100">
+                    <span className="w-9 sm:w-8 text-center text-base sm:text-sm font-black font-mono text-zinc-100">
                       {quantity}
                     </span>
                     <button
                       type="button"
                       disabled={quantity >= maxQuantity}
                       onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
-                      className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-colors cursor-pointer"
+                      className="w-12 h-12 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-transform active:scale-95 cursor-pointer"
+                      title="Aumentar cantidad"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-5 h-5 sm:w-3.5 sm:h-3.5" />
                     </button>
                   </div>
 
-                  {/* Action Register Button */}
+                  {/* Action Register Button (48px height on mobile) */}
                   <button
                     type="button"
                     onClick={handleRegister}
-                    className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-red-950 flex items-center justify-center gap-2 cursor-pointer"
+                    className="flex-1 h-12 sm:h-auto py-3 sm:py-2.5 px-5 sm:px-4 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-sm sm:text-xs rounded-2xl sm:rounded-xl transition-all shadow-lg shadow-red-950/60 flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Check className="w-4 h-4" />
+                    <Check className="w-5 h-5 sm:w-4 sm:h-4" />
                     <span>Registrar Carta ({quantity}x)</span>
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-mono">
-                  <div className={`w-2 h-2 rounded-full ${scannerStage === 'idle' ? 'bg-red-500' : 'bg-emerald-500'} animate-pulse`} />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2 text-xs text-zinc-300 font-mono">
+                  <div className={`w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full ${scannerStage === 'idle' ? 'bg-red-500' : 'bg-emerald-500'} animate-pulse`} />
                   <span className="truncate">
                     {scannerStage === 'reading_ocr'
                       ? 'Procesando lectura...'
                       : scannerStage === 'object_detected'
                       ? 'Carta en visor'
-                      : 'Escáner en espera'}
+                      : 'Escáner en espera de código'}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
                   {/* Manual Code Input Button */}
                   <button
                     type="button"
                     onClick={handleOpenManualEdit}
-                    className="px-2.5 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer border border-zinc-700/60"
+                    className="flex-1 sm:flex-initial h-12 sm:h-auto px-4 py-2.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer border border-zinc-700/60 shadow-sm"
                     title="Ingresar o editar código manualmente"
                   >
-                    <Pencil className="w-3 h-3 text-zinc-400" />
+                    <Pencil className="w-4 h-4 sm:w-3 sm:h-3 text-zinc-400" />
                     <span>Código manual</span>
                   </button>
 
@@ -890,9 +892,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     type="button"
                     onClick={performScan}
                     disabled={isScanningRef.current || loadingCard}
-                    className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-98 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+                    className="flex-1 sm:flex-initial h-12 sm:h-auto px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-red-950/50 disabled:opacity-50 cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-red-200" />
+                    <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-red-200" />
                     <span>Escanear</span>
                   </button>
                 </div>
@@ -900,18 +902,28 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             )}
           </div>
 
-          {/* Quick Manual Code Edit Modal Overlay */}
+          {/* Quick Manual Code Edit Modal (Non-blocking Bottom Sheet on Mobile) */}
           <AnimatePresence>
             {isManualEditOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/25 sm:bg-black/80 backdrop-blur-none sm:backdrop-blur-xs">
+                {/* Backdrop dismiss */}
+                <div
+                  onClick={() => setIsManualEditOpen(false)}
+                  className="absolute inset-0 cursor-pointer"
+                />
+
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                  className="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-3xl p-5 shadow-2xl space-y-4"
+                  initial={{ opacity: 0, y: 50, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 50, scale: 0.98 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative z-10 w-full max-w-lg sm:max-w-sm bg-zinc-900 border-t sm:border border-zinc-700 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 max-h-[70vh] sm:max-h-none overflow-y-auto"
                 >
+                  {/* Mobile drag handle */}
+                  <div className="w-12 h-1 bg-zinc-700 rounded-full mx-auto -mt-2 mb-2 sm:hidden" />
+
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <div className="p-2 rounded-xl bg-red-950/60 border border-red-500/30 text-red-400">
                         <Pencil className="w-4 h-4" />
                       </div>
@@ -927,10 +939,16 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsManualEditOpen(false)}
-                      className="p-1.5 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                      className="p-2 sm:p-1.5 text-zinc-400 hover:text-white rounded-xl transition-colors cursor-pointer"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-5 h-5 sm:w-4 sm:h-4" />
                     </button>
+                  </div>
+
+                  {/* Live camera assistance banner for mobile */}
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-300 text-xs font-medium sm:hidden">
+                    <span className="text-base leading-none">👁️</span>
+                    <span>La cámara sigue visible arriba para que leas el código en pantalla sin mover la carta</span>
                   </div>
 
                   <form onSubmit={handleManualCodeSubmit} className="space-y-4">
@@ -947,7 +965,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                         value={manualCodeInput}
                         onChange={(e) => setManualCodeInput(e.target.value.replace(/\D/g, '').slice(0, 8))}
                         placeholder="Ej. 29616929"
-                        className="w-full text-center font-mono font-black text-2xl tracking-widest py-3 px-4 bg-zinc-950 border-2 border-red-500/60 focus:border-red-500 rounded-2xl text-zinc-100 placeholder:text-zinc-700 focus:outline-none shadow-inner"
+                        className="w-full text-center font-mono font-black text-2xl tracking-widest py-3.5 sm:py-3 px-4 bg-zinc-950 border-2 border-red-500/60 focus:border-red-500 rounded-2xl text-zinc-100 placeholder:text-zinc-700 focus:outline-none shadow-inner"
                       />
                       <p className="text-[10px] text-zinc-500 text-center font-mono">
                         {manualCodeInput.length}/8 dígitos ingresados
@@ -958,14 +976,14 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsManualEditOpen(false)}
-                        className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold transition-colors cursor-pointer font-mono"
+                        className="flex-1 h-12 sm:h-auto py-3 sm:py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 active:scale-95 text-xs font-bold transition-colors cursor-pointer font-mono"
                       >
                         Cancelar
                       </button>
                       <button
                         type="submit"
                         disabled={manualCodeInput.trim().length < 8 || loadingCard}
-                        className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md shadow-red-950 flex items-center justify-center gap-1.5 cursor-pointer font-mono"
+                        className="flex-1 h-12 sm:h-auto py-3 sm:py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md shadow-red-950 flex items-center justify-center gap-1.5 cursor-pointer font-mono active:scale-95"
                       >
                         {loadingCard ? (
                           <Loader2 className="w-4 h-4 animate-spin text-white" />

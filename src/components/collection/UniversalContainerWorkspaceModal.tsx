@@ -238,6 +238,11 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
             onClearSelection={state.clearCardSelection}
             onToggleSelectGroup={state.toggleSelectGroup}
             onToggleSelectCard={state.toggleSelectCard}
+            duplicateMap={state.crossContainerDuplicatesMap}
+            onOpenConsolidate={(cardId) => {
+              const card = state.cards.find(c => c.card_id === cardId);
+              if (card) state.handleOpenSplitModal(card);
+            }}
           />
 
           {/* DIVIDER REDIMENSIONABLE DERECHO */}
