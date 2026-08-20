@@ -154,31 +154,32 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
 
       {/* Mobile Tab switcher */}
       {isMobile && (
-        <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-2">
+        <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-3 shadow-xs">
           <button
             type="button"
             onClick={() => setActiveRightTab?.('detail')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 touch-manipulation min-h-11 ${
               currentTab === 'detail'
                 ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                : 'text-zinc-500'
+                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Info className="w-3.5 h-3.5 text-red-500" />
+            <Info className="w-4 h-4 text-red-500" />
             <span>Detalle de Carta</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveRightTab?.('meta')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 touch-manipulation min-h-11 ${
               currentTab === 'meta'
-                ? 'bg-red-600 text-white shadow-xs'
-                : 'text-zinc-500'
+                ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
+                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <TrendingUp className="w-3.5 h-3.5" />
+            <TrendingUp className="w-4 h-4" />
             <span>Análisis Meta</span>
+            {isAnalyzing && <Loader2 className="w-3.5 h-3.5 animate-spin ml-1" />}
           </button>
         </div>
       )}

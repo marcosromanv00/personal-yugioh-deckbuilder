@@ -75,11 +75,11 @@ export const PremiumDropdown = <T extends string | number>({
 
   const selectedOption = options.find((opt) => opt.value === value);
 
-  let paddingClasses = 'px-2.5 py-1.5 text-xs';
+  let paddingClasses = 'px-3 py-2.5 sm:py-1.5 text-xs min-h-11 sm:min-h-8';
   if (size === 'xs') {
-    paddingClasses = 'px-2 py-1 text-[11px]';
+    paddingClasses = 'px-2.5 py-2 sm:py-1 text-[11px] min-h-10 sm:min-h-7';
   } else if (size === 'md') {
-    paddingClasses = 'px-3.5 py-2 text-xs';
+    paddingClasses = 'px-3.5 py-3 sm:py-2 text-xs min-h-12 sm:min-h-9';
   }
 
   const alignClass =
@@ -96,7 +96,7 @@ export const PremiumDropdown = <T extends string | number>({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-1.5 rounded-xl border transition-all font-bold select-none shadow-2xs ${paddingClasses} ${
+        className={`w-full flex items-center justify-between gap-1.5 rounded-xl border transition-all font-bold select-none shadow-2xs touch-manipulation ${paddingClasses} ${
           disabled
             ? 'opacity-50 cursor-not-allowed bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600'
             : isOpen
@@ -107,7 +107,7 @@ export const PremiumDropdown = <T extends string | number>({
         <div className="flex items-center gap-1.5 min-w-0 truncate">
           {icon && <span className="shrink-0 text-zinc-500 dark:text-zinc-400">{icon}</span>}
           {label && <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase">{label}:</span>}
-          <span className="truncate text-[11.5px] font-bold">
+          <span className="truncate text-xs sm:text-[11.5px] font-bold">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           {selectedOption?.badge !== undefined && (
@@ -146,7 +146,7 @@ export const PremiumDropdown = <T extends string | number>({
                     onChange(option.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-left text-xs font-bold transition-all cursor-pointer group select-none ${
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 sm:py-1.5 rounded-xl text-left text-xs font-bold transition-all cursor-pointer group select-none touch-manipulation ${
                     isSelected
                       ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/80'
                       : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100'

@@ -46,26 +46,26 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 260, mass: 0.8 }}
-            className={`absolute bottom-0 left-0 right-0 ${heightClass} bg-[hsl(224,22%,10%)] border-t border-[hsl(224,15%,18%)] rounded-t-3xl flex flex-col overflow-hidden shadow-2xl`}
+            className={`absolute bottom-0 left-0 right-0 ${heightClass} bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 rounded-t-3xl flex flex-col overflow-hidden shadow-2xl text-zinc-900 dark:text-zinc-100`}
             style={{ paddingBottom: 'var(--sab)' }}
           >
             {/* Drag handle */}
-            <div className="pt-3 px-4 shrink-0">
-              <div className="sheet-handle" />
+            <div className="pt-3 px-4 shrink-0 flex justify-center">
+              <div className="w-12 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
             </div>
 
             {/* Header */}
             {title && (
-              <div className="flex items-center justify-between px-5 pb-3 shrink-0 border-b border-[hsl(224,15%,16%)]">
-                <h2 className="font-bold text-sm uppercase tracking-wider text-slate-200">
+              <div className="flex items-center justify-between px-5 pb-3 pt-1 shrink-0 border-b border-zinc-200 dark:border-zinc-800">
+                <h2 className="font-black text-sm uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                   {title}
                 </h2>
                 <button
                   onClick={onClose}
-                  className="w-7 h-7 rounded-full bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,18%)] flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
                   aria-label="Cerrar"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             )}

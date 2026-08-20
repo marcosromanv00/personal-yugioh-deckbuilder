@@ -51,7 +51,7 @@ export const CardPreviewModal: React.FC<CardPreviewModalProps> = ({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 15 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="relative w-full md:max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row z-10 max-h-screen md:max-h-[90vh] text-zinc-900 dark:text-zinc-100"
+            className="relative w-full md:max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none sm:rounded-3xl shadow-2xl overflow-y-auto md:overflow-hidden flex flex-col md:flex-row z-10 max-h-[92dvh] md:max-h-[90vh] text-zinc-900 dark:text-zinc-100"
           >
             {/* Close Button */}
             <button 
@@ -63,8 +63,8 @@ export const CardPreviewModal: React.FC<CardPreviewModalProps> = ({
             </button>
 
             {/* Left Column: Image & Banlist status */}
-            <div className="md:w-5/12 bg-zinc-50 dark:bg-zinc-950 p-6 flex flex-col items-center justify-between border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800">
-              <div className="w-full flex-1 flex items-center justify-center min-h-70">
+            <div className="md:w-5/12 bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-6 flex flex-col items-center justify-between border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 shrink-0">
+              <div className="w-full flex-1 flex items-center justify-center min-h-48 sm:min-h-70">
                 {isLoadingPreview ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
@@ -74,7 +74,7 @@ export const CardPreviewModal: React.FC<CardPreviewModalProps> = ({
                   <img 
                     src={previewCard?.image_url || hoveredCard?.image_url || 'https://images.ygoprodeck.com/images/cards/back.jpg'} 
                     alt={previewCard?.name || hoveredCard?.name || 'Carta'} 
-                    className="max-h-80 object-contain rounded-xl shadow-lg hover:scale-[1.02] transition-transform duration-300"
+                    className="max-h-56 sm:max-h-80 object-contain rounded-xl shadow-lg hover:scale-[1.02] transition-transform duration-300"
                     onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                   />
                 )}
@@ -247,39 +247,42 @@ export const CardPreviewModal: React.FC<CardPreviewModalProps> = ({
                   )}
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-auto">
+                  <div className="flex flex-wrap gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-3 mt-auto">
                     <button
+                      type="button"
                       onClick={() => handleAddProxy(previewCard.id)}
                       disabled={isActionLoading}
-                      className="flex-1 cursor-pointer bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-red-600/25"
+                      className="flex-1 cursor-pointer bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider py-2.5 px-3.5 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-red-600/25 touch-manipulation min-h-11 sm:min-h-9"
                     >
                       {isActionLoading ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Printer className="w-3.5 h-3.5" />
+                        <Printer className="w-4 h-4" />
                       )}
                       <span>+ Proxy</span>
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => handleToggleFavorite(previewCard.id)}
-                      className={`cursor-pointer px-3 py-2 rounded-xl border flex items-center justify-center gap-1 transition-all text-xs font-black uppercase tracking-wider ${
+                      className={`cursor-pointer px-4 py-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition-all text-xs font-black uppercase tracking-wider touch-manipulation min-h-11 sm:min-h-9 ${
                         favoriteCardIds.includes(previewCard.id)
                           ? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400'
                           : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200'
                       }`}
                     >
-                      <Heart className={`w-3.5 h-3.5 ${favoriteCardIds.includes(previewCard.id) ? 'fill-red-500 text-red-500' : 'text-zinc-400'}`} />
+                      <Heart className={`w-4 h-4 ${favoriteCardIds.includes(previewCard.id) ? 'fill-red-500 text-red-500' : 'text-zinc-400'}`} />
                       <span>{favoriteCardIds.includes(previewCard.id) ? 'Favorita' : 'Favorito'}</span>
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => handleRemoveFromCollection(previewCard.id)}
                       disabled={isActionLoading || (userInventoryCounts[previewCard.id] || 0) === 0}
-                      className="cursor-pointer bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-black uppercase tracking-wider py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                      className="cursor-pointer bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 text-xs font-black uppercase tracking-wider py-2.5 px-3.5 rounded-xl flex items-center justify-center gap-1.5 transition-all touch-manipulation min-h-11 sm:min-h-9"
                       title="Eliminar esta carta de la colección completa"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                       <span>Quitar</span>
                     </button>
                   </div>

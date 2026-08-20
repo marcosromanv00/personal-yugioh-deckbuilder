@@ -87,3 +87,28 @@ Queda estrictamente prohibida la introducción de tonos púrpuras, lavanda, mora
   - **Sintetizador**: Construcción desde cero, optimización por colección física, sintonización con meta oficial y optimizador de presupuesto.
   - **Juez de Duelo en Vivo**: Chat contextualizado para manos iniciales y resolución de cadenas.
 - **Modelos Oficiales**: `gemini-3.1-flash-lite-preview` (predeterminado), `gemini-3-flash`, `gemini-2.5-flash`.
+
+---
+
+## 6. Estándares y Patrones de Diseño Móvil (Mobile-First Ergonomics & UI/UX)
+
+Para garantizar una experiencia móvil fluida con tasas de satisfacción > 95%:
+
+1. **Ergonomía Táctil y Targets Mínimos (≥ 44px)**:
+   - Todo elemento interactivo accesible con pulgar (botones de acción, triggers de dropdowns, selectores de pestañas) debe contar con una altura mínima de `min-h-11` (44px) en móvil (`min-h-11 sm:min-h-9`) y clase `touch-manipulation`.
+   - Controles numéricos y botones de edición rápida deben ser generosos (`w-10 h-10` en móvil) para evitar pulsaciones erróneas.
+
+2. **Mitigación de Ghost Clicks en Dispositivos Táctiles**:
+   - En componentes con interacción dual (click y toque como `TouchableCard`), registrar y consumir el flag `isTouchRef` en `onTouchEnd` para evitar la doble invocación por el evento sintético `onClick` disparado subsecuentemente por WebKit/Blink.
+
+3. **Cuadrículas Responsivas de Cartas**:
+   - **DeckBuilder**: `grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10` (evita cartas invisibles de 48px).
+   - **Buscador**: `grid-cols-3 sm:grid-cols-4` en modo grid para legibilidad de nombres e insignias.
+
+4. **Navegación Móvil y Hojas Inferiores (*Bottom Sheets*)**:
+   - Barra de navegación inferior fija (`MobileNav`) con acentos Exordio (`red-600`) e indicador activo.
+   - Opciones agrupadas por categoría funcional en el "Centro de Operaciones" (`MobileBottomSheet`): *Gestión de Baraja*, *Análisis & Táctica* y *Colección Física*.
+   - Barras de pestañas horizontales deslizantes con `overflow-x-auto scrollbar-none` en Colección.
+
+5. **Modales con Viewport Seguro**:
+   - Modales en móvil deben usar `max-h-[92dvh] overflow-y-auto` con padding adaptado para respetar barras de estado y teclados virtuales.

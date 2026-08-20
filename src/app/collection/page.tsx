@@ -230,8 +230,46 @@ export default function CollectionPage() {
         />
 
         {/* CONTENIDO PRINCIPAL DE LA VISTA SELECCIONADA */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 pb-24 lg:pb-8">
           
+          {/* BARRA DE NAVEGACIÓN RÁPIDA PARA MÓVIL (< lg) */}
+          <div className="lg:hidden mb-4 overflow-x-auto scrollbar-none flex items-center gap-1.5 p-1 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+            {[
+              { id: 'containers' as const, label: 'Contenedores', icon: '📦', count: state.locations.length },
+              { id: 'complete' as const, label: 'Colección', icon: '🃏', count: totalCardsInCollection },
+              { id: 'decks' as const, label: 'Decks', icon: '📋', count: state.decks.length },
+              { id: 'sleeves' as const, label: 'Fundas', icon: '🛡️', count: state.sleeves.length },
+              { id: 'suggestions' as const, label: 'Sugerencias', icon: '✨', count: suggestionsCount },
+            ].map((tabItem) => {
+              const isActive = state.activeTab === tabItem.id;
+              return (
+                <button
+                  key={tabItem.id}
+                  onClick={() => state.setActiveTab(tabItem.id)}
+                  className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all cursor-pointer touch-manipulation min-h-11 ${
+                    isActive
+                      ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span>{tabItem.icon}</span>
+                  <span>{tabItem.label}</span>
+                  {tabItem.count > 0 && (
+                    <span
+                      className={`text-[10px] font-mono px-1.5 py-px rounded-full font-bold ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                      }`}
+                    >
+                      {tabItem.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
             {/* AREA PRINCIPAL */}

@@ -78,7 +78,7 @@ export const SleevingAdvisorModal: React.FC<SleevingAdvisorModalProps> = ({ isOp
             ) : report && report.recommendations.length > 0 ? (
               <>
                 {/* Resumen de Métricas */}
-                <div className="grid grid-cols-3 gap-3 font-mono text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 font-mono text-xs">
                   <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300">
                     <p className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400">Requieren Doble Funda</p>
                     <p className="text-xl font-black mt-0.5">{report.summary.doubleSleeveNeededCount}</p>

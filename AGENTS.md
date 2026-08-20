@@ -94,3 +94,9 @@ Para mantener el proyecto pulido para su venta, queda terminantemente prohibido 
    - **Dropdowns & Popovers Robustos (Sin Overflow Clipping)**:
      - Nunca encapsules menús desplegables flotantes dentro de contenedores con `overflow-hidden` o `overflow-x-auto` sin asegurar que el menú tenga visibilidad total (usar `overflow-visible` en filas de filtros o portales flotantes).
      - Prohibido el uso de `<select>` HTML vanilla sin estilizar en modales y paneles clave; utiliza siempre el componente unificado `PremiumDropdown`.
+
+5. **Ergonomía Táctil y Compatibilidad Móvil Invariante**:
+   - **Touch Targets ≥ 44px**: Todo botón interactivo, trigger de menú y selector en móvil debe tener una altura táctil mínima de `min-h-11` (44px) y clase `touch-manipulation`.
+   - **Prevención de Ghost Clicks**: Nunca dispares acciones críticas simultáneamente en `onTouchEnd` y `onClick` sin usar un flag de interacción (`isTouchRef`) que consuma el toque y prevenga dobles ejecuciones.
+   - **Grids Adaptativos**: En el constructor, la cuadrícula de cartas debe ser `grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10` para garantizar visibilidad de nombres y números.
+   - **Invariante Desktop**: Queda terminantemente prohibido alterar el layout de 3 columnas de escritorio (`lg:`, `xl:`) al realizar adaptaciones móviles.

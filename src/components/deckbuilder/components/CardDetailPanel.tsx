@@ -246,73 +246,73 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
               <label className="text-[10px] font-black uppercase text-zinc-500 font-mono block mb-1">
                 Copias en Deck
               </label>
-              <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 rounded-lg border border-zinc-300 dark:border-zinc-800 p-0.5">
+              <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-300 dark:border-zinc-800 p-1 min-h-11 sm:min-h-9">
                 <button
                   type="button"
                   onClick={() => onUpdateDeckCard(deckCard.id, { count: Math.max(1, currentCount - 1) })}
-                  className="w-7 h-6 rounded flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-black cursor-pointer"
+                  className="w-10 h-9 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-black cursor-pointer touch-manipulation"
                 >
-                  <Minus className="w-3 h-3" />
+                  <Minus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </button>
-                <span className="flex-1 text-center font-mono font-black text-xs">
+                <span className="flex-1 text-center font-mono font-black text-sm sm:text-xs">
                   {currentCount}
                 </span>
                 <button
                   type="button"
                   onClick={() => onUpdateDeckCard(deckCard.id, { count: Math.min(3, currentCount + 1) })}
-                  className="w-7 h-6 rounded flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-black cursor-pointer"
+                  className="w-10 h-9 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-black cursor-pointer touch-manipulation"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
             </div>
           </div>
 
           {/* CONTROL DE PROXIES / PLACEHOLDERS */}
-          <div className="p-2.5 rounded-xl bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="p-3 rounded-2xl bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40">
+            <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-4 h-4" />
                 <span>¿Copias Proxy / Impresas?</span>
               </span>
-              <span className="text-[9px] font-mono font-bold text-red-500">
+              <span className="text-[10px] font-mono font-bold text-red-500">
                 {currentProxyCount} de {currentCount}
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
                   const newProxies = currentProxyCount > 0 ? 0 : currentCount;
                   onUpdateDeckCard(deckCard.id, { proxy_count: newProxies });
                 }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-2.5 sm:py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 touch-manipulation min-h-11 sm:min-h-8 ${
                   currentProxyCount > 0
                     ? 'bg-red-600 text-white shadow-xs'
                     : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800'
                 }`}
               >
-                {currentProxyCount > 0 ? <Check className="w-3 h-3" /> : null}
+                {currentProxyCount > 0 ? <Check className="w-3.5 h-3.5" /> : null}
                 <span>{currentProxyCount > 0 ? 'Es Proxy' : 'No es Proxy'}</span>
               </button>
 
               {currentProxyCount > 0 && currentCount > 1 && (
-                <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 px-2 py-0.5 rounded-lg border border-red-300 dark:border-red-900/50">
+                <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 px-3 py-1 rounded-xl border border-red-300 dark:border-red-900/50 min-h-11 sm:min-h-8">
                   <button
                     type="button"
                     onClick={() => onUpdateDeckCard(deckCard.id, { proxy_count: Math.max(0, currentProxyCount - 1) })}
-                    className="text-xs font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    className="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 touch-manipulation"
                   >
                     -
                   </button>
-                  <span className="font-mono text-xs font-black text-red-600 dark:text-red-400 px-1">
+                  <span className="font-mono text-xs font-black text-red-600 dark:text-red-400 px-1.5">
                     {currentProxyCount}x
                   </span>
                   <button
                     type="button"
                     onClick={() => onUpdateDeckCard(deckCard.id, { proxy_count: Math.min(currentCount, currentProxyCount + 1) })}
-                    className="text-xs font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    className="w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 touch-manipulation"
                   >
                     +
                   </button>

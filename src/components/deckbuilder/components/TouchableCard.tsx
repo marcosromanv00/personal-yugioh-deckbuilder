@@ -43,11 +43,28 @@ export const TouchableCard: React.FC<TouchableCardProps> = ({
   showInfoButton = false,
   style,
 }) => {
+  const isTouchRef = React.useRef(false);
+
   const longPress = useLongPress({
-    delay: 600,
-    onLongPress: () => onOpenPreview(card),
-    onTap,
+    delay: 500,
+    onLongPress: () => {
+      isTouchRef.current = true;
+      onOpenPreview(card);
+    },
+    onTap: () => {
+      isTouchRef.current = true;
+      onTap();
+    },
   });
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Si la interacción fue manejada por touch, ignorar el evento de clic sintético para evitar doble ejecución
+    if (isTouchRef.current) {
+      isTouchRef.current = false;
+      return;
+    }
+    onTap();
+  };
 
   return (
     <div
@@ -56,7 +73,7 @@ export const TouchableCard: React.FC<TouchableCardProps> = ({
       /* ── Desktop interactions ── */
       onMouseEnter={onMouseEnter ? () => onMouseEnter(card) : undefined}
       onMouseLeave={onMouseLeave}
-      onClick={onTap}
+      onClick={handleClick}
       onContextMenu={(e) => {
         e.preventDefault();
         onOpenPreview(card);
@@ -72,10 +89,11 @@ export const TouchableCard: React.FC<TouchableCardProps> = ({
     >
       {children}
 
-      {/* Info button — always visible on touch devices, hidden on desktop */}
+      {/* Info button — siempre visible y con target táctil óptimo en móviles, oculto en desktop */}
       {showInfoButton && (
         <button
-          className="md:hidden absolute bottom-1 right-1 z-20 w-5 h-5 bg-black/70 border border-zinc-600 rounded-full flex items-center justify-center text-[9px] text-slate-300 hover:text-white transition-colors touch-manipulation"
+          type="button"
+          className="md:hidden absolute bottom-1 right-1 z-20 w-6.5 h-6.5 bg-black/85 border border-zinc-500/80 rounded-full flex items-center justify-center text-xs text-white shadow-md active:scale-95 transition-transform touch-manipulation cursor-pointer font-bold"
           onTouchEnd={(e) => {
             e.stopPropagation();
             onOpenPreview(card);

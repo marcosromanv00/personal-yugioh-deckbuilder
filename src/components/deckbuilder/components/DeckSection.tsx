@@ -2,6 +2,15 @@ import React from 'react';
 import { DeckCard, HoverCardBase } from '../types';
 import { TouchableCard } from './TouchableCard';
 
+interface DragCardPayload {
+  id: number;
+  name: string;
+  type: string;
+  image_url: string;
+  archetype?: string;
+  fromSection?: 'main' | 'extra' | 'side' | 'extras';
+}
+
 interface DeckSectionProps {
   title: string;
   section: 'main' | 'extra' | 'side' | 'extras';
@@ -10,7 +19,7 @@ interface DeckSectionProps {
   maxSize?: number;
   format: 'Master Duel' | 'TCG' | 'Duel Links';
   removeCardFromDeck: (cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => void;
-  handleDragCardStart: (e: React.DragEvent, cardData: any) => void;
+  handleDragCardStart: (e: React.DragEvent, cardData: DragCardPayload) => void;
   handleDropCardOnSection: (e: React.DragEvent, targetSection: 'main' | 'extra' | 'side' | 'extras') => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
@@ -145,7 +154,7 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
           Sección vacía • Arrastra cartas o toca en el buscador para añadir
         </div>
       ) : (
-        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-2.5">
           {sectionCards.map(c => {
             const isSelected = selectedCardId === c.id;
             return (

@@ -10,6 +10,12 @@ import {
   Sun,
   Moon,
   Bot,
+  Save,
+  Upload,
+  Download,
+  BarChart3,
+  BrainCircuit,
+  Box,
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -600,8 +606,8 @@ export default function DeckBuilder() {
             </div>
           </div>
 
-          {/* ZONA CENTRAL: Navegación de 4 Modos (Segmented Tabs) */}
-          <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800 shrink-0">
+          {/* ZONA CENTRAL: Navegación de 4 Modos (Segmented Tabs en Desktop) */}
+          <div className="hidden lg:flex items-center bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800 shrink-0">
             <button
               onClick={() => state.setActiveView('builder')}
               className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -1076,45 +1082,167 @@ export default function DeckBuilder() {
             <MobileBottomSheet
               isOpen={mobileMoreOpen}
               onClose={() => setMobileMoreOpen(false)}
-              title="⚙️ Opciones"
-              heightClass="h-[60vh]"
+              title="⚙️ Centro de Operaciones"
+              heightClass="h-[78vh]"
             >
-              <div className="p-5 flex flex-col gap-4">
-                {/* Sync button */}
-                <button
-                  onClick={() => { state.triggerSync(); setMobileMoreOpen(false); }}
-                  disabled={state.isSyncing}
-                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-[hsl(180,80%,45%)]/40 rounded-xl text-sm font-semibold text-[hsl(215,15%,80%)] transition-all cursor-pointer disabled:opacity-50 touch-manipulation"
-                >
-                  <RefreshCw className={`w-4 h-4 text-[hsl(180,80%,45%)] ${state.isSyncing ? 'animate-spin' : ''}`} />
-                  {state.isSyncing ? 'Sincronizando...' : 'Sincronizar Meta'}
-                </button>
+              <div className="p-4 flex flex-col gap-5 text-zinc-900 dark:text-zinc-100">
+                {/* 1. GESTIÓN DE BARAJA */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 font-mono block">
+                    📁 Gestión de Baraja
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        state.handleOpenSaveModal();
+                      }}
+                      className="flex items-center gap-2 p-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer touch-manipulation min-h-12"
+                    >
+                      <Save className="w-4 h-4 shrink-0" />
+                      <span>Guardar Deck</span>
+                    </button>
 
-                {/* Load deck */}
-                <button
-                  onClick={() => { state.handleOpenLoadModal(); setMobileMoreOpen(false); }}
-                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] hover:border-purple-400 rounded-xl text-sm font-semibold text-[hsl(215,15%,80%)] transition-all cursor-pointer touch-manipulation"
-                >
-                  <FolderOpen className="w-4 h-4 text-purple-400" />
-                  Cargar Deck
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        state.handleOpenLoadModal();
+                      }}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12"
+                    >
+                      <FolderOpen className="w-4 h-4 shrink-0 text-red-500" />
+                      <span>Cargar Deck</span>
+                    </button>
 
-                {/* Clear deck */}
-                <button
-                  onClick={() => { state.handleClearDeck(); setMobileMoreOpen(false); }}
-                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-red-900/40 hover:border-red-500 rounded-xl text-sm font-semibold text-red-400 transition-all cursor-pointer touch-manipulation"
-                >
-                  <Trash2 className="w-4 h-4 text-red-400" />
-                  Limpiar Deck
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        setIsYdkUploadOpen(true);
+                      }}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12"
+                    >
+                      <Upload className="w-4 h-4 shrink-0 text-cyan-500" />
+                      <span>Subir .YDK</span>
+                    </button>
 
-                {/* Collection link */}
-                <Link
-                  href="/collection"
-                  className="flex items-center gap-3 w-full px-4 py-3.5 bg-[hsl(224,25%,6%)] border border-[hsl(224,15%,16%)] rounded-xl text-sm font-semibold text-[hsl(215,15%,80%)] transition-all touch-manipulation"
-                >
-                  <span>📦</span> Mi Colección
-                </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (state.deckCards.length > 0) {
+                          setMobileMoreOpen(false);
+                          state.exportYdkFile();
+                          toast.success('Archivo .YDK descargado');
+                        }
+                      }}
+                      disabled={state.deckCards.length === 0}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12 disabled:opacity-40"
+                    >
+                      <Download className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span>Bajar .YDK</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (state.deckCards.length > 0) {
+                        setMobileMoreOpen(false);
+                        setIsClearConfirmOpen(true);
+                      }
+                    }}
+                    disabled={state.deckCards.length === 0}
+                    className="w-full flex items-center justify-center gap-2 p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-11 disabled:opacity-40"
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    <span>Limpiar Todo el Deck</span>
+                  </button>
+                </div>
+
+                {/* 2. ANÁLISIS & TÁCTICA */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 font-mono block">
+                    📊 Análisis &amp; Táctica
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        state.setActiveView('exordio');
+                      }}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12"
+                    >
+                      <BarChart3 className="w-4 h-4 shrink-0 text-red-500" />
+                      <span>Análisis Exordio</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        state.setActiveView('breakdowns');
+                      }}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12"
+                    >
+                      <span className="text-sm">📈</span>
+                      <span>Meta MDM</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        setIsAICopilotOpen(true);
+                      }}
+                      className="flex items-center gap-2 p-3 bg-linear-to-r from-red-600/10 to-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12 font-display"
+                    >
+                      <Bot className="w-4 h-4 shrink-0" />
+                      <span>IA Copilot</span>
+                    </button>
+
+                    <Link
+                      href="/knowledge"
+                      onClick={() => setMobileMoreOpen(false)}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12"
+                    >
+                      <BrainCircuit className="w-4 h-4 shrink-0 text-cyan-500" />
+                      <span>Banco Reglas</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* 3. COLECCIÓN FÍSICA & SYNC */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 font-mono block">
+                    📦 Colección Física &amp; Datos
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link
+                      href="/collection"
+                      onClick={() => setMobileMoreOpen(false)}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12"
+                    >
+                      <Box className="w-4 h-4 shrink-0 text-amber-500" />
+                      <span>Mi Colección</span>
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        state.triggerSync();
+                      }}
+                      disabled={state.isSyncing}
+                      className="flex items-center gap-2 p-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500 text-zinc-800 dark:text-zinc-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-12 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 shrink-0 text-amber-500 ${state.isSyncing ? 'animate-spin' : ''}`} />
+                      <span>{state.isSyncing ? 'Sincronizando...' : 'Sync Meta'}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </MobileBottomSheet>
           </div>
