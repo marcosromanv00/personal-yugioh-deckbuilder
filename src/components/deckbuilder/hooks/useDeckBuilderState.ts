@@ -1182,7 +1182,29 @@ export function useDeckBuilderState() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const loadDeckId = params.get('loadDeckId');
-      if (loadDeckId) {
+      const loadDraft = params.get('loadDraft');
+
+      if (loadDraft) {
+        const rawDraft = localStorage.getItem('yg_deck_draft');
+        if (rawDraft) {
+          try {
+            const draft = JSON.parse(rawDraft);
+            if (Array.isArray(draft.deckCards) && draft.deckCards.length > 0) {
+              setDeckId(null);
+              setDeckCards(draft.deckCards);
+              if (draft.deckName) setDeckName(draft.deckName);
+              if (draft.format) setFormat(draft.format);
+              if (draft.deckDescription) setDeckDescription(draft.deckDescription);
+              setHistoryStack([]);
+              setRedoStack([]);
+            }
+          } catch (e) {
+            console.error('Error cargando borrador desde query param:', e);
+          }
+        }
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      } else if (loadDeckId) {
         fetch('/api/decks')
           .then(res => res.json())
           .then(json => {

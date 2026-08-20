@@ -26,6 +26,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     locations = [],
     onSelectLocation,
     decks = [],
+    allCollectionCards = [],
     onMutate,
   } = props;
 
@@ -40,6 +41,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     locations,
     onSelectLocation,
     decks,
+    allCollectionCards,
     onMutate,
   });
 
@@ -293,6 +295,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               state.setSelectedClusterForPickList({
                 id: sub.id,
                 name: `Sub-Arquetipo: ${sub.archetypeName}`,
+                archetypeName: sub.archetypeName,
                 category: 'archetype',
                 count: sub.count,
                 uniqueCount: sub.uniqueCount,
@@ -414,7 +417,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           selectedCards={state.selectedDispersedForPickList || undefined}
           title={state.pickListTitle}
           subtitle={state.pickListSubtitle}
-          allCollectionCards={state.allCollectionCards.length > 0 ? state.allCollectionCards : state.cards}
+          allCollectionCards={state.allCollectionCards.length > 0 ? state.allCollectionCards : (allCollectionCards.length > 0 ? allCollectionCards : state.cards)}
           locations={locations}
           defaultTargetLocationId={state.isInbox ? 'inbox' : location?.id}
           defaultTargetCompartmentIndex={state.activeCompartment === -1 ? 0 : state.activeCompartment}

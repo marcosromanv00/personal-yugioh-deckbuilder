@@ -410,6 +410,7 @@ export default function CollectionPage() {
         onMutate={state.fetchCollectionDataSilently}
         location={state.selectedLocation}
         locations={state.locations}
+        allCollectionCards={state.allCollectionCards}
         onSelectLocation={(loc) => {
           if (loc.id === 'inbox') {
             state.handleOpenInbox();

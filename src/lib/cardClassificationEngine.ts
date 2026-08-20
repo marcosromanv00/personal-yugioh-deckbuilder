@@ -173,6 +173,7 @@ export interface SubArchetypeItem {
 export interface LaneCluster {
   id: string;
   name: string;
+  archetypeName?: string;
   category: LaneClusterCategory;
   count: number;
   uniqueCount: number;
@@ -625,6 +626,7 @@ export function analyzeLanePatterns(
       clusters.push({
         id: `arch-${archName}`,
         name: `Arquetipo: ${archName}`,
+        archetypeName: archName,
         category: 'archetype',
         count: data.count,
         uniqueCount: data.uniqueIds.size,
@@ -881,6 +883,7 @@ export function analyzeGlobalCollectionPatterns(
       globalClusters.push({
         id: `global-arch-${archName}`,
         name: `Arquetipo: ${archName}`,
+        archetypeName: archName,
         category: 'archetype',
         count: val.count,
         uniqueCount: val.uniqueIds.size,

@@ -24,6 +24,7 @@ interface UseContainerWorkspaceStateProps {
   onSelectLocation?: (location: StorageLocation) => void;
   sleeves?: SleeveInventory[];
   decks?: Deck[];
+  allCollectionCards?: UserCard[];
   onMutate?: () => void;
 }
 
@@ -34,6 +35,7 @@ export const useContainerWorkspaceState = ({
   locations = [],
   onSelectLocation,
   decks = [],
+  allCollectionCards: initialAllCollectionCards = [],
   onMutate,
 }: UseContainerWorkspaceStateProps) => {
   const toast = useToast();
@@ -125,8 +127,14 @@ export const useContainerWorkspaceState = ({
   const [expandedClusterSubId, setExpandedClusterSubId] = useState<string | null>(null);
 
   // Contexto global de colección para precisión analítica
-  const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
+  const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>(initialAllCollectionCards || []);
   const [internalDecks, setInternalDecks] = useState<Deck[]>(decks || []);
+
+  useEffect(() => {
+    if (initialAllCollectionCards && initialAllCollectionCards.length > 0) {
+      setAllCollectionCards(initialAllCollectionCards);
+    }
+  }, [initialAllCollectionCards]);
 
   useEffect(() => {
     if (decks && decks.length > 0) {
@@ -1404,16 +1412,29 @@ export const useContainerWorkspaceState = ({
       let clusterMatch = true;
       if (activeClusterFilter) {
         let matched = false;
+        const cardMatchesCluster = (
+          userCardIds?: string[], 
+          cardIds?: number[], 
+          archetypeName?: string
+        ): boolean => {
+          if (c.id && userCardIds?.some(id => String(id) === String(c.id))) return true;
+          if (c.card_id != null && cardIds?.some(id => String(id) === String(c.card_id))) return true;
+          if (archetypeName && c.card_details?.archetype) {
+            return c.card_details.archetype.trim().toLowerCase() === archetypeName.trim().toLowerCase();
+          }
+          return false;
+        };
+
         if (lanePatternReport) {
           const cluster = lanePatternReport.clusters.find(cl => cl.id === activeClusterFilter);
           if (cluster) {
-            clusterMatch = cluster.userCardIds.includes(c.id);
+            clusterMatch = cardMatchesCluster(cluster.userCardIds, cluster.cardIds, cluster.archetypeName);
             matched = true;
           } else {
             for (const cl of lanePatternReport.clusters) {
               const sub = cl.subArchetypes?.find(s => s.id === activeClusterFilter);
               if (sub) {
-                clusterMatch = sub.userCardIds.includes(c.id);
+                clusterMatch = cardMatchesCluster(sub.userCardIds, sub.cardIds, sub.archetypeName);
                 matched = true;
                 break;
               }
@@ -1423,13 +1444,13 @@ export const useContainerWorkspaceState = ({
         if (!matched && globalCollectionReport) {
           const gCluster = globalCollectionReport.globalClusters.find(cl => cl.id === activeClusterFilter);
           if (gCluster) {
-            clusterMatch = gCluster.userCardIds.includes(c.id);
+            clusterMatch = cardMatchesCluster(gCluster.userCardIds, gCluster.cardIds, gCluster.archetypeName);
             matched = true;
           } else {
             for (const cl of globalCollectionReport.globalClusters) {
               const sub = cl.subArchetypes?.find(s => s.id === activeClusterFilter);
               if (sub) {
-                clusterMatch = sub.userCardIds.includes(c.id);
+                clusterMatch = cardMatchesCluster(sub.userCardIds, sub.cardIds, sub.archetypeName);
                 matched = true;
                 break;
               }

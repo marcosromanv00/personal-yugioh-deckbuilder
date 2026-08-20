@@ -119,10 +119,10 @@ export const ContainerGlobalAnalysisView: React.FC<ContainerGlobalAnalysisViewPr
                               e.stopPropagation();
                               onOpenPickListForSubArchetype(sub);
                             }}
-                            className="ml-0.5 p-0.5 hover:bg-red-500 hover:text-white rounded text-zinc-400"
-                            title="Ruta global de recolección para este sub-arquetipo"
+                            className="ml-0.5 p-1 hover:bg-red-600 hover:text-white rounded text-zinc-400 dark:text-zinc-400 transition-colors"
+                            title={`Ruta global de recolección para ${sub.archetypeName}`}
                           >
-                            <Boxes className="w-2.5 h-2.5" />
+                            <Boxes className="w-3 h-3" />
                           </button>
                         </div>
                       );

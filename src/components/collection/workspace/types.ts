@@ -10,6 +10,7 @@ export interface UniversalContainerWorkspaceModalProps {
   onSelectLocation?: (location: StorageLocation) => void;
   sleeves?: SleeveInventory[];
   decks?: Deck[];
+  allCollectionCards?: UserCard[];
   onDeckClick?: (deck: Deck) => void;
   onMutate?: () => void;
 }

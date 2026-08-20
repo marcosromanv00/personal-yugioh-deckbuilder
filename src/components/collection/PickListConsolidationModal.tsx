@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckCircle2, 
@@ -13,12 +14,15 @@ import {
   Sparkles,
   CheckSquare,
   Square,
-  Loader2
+  Loader2,
+  Wrench,
+  Swords
 } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
 import { LaneCluster } from '@/lib/cardClassificationEngine';
 import { getLanguageDisplay } from '@/lib/collectionUtils';
 import { useToast } from '@/components/ui/ToastProvider';
+import { DeckCard } from '@/components/deckbuilder/types';
 
 interface PickListConsolidationModalProps {
   isOpen: boolean;
@@ -57,6 +61,7 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
   defaultTargetCompartmentIndex = 0,
   onSuccess,
 }) => {
+  const router = useRouter();
   const toast = useToast();
   const [checkedCardIds, setCheckedCardIds] = useState<Set<string>>(new Set());
   const [targetLocationId, setTargetLocationId] = useState<string>(
@@ -65,19 +70,48 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
   const [targetCompartmentIndex, setTargetCompartmentIndex] = useState<number>(defaultTargetCompartmentIndex);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Determinar la lista de UserCards involucradas
+  // Determinar la lista de UserCards involucradas con resolución multi-nivel
   const targetUserCards = useMemo<UserCard[]>(() => {
     if (selectedCards && selectedCards.length > 0) return selectedCards;
-    if (cluster && cluster.userCardIds && cluster.userCardIds.length > 0) {
-      const idSet = new Set(cluster.userCardIds);
-      return allCollectionCards.filter(c => idSet.has(c.id));
+    if (!cluster) return [];
+
+    const pool = allCollectionCards && allCollectionCards.length > 0 ? allCollectionCards : [];
+    if (pool.length === 0) return [];
+
+    // Nivel 1: Coincidencia por userCardIds (como strings)
+    if (cluster.userCardIds && cluster.userCardIds.length > 0) {
+      const idSet = new Set(cluster.userCardIds.filter(Boolean).map(String));
+      const matchedById = pool.filter(c => c.id && idSet.has(String(c.id)));
+      if (matchedById.length > 0) return matchedById;
     }
-    if (cluster && cluster.cardIds && cluster.cardIds.length > 0) {
-      const cardIdSet = new Set(cluster.cardIds);
-      return allCollectionCards.filter(c => cardIdSet.has(c.card_id));
+
+    // Nivel 2: Coincidencia por cardIds (números o strings tolerantes)
+    if (cluster.cardIds && cluster.cardIds.length > 0) {
+      const cardIdSet = new Set(cluster.cardIds.filter(id => id != null).map(id => String(id)));
+      const matchedByCardId = pool.filter(c => c.card_id != null && cardIdSet.has(String(c.card_id)));
+      if (matchedByCardId.length > 0) return matchedByCardId;
     }
+
+    // Nivel 3: Coincidencia por nombre de arquetipo si aplica
+    const cleanArchetypeName = cluster.archetypeName || 
+      (cluster.id?.startsWith('subarch-') ? cluster.id.replace('subarch-', '') : null) ||
+      (cluster.id?.startsWith('global-subarch-') ? cluster.id.replace('global-subarch-', '') : null) ||
+      (cluster.id?.startsWith('arch-') ? cluster.id.replace('arch-', '') : null) ||
+      (cluster.id?.startsWith('global-arch-') ? cluster.id.replace('global-arch-', '') : null) ||
+      (cluster.name?.startsWith('Arquetipo: ') ? cluster.name.replace('Arquetipo: ', '') : null) ||
+      (cluster.name?.startsWith('Sub-Arquetipo: ') ? cluster.name.replace('Sub-Arquetipo: ', '') : null) ||
+      (title?.startsWith('Ruta: ') ? title.replace('Ruta: ', '') : null);
+
+    if (cleanArchetypeName) {
+      const targetArchLower = cleanArchetypeName.trim().toLowerCase();
+      const matchedByArch = pool.filter(c => 
+        c.card_details?.archetype?.trim().toLowerCase() === targetArchLower
+      );
+      if (matchedByArch.length > 0) return matchedByArch;
+    }
+
     return [];
-  }, [selectedCards, cluster, allCollectionCards]);
+  }, [selectedCards, cluster, allCollectionCards, title]);
 
   const locMap = useMemo(() => {
     const map = new Map<string, StorageLocation>();
@@ -209,6 +243,75 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
     }
   };
 
+  // Transferir cartas al taller de construcción como borrador
+  const handleSendToWorkshop = () => {
+    if (targetUserCards.length === 0) return;
+
+    const isExtraDeckType = (cardType?: string): boolean => {
+      if (!cardType) return false;
+      const t = cardType.toLowerCase();
+      return t.includes('fusion') || t.includes('link') || t.includes('synchro') || t.includes('xyz');
+    };
+
+    const deckCardsMap = new Map<number, DeckCard>();
+    for (const uc of targetUserCards) {
+      const cId = Number(uc.card_id);
+      const qty = uc.quantity || 1;
+      const details = uc.card_details;
+      const isExtra = isExtraDeckType(details?.type);
+
+      if (deckCardsMap.has(cId)) {
+        const existing = deckCardsMap.get(cId)!;
+        existing.count = Math.min(3, existing.count + qty);
+      } else {
+        deckCardsMap.set(cId, {
+          id: cId,
+          name: details?.name || `Carta #${cId}`,
+          count: Math.min(3, qty),
+          proxy_count: 0,
+          section: isExtra ? 'extra' : 'main',
+          type: details?.type || 'Monster',
+          image_url: details?.image_url || details?.image_url_small || `https://images.ygoprodeck.com/images/cards/${cId}.jpg`,
+          image_url_small: details?.image_url_small || details?.image_url,
+          archetype: details?.archetype,
+          ban_master_duel: details?.ban_master_duel,
+          ban_tcg: details?.ban_tcg,
+          ban_duel_links: details?.ban_duel_links,
+          atk: details?.atk,
+          def: details?.def,
+          level: details?.level,
+          race: details?.race,
+          attribute: details?.attribute,
+          desc: details?.desc,
+        });
+      }
+    }
+
+    const mappedDeckCards = Array.from(deckCardsMap.values());
+    const cleanDeckName = (title || cluster?.name || 'Mazo')
+      .replace(/^Ruta:\s*/i, '')
+      .replace(/^Sub-Arquetipo:\s*/i, '')
+      .replace(/^Arquetipo:\s*/i, '')
+      .replace(/^Ruta Global:\s*/i, '')
+      .trim();
+
+    const draft = {
+      deckName: cleanDeckName || 'Mazo Nuevo',
+      deckDescription: `Creado desde Análisis de Contenedores (${modalTitle})`,
+      format: 'Master Duel',
+      deckCards: mappedDeckCards,
+      timestamp: Date.now()
+    };
+
+    localStorage.setItem('yg_deck_draft', JSON.stringify(draft));
+    const totalCount = mappedDeckCards.reduce((s, c) => s + c.count, 0);
+    toast.success(`Se enviaron ${totalCount} cartas al Taller de Mazos.`, {
+      title: '¡Abriendo Taller!'
+    });
+    onClose();
+    router.push('/?loadDraft=1');
+  };
+
   if (!isOpen) return null;
 
   const modalTitle = title || cluster?.name || 'Ruta de Recolección y Unificación';
@@ -246,12 +349,24 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSendToWorkshop}
+                disabled={targetUserCards.length === 0}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700 text-xs font-mono font-bold transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                title="Abrir este conjunto de cartas en el taller de mazos"
+              >
+                <Wrench className="w-3.5 h-3.5 text-red-500" />
+                <span>Enviar al taller</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* PROGRESS BAR & CHECK ALL BAR */}
@@ -449,19 +564,29 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
             </div>
 
             {/* ACTION BUTTONS */}
-            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end flex-wrap">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="px-4 py-2 min-h-11 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer touch-manipulation"
               >
                 Cancelar
               </button>
               <button
                 type="button"
+                disabled={targetUserCards.length === 0}
+                onClick={handleSendToWorkshop}
+                className="px-4 py-2 min-h-11 rounded-xl bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-100 text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-2 border border-zinc-700 dark:border-zinc-600 disabled:opacity-50 touch-manipulation"
+                title="Cargar estas cartas en el constructor para armar y guardar un mazo"
+              >
+                <Wrench className="w-4 h-4 text-red-500" />
+                <span>Enviar al taller</span>
+              </button>
+              <button
+                type="button"
                 disabled={isSubmitting || targetUserCards.length === 0}
                 onClick={handleConfirmConsolidation}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 active:scale-98 text-white text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2 min-h-11 rounded-xl bg-red-600 hover:bg-red-500 active:scale-98 text-white text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-2 disabled:opacity-50 touch-manipulation"
               >
                 {isSubmitting ? (
                   <>
@@ -471,7 +596,7 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Confirmar Unificación ({totalPhysicalCardsCount} cartas)</span>
+                    <span>Confirmar Unificación ({totalPhysicalCardsCount})</span>
                   </>
                 )}
               </button>

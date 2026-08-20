@@ -214,19 +214,17 @@ export const ContainerLaneAnalysisView: React.FC<ContainerLaneAnalysisViewProps>
                             <span className={`px-1 py-0.2 rounded text-[8.5px] font-black ${isSubFiltered ? 'bg-purple-800 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
                               {sub.count}
                             </span>
-                            {expandedClusterSubId === cluster.id && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenPickListForSubArchetype(sub);
-                                }}
-                                className="ml-0.5 p-0.5 hover:bg-red-500 hover:text-white rounded text-zinc-400"
-                                title="Ruta de recolección para este sub-arquetipo"
-                              >
-                                <Boxes className="w-2.5 h-2.5" />
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPickListForSubArchetype(sub);
+                              }}
+                              className="ml-0.5 p-1 hover:bg-red-600 hover:text-white rounded text-zinc-400 dark:text-zinc-400 transition-colors"
+                              title={`Abrir ruta de recolección para ${sub.archetypeName}`}
+                            >
+                              <Boxes className="w-3 h-3" />
+                            </button>
                           </div>
                         );
                       })}

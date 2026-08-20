@@ -90,6 +90,9 @@ export interface UserCard {
     archetype?: string;
     image_url?: string;
     image_url_small?: string;
+    ban_master_duel?: string;
+    ban_tcg?: string;
+    ban_duel_links?: string;
   };
   deck_details?: {
     name: string;
