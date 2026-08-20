@@ -5,7 +5,7 @@ let workerPromise: Promise<Worker> | null = null;
 
 /**
  * Obtiene o inicializa el Worker singleton de Tesseract.js configurado con
- * parámetros óptimos: PSM.SINGLE_BLOCK (6), DPI 300 y whitelist numérica.
+ * parámetros óptimos: PSM.SINGLE_LINE (7), DPI 300 y whitelist numérica.
  */
 export async function getCardOcrWorker(): Promise<Worker> {
   if (!workerPromise) {
@@ -13,8 +13,8 @@ export async function getCardOcrWorker(): Promise<Worker> {
       const worker = await createWorker('eng');
       await worker.setParameters({
         tessedit_char_whitelist: '0123456789',
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK, // PSM 6 es inmune a saltos de línea y fragmentaciones
-        user_defined_dpi: '300', // Fuerza a Tesseract a escalar los glifos de 300 DPI sin descartar líneas
+        tessedit_pageseg_mode: PSM.SINGLE_LINE, // PSM 7: asume una sola línea uniforme de texto (código de 8 dígitos)
+        user_defined_dpi: '300',
       });
       return worker;
     })();
@@ -43,6 +43,43 @@ export interface ViewfinderCropRect {
   y: number;
   width: number;
   height: number;
+}
+
+/**
+ * Captura un snapshot visual del área del recorte del visor en formato Data URL
+ * para mostrar feedback visual en tiempo real en la interfaz.
+ */
+export function captureViewfinderSnapshotUrl(
+  video: HTMLVideoElement,
+  cropRect: ViewfinderCropRect
+): string | null {
+  if (!video.videoWidth || !video.videoHeight || cropRect.width <= 0 || cropRect.height <= 0) {
+    return null;
+  }
+
+  const sx = Math.max(0, Math.min(cropRect.x, video.videoWidth - 1));
+  const sy = Math.max(0, Math.min(cropRect.y, video.videoHeight - 1));
+  const sw = Math.min(cropRect.width, video.videoWidth - sx);
+  const sh = Math.min(cropRect.height, video.videoHeight - sy);
+
+  if (sw <= 4 || sh <= 4) return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.min(320, sw);
+  canvas.height = Math.max(20, Math.round((sh / sw) * canvas.width));
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+  try {
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -75,15 +112,15 @@ export function hasCardVisualFeatures(canvas: HTMLCanvasElement): boolean {
   const variance = sumSq / sampleCount - mean * mean;
   const stdDev = Math.sqrt(Math.max(0, variance));
 
-  return stdDev > 15;
+  return stdDev > 12;
 }
 
 /**
  * Extrae y preprocesa el recorte del visor aplicando:
- * 1. Escalado de alta resolución 4.0x (glifos de ~50px de altura para LSTM).
+ * 1. Normalización de resolución: Altura fija a 80px (glifos de ~36px para Tesseract LSTM).
  * 2. Conversión a escala de grises.
- * 3. Binarización inteligente mediante algoritmo de Otsu (tinta negra pura sobre fondo blanco puro).
- * 4. Margen perimetral blanco (Quiet Zone de 28px) requerido por la red neuronal de Tesseract.
+ * 3. Umbralización adaptativa local mediante Imagen Integral O(1) (inmune a fondos y sombras).
+ * 4. Margen perimetral blanco (Quiet Zone de 24px).
  */
 export function extractAndPreprocessViewfinder(
   video: HTMLVideoElement,
@@ -101,67 +138,50 @@ export function extractAndPreprocessViewfinder(
 
   if (sw <= 8 || sh <= 8) return null;
 
-  // Escalado óptimo 4.0x
-  const scale = 4.0;
-  const rawW = Math.round(sw * scale);
-  const rawH = Math.round(sh * scale);
+  // Normalizar la altura a 80px (rango óptimo de 32-40px de glifo para LSTM de Tesseract)
+  const targetH = 80;
+  const targetW = Math.max(160, Math.min(480, Math.round((sw / sh) * targetH)));
 
   const rawCanvas = document.createElement('canvas');
-  rawCanvas.width = rawW;
-  rawCanvas.height = rawH;
+  rawCanvas.width = targetW;
+  rawCanvas.height = targetH;
 
   const rawCtx = rawCanvas.getContext('2d', { willReadFrequently: true });
   if (!rawCtx) return null;
 
   rawCtx.imageSmoothingEnabled = true;
   rawCtx.imageSmoothingQuality = 'high';
-  rawCtx.drawImage(video, sx, sy, sw, sh, 0, 0, rawW, rawH);
+  rawCtx.drawImage(video, sx, sy, sw, sh, 0, 0, targetW, targetH);
 
-  const imgData = rawCtx.getImageData(0, 0, rawW, rawH);
+  const imgData = rawCtx.getImageData(0, 0, targetW, targetH);
   const src = imgData.data;
-  const total = rawW * rawH;
+  const total = targetW * targetH;
 
-  // 1. Escala de grises + histograma
+  // 1. Escala de grises
   const gray = new Uint8Array(total);
-  const hist = new Array(256).fill(0);
-
   for (let i = 0, p = 0; i < src.length; i += 4, p++) {
-    const lum = Math.round(0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]);
-    gray[p] = lum;
-    hist[lum]++;
+    gray[p] = Math.round(0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2]);
   }
 
-  // 2. Umbralización óptima de Otsu
-  let sum = 0;
-  for (let t = 0; t < 256; t++) sum += t * hist[t];
-
-  let sumB = 0;
-  let wB = 0;
-  let wF = 0;
-  let varMax = 0;
-  let threshold = 128;
-
-  for (let t = 0; t < 256; t++) {
-    wB += hist[t];
-    if (wB === 0) continue;
-    wF = total - wB;
-    if (wF === 0) break;
-
-    sumB += t * hist[t];
-    const mB = sumB / wB;
-    const mF = (sum - sumB) / wF;
-    const varBetween = wB * wF * (mB - mF) * (mB - mF);
-
-    if (varBetween > varMax) {
-      varMax = varBetween;
-      threshold = t;
+  // 2. Construcción de Imagen Integral (Summed Area Table) para umbralización adaptativa O(1)
+  const integral = new Int32Array((targetW + 1) * (targetH + 1));
+  for (let y = 0; y < targetH; y++) {
+    let rowSum = 0;
+    for (let x = 0; x < targetW; x++) {
+      rowSum += gray[y * targetW + x];
+      integral[(y + 1) * (targetW + 1) + (x + 1)] = integral[y * (targetW + 1) + (x + 1)] + rowSum;
     }
   }
 
-  // 3. Crear canvas final con Quiet-Zone (margen blanco de 28px)
-  const pad = 28;
-  const finalW = rawW + pad * 2;
-  const finalH = rawH + pad * 2;
+  // Radio de vecindad adaptativa (~14px horizontal, ~10px vertical)
+  const rx = 14;
+  const ry = 10;
+  const cOffset = 10; // Compensación de contraste
+
+  // 3. Crear canvas final con Quiet-Zone (margen blanco de 24px)
+  const pad = 24;
+  const finalW = targetW + pad * 2;
+  const finalH = targetH + pad * 2;
 
   const finalCanvas = document.createElement('canvas');
   finalCanvas.width = finalW;
@@ -170,19 +190,34 @@ export function extractAndPreprocessViewfinder(
   const finalCtx = finalCanvas.getContext('2d', { willReadFrequently: true });
   if (!finalCtx) return null;
 
-  // Fondo blanco sólido
+  // Fondo blanco puro
   finalCtx.fillStyle = '#ffffff';
   finalCtx.fillRect(0, 0, finalW, finalH);
 
   const finalImgData = finalCtx.getImageData(0, 0, finalW, finalH);
   const dst = finalImgData.data;
 
-  // Renderizar píxeles binarizados en el centro
-  for (let y = 0; y < rawH; y++) {
-    for (let x = 0; x < rawW; x++) {
-      const p = y * rawW + x;
-      const isDark = gray[p] < threshold;
-      const isInk = invert ? !isDark : isDark;
+  for (let y = 0; y < targetH; y++) {
+    const y1 = Math.max(0, y - ry);
+    const y2 = Math.min(targetH - 1, y + ry);
+
+    for (let x = 0; x < targetW; x++) {
+      const x1 = Math.max(0, x - rx);
+      const x2 = Math.min(targetW - 1, x + rx);
+
+      const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+      const sum =
+        integral[(y2 + 1) * (targetW + 1) + (x2 + 1)] -
+        integral[y1 * (targetW + 1) + (x2 + 1)] -
+        integral[(y2 + 1) * (targetW + 1) + x1] +
+        integral[y1 * (targetW + 1) + x1];
+
+      const localMean = sum / count;
+      const threshold = localMean - cOffset;
+
+      const p = y * targetW + x;
+      const isDarker = gray[p] < threshold;
+      const isInk = invert ? !isDarker : isDarker;
       const val = isInk ? 0 : 255;
 
       const dstIdx = ((y + pad) * finalW + (x + pad)) * 4;
@@ -198,9 +233,77 @@ export function extractAndPreprocessViewfinder(
 }
 
 /**
+ * Genera una versión en escala de grises con realce de contraste (Pase 2)
+ * para permitir a la red neuronal de Tesseract aprovechar bordes anti-aliased.
+ */
+export function extractGrayscaleViewfinder(
+  video: HTMLVideoElement,
+  cropRect: ViewfinderCropRect
+): HTMLCanvasElement | null {
+  if (!video.videoWidth || !video.videoHeight || cropRect.width <= 0 || cropRect.height <= 0) {
+    return null;
+  }
+
+  const sx = Math.max(0, Math.min(cropRect.x, video.videoWidth - 1));
+  const sy = Math.max(0, Math.min(cropRect.y, video.videoHeight - 1));
+  const sw = Math.min(cropRect.width, video.videoWidth - sx);
+  const sh = Math.min(cropRect.height, video.videoHeight - sy);
+
+  if (sw <= 8 || sh <= 8) return null;
+
+  const targetH = 80;
+  const targetW = Math.max(160, Math.min(480, Math.round((sw / sh) * targetH)));
+
+  const pad = 24;
+  const finalW = targetW + pad * 2;
+  const finalH = targetH + pad * 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = finalW;
+  canvas.height = finalH;
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, finalW, finalH);
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(video, sx, sy, sw, sh, pad, pad, targetW, targetH);
+
+  const imgData = ctx.getImageData(0, 0, finalW, finalH);
+  const data = imgData.data;
+
+  // Escala de grises con estiramiento de contraste
+  let minLum = 255;
+  let maxLum = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const lum = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    data[i] = lum;
+    data[i + 1] = lum;
+    data[i + 2] = lum;
+    if (lum < minLum) minLum = lum;
+    if (lum > maxLum) maxLum = lum;
+  }
+
+  const range = maxLum - minLum || 1;
+  for (let i = 0; i < data.length; i += 4) {
+    const stretched = Math.round(((data[i] - minLum) / range) * 255);
+    data[i] = stretched;
+    data[i + 1] = stretched;
+    data[i + 2] = stretched;
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return canvas;
+}
+
+/**
  * Escanea el canvas preprocesado con Tesseract y busca el código de 8 dígitos de la carta.
  * Aplica:
- * - Extracción estricta de los primeros 8 dígitos de izquierda a derecha.
+ * - Extracción estricta de los 8 dígitos de izquierda a derecha.
  * - Resolución instantánea mediante Memoria de Aprendizaje Continuo (OcrLearningMemory).
  */
 export async function recognizeCardPasscode(
@@ -213,8 +316,8 @@ export async function recognizeCardPasscode(
 
     // 1. Limpieza de textos y palabras clave del borde inferior
     const cleanedText = rawText
-      .replace(/\b1\s*(?:st|ST|St|ed|ED|Ed)?\b/gi, ' ')
-      .replace(/\b(?:edition|limited|unlimited|kazuki|takahashi|konami|studio|dice|shueisha|tv|tokyo)\b/gi, ' ');
+      .replace(/\b1\s*(?:st|ST|St|ed|ED|Ed|a|A)?\b/gi, ' ')
+      .replace(/\b(?:edition|edicion|limited|unlimited|kazuki|takahashi|konami|studio|dice|shueisha|tv|tokyo)\b/gi, ' ');
 
     let extractedDigits: string | null = null;
 

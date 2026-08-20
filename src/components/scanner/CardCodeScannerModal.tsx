@@ -21,9 +21,11 @@ import {
 } from 'lucide-react';
 import {
   extractAndPreprocessViewfinder,
+  extractGrayscaleViewfinder,
   recognizeCardPasscode,
   hasCardVisualFeatures,
   terminateCardOcrWorker,
+  captureViewfinderSnapshotUrl,
   ViewfinderCropRect,
 } from '@/lib/ocr/cardOcrEngine';
 import { OcrLearningMemory } from '@/lib/ocr/ocrLearningMemory';
@@ -91,6 +93,10 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   const [loadingCard, setLoadingCard] = useState<boolean>(false);
   const [quantity, setQuantity] = useState<number>(1);
   const [lastRegisteredNotice, setLastRegisteredNotice] = useState<string | null>(null);
+
+  // Live Crop Snapshot State for visual feedback
+  const [lastSnapshotUrl, setLastSnapshotUrl] = useState<string | null>(null);
+  const [isSnapshotRefreshing, setIsSnapshotRefreshing] = useState<boolean>(false);
 
   // Quick Manual Code Edit State
   const [isManualEditOpen, setIsManualEditOpen] = useState<boolean>(false);
@@ -232,64 +238,79 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   };
 
   // Fetch card details by 8-digit passcode with generation cancellation check
-  const fetchCardInfo = useCallback(async (code: string, scanId: number) => {
-    setLoadingCard(true);
-    setCameraError('');
-    setScannedCode(code);
-    setManualCodeInput(code);
-    setScannerStage('fetching_card');
-
-    try {
-      const res = await fetch(`/api/cards?id=${encodeURIComponent(code)}`);
-      if (!res.ok) {
-        throw new Error('Carta no encontrada');
+  const fetchCardInfo = useCallback(
+    async (code: string, scanId: number, isManualTrigger: boolean = false) => {
+      setLoadingCard(true);
+      setCameraError('');
+      setScannedCode(code);
+      if (!isManualEditOpen) {
+        setManualCodeInput(code);
       }
-      const json = await res.json();
-      const cardData: YgoDetectedCard | undefined = json.data?.[0] || json.card;
+      setScannerStage('fetching_card');
 
-      // Si el escaneo fue cancelado o invalidado mientras se esperaba la red, no aplicar cambios
-      if (scanId !== currentScanIdRef.current) {
-        return;
-      }
+      try {
+        const res = await fetch(`/api/cards?id=${encodeURIComponent(code)}`);
+        if (!res.ok) {
+          throw new Error('Carta no encontrada');
+        }
+        const json = await res.json();
+        const cardData: YgoDetectedCard | undefined = json.data?.[0] || json.card;
 
-      if (cardData && cardData.name) {
-        // Aprender corrección en memoria para que nunca más falle esta carta
-        if (code) {
-          OcrLearningMemory.learnCorrection(code, cardData.id.toString(), cardData.name);
+        // Si el escaneo fue cancelado o invalidado mientras se esperaba la red, no aplicar cambios
+        if (scanId !== currentScanIdRef.current) {
+          return;
         }
 
-        setDetectedCard(cardData);
-        setScannerStage('card_found');
-        setQuantity(1);
-        setIsManualEditOpen(false);
-        // Haptic feedback
-        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-          navigator.vibrate([40, 50, 40]);
-        }
-      } else {
-        setScannerStage('not_found');
-        setCameraError(`Código detectado (#${code}), pero no coincide con ninguna carta.`);
-        setTimeout(() => {
-          if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
+        if (cardData && cardData.name) {
+          // Aprender corrección en memoria para que nunca más falle esta carta
+          if (code) {
+            OcrLearningMemory.learnCorrection(code, cardData.id.toString(), cardData.name);
+          }
+
+          setDetectedCard(cardData);
+          setScannerStage('card_found');
+          setQuantity(1);
+          setIsManualEditOpen(false);
+          // Haptic feedback
+          if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+            navigator.vibrate([40, 50, 40]);
+          }
+        } else {
+          if (isManualTrigger) {
+            setScannerStage('not_found');
+            setCameraError(`Código detectado (#${code}), pero no coincide con ninguna carta.`);
+            setTimeout(() => {
+              if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
+                setScannerStage('idle');
+              }
+            }, 3000);
+          } else {
+            // Escaneo continuo automático: no congelar la UI ni bloquear el visor
             setScannerStage('idle');
           }
-        }, 3200);
-      }
-    } catch {
-      if (scanId !== currentScanIdRef.current) return;
-      setScannerStage('not_found');
-      setCameraError(`Código (#${code}) no encontrado en el registro.`);
-      setTimeout(() => {
-        if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
+        }
+      } catch {
+        if (scanId !== currentScanIdRef.current) return;
+        if (isManualTrigger) {
+          setScannerStage('not_found');
+          setCameraError(`Código (#${code}) no encontrado en el registro.`);
+          setTimeout(() => {
+            if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
+              setScannerStage('idle');
+            }
+          }, 3000);
+        } else {
+          // En automático continuo, volver inmediatamente a idle para que el siguiente frame se procese
           setScannerStage('idle');
         }
-      }, 3200);
-    } finally {
-      if (scanId === currentScanIdRef.current) {
-        setLoadingCard(false);
+      } finally {
+        if (scanId === currentScanIdRef.current) {
+          setLoadingCard(false);
+        }
       }
-    }
-  }, []);
+    },
+    [isManualEditOpen]
+  );
 
   // Open manual code edit dialog
   const handleOpenManualEdit = () => {
@@ -308,11 +329,11 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       if (scannedCode && scannedCode !== codeToUse) {
         OcrLearningMemory.learnCorrection(scannedCode, codeToUse, 'Corrección manual');
       }
-      fetchCardInfo(codeToUse, scanId);
+      fetchCardInfo(codeToUse, scanId, true);
     }
   };
 
-  // Compute crop box mapping from onscreen viewfinder to real video pixels with +10% radius expansion
+  // Compute crop box mapping from onscreen viewfinder to real video pixels with tight vertical isolation
   const getCropRect = useCallback((): ViewfinderCropRect | null => {
     const video = videoRef.current;
     const vf = viewfinderRef.current;
@@ -357,9 +378,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     const rawCropW = Math.round(unzoomedWidth / scale);
     const rawCropH = Math.round(unzoomedHeight / scale);
 
-    // Ampliar un 10% el radio de detección en cada dirección (+20% total de ancho y alto)
-    const marginX = Math.round(rawCropW * 0.10);
-    const marginY = Math.round(rawCropH * 0.10);
+    // Margen horizontal moderado (+6%) y vertical muy ajustado (+2%) para aislar estrictamente los dígitos del código
+    const marginX = Math.round(rawCropW * 0.06);
+    const marginY = Math.round(rawCropH * 0.02);
     const cropX = Math.max(0, rawCropX - marginX);
     const cropY = Math.max(0, rawCropY - marginY);
     const cropW = Math.min(rawCropW + marginX * 2, vWidth - cropX);
@@ -373,82 +394,116 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     };
   }, [digitalZoomFactor]);
 
-  // Single OCR Scan Step with Strict Concurrency Lock, Dual-pass Binarization & Presence Guard
-  const performScan = useCallback(async () => {
-    // Si ya hay carta detectada o escaneo en progreso o consulta de red activa, no ejecutar nada
-    if (
-      !videoRef.current ||
-      isScanningRef.current ||
-      loadingCard ||
-      detectedCardRef.current
-    ) {
-      return;
-    }
-
-    const cropRect = getCropRect();
-    if (!cropRect) return;
-
-    const canvas = extractAndPreprocessViewfinder(videoRef.current, cropRect);
-    if (!canvas) return;
-
-    // 1. Detección Inteligente de Presencia (<1ms): descarta fondos lisos o movimiento borroso sin texto
-    const hasFeatures = hasCardVisualFeatures(canvas);
-    if (!hasFeatures) {
-      if (scannerStage !== 'idle' && !loadingCard && !detectedCardRef.current) {
-        setScannerStage('idle');
-      }
-      return;
-    }
-
-    // 2. Iniciar escaneo OCR con bloqueo single-flight y generation ID
-    const scanId = ++currentScanIdRef.current;
-    isScanningRef.current = true;
-    if (scannerStage === 'idle') {
-      setScannerStage('reading_ocr');
-    }
-
-    try {
-      // Intento 1: Binarización Normal Otsu con Quiet Zone
-      let match = await recognizeCardPasscode(canvas);
-
-      // Intento 2: Binarización Invertida (para cartas oscuras como XYZ / Link) si intento 1 no encontró 8 dígitos
-      if (!match && videoRef.current) {
-        const invertedCanvas = extractAndPreprocessViewfinder(videoRef.current, cropRect, true);
-        if (invertedCanvas) {
-          match = await recognizeCardPasscode(invertedCanvas);
-        }
-      }
-
-      // Si el escaneo actual fue cancelado o invalidado por cambio de carta o registro, descartar de inmediato
-      if (scanId !== currentScanIdRef.current || detectedCardRef.current) {
+  // Single OCR Scan Step with Strict Concurrency Lock, Multi-pass Adaptive Binarization & Live Snapshot
+  const performScan = useCallback(
+    async (isManualTrigger: boolean = false) => {
+      // Si ya hay carta detectada o escaneo en progreso o consulta de red activa o modal manual abierto, no ejecutar nada
+      if (
+        !videoRef.current ||
+        isScanningRef.current ||
+        loadingCard ||
+        detectedCardRef.current ||
+        isManualEditOpen
+      ) {
         return;
       }
 
-      if (match && match.code) {
-        setScannedCode(match.code);
-        await fetchCardInfo(match.code, scanId);
-      }
-    } catch (e) {
-      console.error('Error durante performScan:', e);
-    } finally {
-      if (scanId === currentScanIdRef.current) {
-        isScanningRef.current = false;
-      }
-    }
-  }, [loadingCard, getCropRect, fetchCardInfo, scannerStage]);
+      const cropRect = getCropRect();
+      if (!cropRect) return;
 
-  // Bucle de escaneo periódico (SE DETIENE POR COMPLETO cuando una carta ya fue identificada o está consultando)
+      // Actualizar snapshot visual del recorte para feedback instantáneo al usuario
+      const snapshotUrl = captureViewfinderSnapshotUrl(videoRef.current, cropRect);
+      if (snapshotUrl) {
+        setLastSnapshotUrl(snapshotUrl);
+      }
+
+      if (isManualTrigger) {
+        setIsSnapshotRefreshing(true);
+        setTimeout(() => setIsSnapshotRefreshing(false), 300);
+      }
+
+      const canvas = extractAndPreprocessViewfinder(videoRef.current, cropRect);
+      if (!canvas) return;
+
+      // 1. Detección Inteligente de Presencia (<1ms): descarta fondos lisos o movimiento borroso sin texto
+      const hasFeatures = hasCardVisualFeatures(canvas);
+      if (!hasFeatures && !isManualTrigger) {
+        if (scannerStage !== 'idle' && !loadingCard && !detectedCardRef.current) {
+          setScannerStage('idle');
+        }
+        return;
+      }
+
+      // 2. Iniciar escaneo OCR con bloqueo single-flight y generation ID
+      const scanId = ++currentScanIdRef.current;
+      isScanningRef.current = true;
+      if (scannerStage === 'idle') {
+        setScannerStage('reading_ocr');
+      }
+
+      try {
+        // Pase 1: Umbralización Adaptativa Local O(1) con Quiet Zone
+        let match = await recognizeCardPasscode(canvas);
+
+        // Pase 2: Escala de Grises con realce de contraste
+        if (!match && videoRef.current) {
+          const grayCanvas = extractGrayscaleViewfinder(videoRef.current, cropRect);
+          if (grayCanvas) {
+            match = await recognizeCardPasscode(grayCanvas);
+          }
+        }
+
+        // Pase 3: Binarización Adaptativa Invertida (para cartas oscuras como XYZ / Link o letras foil)
+        if (!match && videoRef.current) {
+          const invertedCanvas = extractAndPreprocessViewfinder(videoRef.current, cropRect, true);
+          if (invertedCanvas) {
+            match = await recognizeCardPasscode(invertedCanvas);
+          }
+        }
+
+        // Si el escaneo actual fue cancelado o invalidado por cambio de carta o registro o modal manual, descartar
+        if (scanId !== currentScanIdRef.current || detectedCardRef.current || isManualEditOpen) {
+          return;
+        }
+
+        if (match && match.code) {
+          setScannedCode(match.code);
+          await fetchCardInfo(match.code, scanId, isManualTrigger);
+        } else if (isManualTrigger) {
+          setScannerStage('not_found');
+          setCameraError('No se detectó un código de 8 dígitos nítido en el encuadre.');
+          setTimeout(() => {
+            if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
+              setScannerStage('idle');
+            }
+          }, 2800);
+        } else {
+          setScannerStage('idle');
+        }
+      } catch (e) {
+        console.error('Error durante performScan:', e);
+        setScannerStage('idle');
+      } finally {
+        if (scanId === currentScanIdRef.current) {
+          isScanningRef.current = false;
+        }
+      }
+    },
+    [loadingCard, getCropRect, fetchCardInfo, scannerStage, isManualEditOpen]
+  );
+
+  // Bucle de escaneo periódico (SE DETIENE POR COMPLETO cuando una carta ya fue identificada, está consultando o editando manualmente)
   useEffect(() => {
-    if (!isOpen || !stream || loadingCard || detectedCard) return;
+    if (!isOpen || !stream || loadingCard || detectedCard || isManualEditOpen) return;
 
     const interval = setInterval(() => {
-      if (!isScanningRef.current && !loadingCard && !detectedCardRef.current) {
-        performScan();
+      if (!isScanningRef.current && !loadingCard && !detectedCardRef.current && !isManualEditOpen) {
+        performScan(false);
       }
     }, 500);
 
     return () => clearInterval(interval);
-  }, [isOpen, stream, loadingCard, detectedCard, performScan]);
+  }, [isOpen, stream, loadingCard, detectedCard, isManualEditOpen, performScan]);
 
   // Gestión de ciclo de vida de cámara y liberación completa de memoria de Worker al cerrar
   useEffect(() => {
@@ -462,6 +517,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       isScanningRef.current = false;
       setDetectedCard(null);
       setScannedCode(null);
+      setLastSnapshotUrl(null);
       setScannerStage('idle');
       setCameraError('');
       setLastRegisteredNotice(null);
@@ -588,7 +644,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 sm:p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+              className="p-2 sm:p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer touch-manipulation"
               title="Cerrar escáner"
             >
               <X className="w-5 h-5" />
@@ -604,7 +660,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => startCamera(activeDeviceId)}
-                  className="px-5 py-2.5 sm:px-4 sm:py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  className="px-5 py-2.5 sm:px-4 sm:py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer touch-manipulation"
                 >
                   Reintentar Permisos
                 </button>
@@ -629,17 +685,17 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   {/* Surrounding semi-dark mask */}
                   <div className="absolute inset-0 bg-black/40" />
 
-                  {/* Horizontal strip target container (+10% en cada dirección) */}
+                  {/* Horizontal strip target container */}
                   <div
                     ref={viewfinderRef}
-                    className={`relative z-10 w-80 max-w-[90%] h-24 rounded-2xl border-2 transition-colors duration-200 flex items-center justify-center overflow-hidden ${vfStyles.box}`}
+                    className={`relative z-10 w-76 sm:w-80 max-w-[90%] h-20 sm:h-22 rounded-2xl border-2 transition-colors duration-200 flex items-center justify-center overflow-hidden ${vfStyles.box}`}
                   >
                     {/* Laser scanning line animation */}
                     {vfStyles.showLaser && (
                       <motion.div
-                        animate={{ y: [-42, 42, -42] }}
+                        animate={{ y: [-38, 38, -38] }}
                         transition={{
-                          duration: scannerStage === 'reading_ocr' ? 1.0 : 1.8,
+                          duration: scannerStage === 'reading_ocr' ? 0.9 : 1.6,
                           repeat: Infinity,
                           ease: 'easeInOut',
                         }}
@@ -654,7 +710,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <div className={`absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 transition-colors ${vfStyles.corners}`} />
                   </div>
 
-                  <p className="relative z-10 text-[11px] text-zinc-300 font-medium mt-3 bg-zinc-950/80 backdrop-blur-xs px-3 py-1 rounded-full border border-zinc-800 shadow-md">
+                  <p className="relative z-10 text-[11px] text-zinc-300 font-medium mt-2.5 bg-zinc-950/80 backdrop-blur-xs px-3 py-1 rounded-full border border-zinc-800 shadow-md">
                     Coloca solo los 8 números de la esquina inferior
                   </p>
                 </div>
@@ -683,7 +739,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <button
                       type="button"
                       onClick={toggleTorch}
-                      className={`p-2.5 sm:p-2 rounded-full backdrop-blur-md transition-colors cursor-pointer ${
+                      className={`p-2.5 sm:p-2 rounded-full backdrop-blur-md transition-colors cursor-pointer touch-manipulation ${
                         torchOn
                           ? 'bg-amber-500 text-zinc-950 shadow-lg shadow-amber-500/30'
                           : 'bg-black/60 text-zinc-300 hover:bg-black/80'
@@ -698,7 +754,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <button
                       type="button"
                       onClick={handleSwitchCamera}
-                      className="p-2.5 sm:p-2 rounded-full bg-black/60 backdrop-blur-md text-zinc-300 hover:bg-black/80 transition-colors cursor-pointer"
+                      className="p-2.5 sm:p-2 rounded-full bg-black/60 backdrop-blur-md text-zinc-300 hover:bg-black/80 transition-colors cursor-pointer touch-manipulation"
                       title="Cambiar cámara"
                     >
                       <RefreshCw className="w-4.5 h-4.5 sm:w-4 sm:h-4" />
@@ -741,6 +797,35 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   )}
                 </div>
 
+                {/* Live Crop Screenshot Preview Badge & Box (Feedback en Vivo) */}
+                {lastSnapshotUrl && (
+                  <div className="absolute top-12 left-3 z-20 flex flex-col gap-1 max-w-[55%] sm:max-w-xs animate-in fade-in duration-200">
+                    <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-1.5 shadow-xl flex items-center gap-2">
+                      <div
+                        className={`relative w-20 h-7 rounded-lg overflow-hidden bg-black border border-zinc-700 shrink-0 transition-transform ${
+                          isSnapshotRefreshing ? 'scale-105 border-red-500' : ''
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={lastSnapshotUrl}
+                          alt="Recorte capturado"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="flex flex-col min-w-0 pr-1">
+                        <span className="text-[9px] uppercase font-bold text-zinc-400 font-mono flex items-center gap-1">
+                          <ScanLine className="w-2.5 h-2.5 text-red-400 shrink-0" />
+                          <span className="truncate">Recorte analizado</span>
+                        </span>
+                        <span className="text-[10px] text-zinc-200 font-mono truncate">
+                          {scannedCode ? `#${scannedCode}` : 'Listo'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Temporary Notice for Continuous Mode */}
                 <AnimatePresence>
                   {lastRegisteredNotice && (
@@ -770,7 +855,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleOpenManualEdit}
-                  className="px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-red-900/70 hover:bg-red-800 text-white font-mono font-bold text-xs sm:text-[11px] shrink-0 flex items-center gap-1 border border-red-700/50 cursor-pointer shadow-xs active:scale-95 transition-transform"
+                  className="px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-red-900/70 hover:bg-red-800 text-white font-mono font-bold text-xs sm:text-[11px] shrink-0 flex items-center gap-1 border border-red-700/50 cursor-pointer shadow-xs active:scale-95 transition-transform touch-manipulation"
                   title="Editar los dígitos leídos"
                 >
                   <Pencil className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
@@ -816,7 +901,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleResetScan}
-                    className="px-3 py-2 sm:p-1.5 text-zinc-400 hover:text-zinc-200 bg-zinc-900 sm:bg-transparent border border-zinc-800 sm:border-transparent hover:bg-zinc-800 rounded-xl transition-all text-xs sm:text-[10px] font-mono flex items-center sm:flex-col gap-1 cursor-pointer active:scale-95 shrink-0"
+                    className="px-3 py-2 sm:p-1.5 text-zinc-400 hover:text-zinc-200 bg-zinc-900 sm:bg-transparent border border-zinc-800 sm:border-transparent hover:bg-zinc-800 rounded-xl transition-all text-xs sm:text-[10px] font-mono flex items-center sm:flex-col gap-1 cursor-pointer active:scale-95 shrink-0 touch-manipulation"
                     title="Descartar y escanear otra"
                   >
                     <RefreshCw className="w-4 h-4 sm:mb-0.5" />
@@ -826,13 +911,13 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
                 {/* Quantity Controls & Submit (Mobile Friendly Touch Targets) */}
                 <div className="flex items-center justify-between gap-3 pt-1">
-                  {/* Stepper (48px height on mobile) */}
+                  {/* Stepper (min-h-11 on mobile) */}
                   <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-2xl sm:rounded-xl border border-zinc-800 shadow-inner">
                     <button
                       type="button"
                       disabled={quantity <= 1}
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="w-12 h-12 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-transform active:scale-95 cursor-pointer"
+                      className="w-12 h-12 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-transform active:scale-95 cursor-pointer touch-manipulation"
                       title="Disminuir cantidad"
                     >
                       <Minus className="w-5 h-5 sm:w-3.5 sm:h-3.5" />
@@ -844,18 +929,18 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       type="button"
                       disabled={quantity >= maxQuantity}
                       onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
-                      className="w-12 h-12 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-transform active:scale-95 cursor-pointer"
+                      className="w-12 h-12 sm:w-8 sm:h-8 rounded-xl sm:rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-zinc-200 transition-transform active:scale-95 cursor-pointer touch-manipulation"
                       title="Aumentar cantidad"
                     >
                       <Plus className="w-5 h-5 sm:w-3.5 sm:h-3.5" />
                     </button>
                   </div>
 
-                  {/* Action Register Button (48px height on mobile) */}
+                  {/* Action Register Button (min-h-11 on mobile) */}
                   <button
                     type="button"
                     onClick={handleRegister}
-                    className="flex-1 h-12 sm:h-auto py-3 sm:py-2.5 px-5 sm:px-4 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-sm sm:text-xs rounded-2xl sm:rounded-xl transition-all shadow-lg shadow-red-950/60 flex items-center justify-center gap-2 cursor-pointer"
+                    className="flex-1 min-h-12 sm:h-auto py-3 sm:py-2.5 px-5 sm:px-4 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-sm sm:text-xs rounded-2xl sm:rounded-xl transition-all shadow-lg shadow-red-950/60 flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
                   >
                     <Check className="w-5 h-5 sm:w-4 sm:h-4" />
                     <span>Registrar Carta ({quantity}x)</span>
@@ -880,29 +965,29 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleOpenManualEdit}
-                    className="flex-1 sm:flex-initial h-12 sm:h-auto px-4 py-2.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer border border-zinc-700/60 shadow-sm"
+                    className="flex-1 sm:flex-initial min-h-12 sm:h-auto px-4 py-2.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer border border-zinc-700/60 shadow-sm touch-manipulation"
                     title="Ingresar o editar código manualmente"
                   >
                     <Pencil className="w-4 h-4 sm:w-3 sm:h-3 text-zinc-400" />
                     <span>Código manual</span>
                   </button>
 
-                  {/* Manual Trigger Scan button */}
+                  {/* Manual Trigger Scan Button with Live Snapshot Refresh */}
                   <button
                     type="button"
-                    onClick={performScan}
+                    onClick={() => performScan(true)}
                     disabled={isScanningRef.current || loadingCard}
-                    className="flex-1 sm:flex-initial h-12 sm:h-auto px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-red-950/50 disabled:opacity-50 cursor-pointer"
+                    className="flex-1 sm:flex-initial min-h-12 sm:h-auto px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-red-950/50 disabled:opacity-50 cursor-pointer touch-manipulation"
                   >
                     <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-red-200" />
-                    <span>Escanear</span>
+                    <span>Escanear ahora</span>
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Quick Manual Code Edit Modal (Non-blocking Bottom Sheet on Mobile) */}
+          {/* Quick Manual Code Edit Modal (Isolated Bottom Sheet on Mobile) */}
           <AnimatePresence>
             {isManualEditOpen && (
               <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/25 sm:bg-black/80 backdrop-blur-none sm:backdrop-blur-xs">
@@ -939,7 +1024,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsManualEditOpen(false)}
-                      className="p-2 sm:p-1.5 text-zinc-400 hover:text-white rounded-xl transition-colors cursor-pointer"
+                      className="p-2 sm:p-1.5 text-zinc-400 hover:text-white rounded-xl transition-colors cursor-pointer touch-manipulation"
                     >
                       <X className="w-5 h-5 sm:w-4 sm:h-4" />
                     </button>
@@ -976,14 +1061,14 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsManualEditOpen(false)}
-                        className="flex-1 h-12 sm:h-auto py-3 sm:py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 active:scale-95 text-xs font-bold transition-colors cursor-pointer font-mono"
+                        className="flex-1 min-h-12 sm:h-auto py-3 sm:py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 active:scale-95 text-xs font-bold transition-colors cursor-pointer font-mono touch-manipulation"
                       >
                         Cancelar
                       </button>
                       <button
                         type="submit"
                         disabled={manualCodeInput.trim().length < 8 || loadingCard}
-                        className="flex-1 h-12 sm:h-auto py-3 sm:py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md shadow-red-950 flex items-center justify-center gap-1.5 cursor-pointer font-mono active:scale-95"
+                        className="flex-1 min-h-12 sm:h-auto py-3 sm:py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md shadow-red-950 flex items-center justify-center gap-1.5 cursor-pointer font-mono active:scale-95 touch-manipulation"
                       >
                         {loadingCard ? (
                           <Loader2 className="w-4 h-4 animate-spin text-white" />
