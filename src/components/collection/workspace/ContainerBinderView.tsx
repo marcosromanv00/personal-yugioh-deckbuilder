@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { UserCard } from '@/types/collection';
 import { Card } from '@/components/deckbuilder/types';
 import { getCategoryBadgeStyle } from '@/lib/collectionUtils';
+import { DuplicateCardAlertPopover } from '../DuplicateCardAlertPopover';
+import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 import { MobileTab } from './types';
 
 interface ContainerBinderViewProps {
@@ -31,6 +33,8 @@ interface ContainerBinderViewProps {
   isSelectMode?: boolean;
   selectedCardIds?: string[];
   onToggleSelectCard?: (id: string) => void;
+  duplicateMap?: Map<number, DuplicateMatchInfo>;
+  onOpenConsolidate?: (cardId: number) => void;
 }
 
 export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
@@ -57,6 +61,8 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
   isSelectMode = false,
   selectedCardIds = [],
   onToggleSelectCard,
+  duplicateMap,
+  onOpenConsolidate,
 }) => {
   return (
     <div className="h-full flex flex-col items-center justify-between">
@@ -118,8 +124,8 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                         className="w-full h-full object-cover rounded"
                       />
 
-                      {/* Checkbox en modo selección */}
-                      {isSelectMode && (
+                      {/* Checkbox en modo selección o Alerta de Duplicados */}
+                      {isSelectMode ? (
                         <div 
                           className={`absolute top-0.5 left-0.5 w-4 h-4 rounded flex items-center justify-center transition-all shadow-xs z-10 ${
                             isSlotCardSelected
@@ -129,6 +135,16 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                         >
                           {isSlotCardSelected && <Check className="w-3 h-3 stroke-[3]" />}
                         </div>
+                      ) : (
+                        duplicateMap?.has(cardInSlot.card_id) && (
+                          <div className="absolute top-0.5 left-0.5 z-10">
+                            <DuplicateCardAlertPopover
+                              matchInfo={duplicateMap.get(cardInSlot.card_id)}
+                              onOpenConsolidate={onOpenConsolidate}
+                              size="sm"
+                            />
+                          </div>
+                        )
                       )}
 
                       <div className="absolute top-1 right-1 bg-zinc-950/90 text-purple-300 font-mono text-[9px] px-1 rounded border border-purple-500/30 font-bold">
@@ -208,8 +224,8 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                         className="w-full h-full object-cover rounded"
                       />
 
-                      {/* Checkbox en modo selección */}
-                      {isSelectMode && (
+                      {/* Checkbox en modo selección o Alerta de Duplicados */}
+                      {isSelectMode ? (
                         <div 
                           className={`absolute top-0.5 left-0.5 w-4 h-4 rounded flex items-center justify-center transition-all shadow-xs z-10 ${
                             isSlotCardSelected
@@ -219,6 +235,16 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                         >
                           {isSlotCardSelected && <Check className="w-3 h-3 stroke-[3]" />}
                         </div>
+                      ) : (
+                        duplicateMap?.has(cardInSlot.card_id) && (
+                          <div className="absolute top-0.5 left-0.5 z-10">
+                            <DuplicateCardAlertPopover
+                              matchInfo={duplicateMap.get(cardInSlot.card_id)}
+                              onOpenConsolidate={onOpenConsolidate}
+                              size="sm"
+                            />
+                          </div>
+                        )
                       )}
 
                       <div className="absolute top-1 right-1 bg-zinc-950/90 text-purple-300 font-mono text-[9px] px-1 rounded border border-purple-500/30 font-bold">

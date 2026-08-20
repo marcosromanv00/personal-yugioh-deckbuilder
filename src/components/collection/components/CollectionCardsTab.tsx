@@ -5,10 +5,11 @@ import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
 import { getSleeveColorHex } from '@/lib/sleeves';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { getCategoryBadgeStyle, getLanguageDisplay } from '@/lib/collectionUtils';
-
+import { DuplicateCardAlertPopover } from '../DuplicateCardAlertPopover';
+import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 
 interface CollectionCardsTabProps {
-  activeTab: 'containers' | 'complete' | 'favorites' | 'sleeves';
+  activeTab: 'containers' | 'suggestions' | 'complete' | 'favorites' | 'sleeves' | 'decks';
   allSearchQuery: string;
   setAllSearchQuery: (query: string) => void;
   locationFilter: string;
@@ -32,6 +33,7 @@ interface CollectionCardsTabProps {
   onSelectAll?: () => void;
   onClearSelection?: () => void;
   onOpenSplitModal?: (card?: UserCard) => void;
+  duplicateMap?: Map<number, DuplicateMatchInfo>;
 }
 
 /**
@@ -63,6 +65,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
   onSelectAll,
   onClearSelection,
   onOpenSplitModal,
+  duplicateMap,
 }) => {
   const selectedCount = selectedCardIds.length;
 
@@ -268,8 +271,8 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                     onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
                   />
 
-                  {/* Checkbox de selección múltiple */}
-                  {isSelectMode && (
+                  {/* Checkbox de selección múltiple o Alerta de Duplicados */}
+                  {isSelectMode ? (
                     <div 
                       className={`absolute top-1.5 left-1.5 w-5 h-5 rounded-md flex items-center justify-center transition-all shadow-md z-10 ${
                         isCardSelected
@@ -279,16 +282,29 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                     >
                       {isCardSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                     </div>
+                  ) : (
+                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1 z-10">
+                      {/* Alerta de Coincidencias en otros contenedores */}
+                      {duplicateMap?.has(uc.card_id) && (
+                        <DuplicateCardAlertPopover
+                          matchInfo={duplicateMap.get(uc.card_id)}
+                          onOpenConsolidate={onOpenSplitModal ? () => onOpenSplitModal(uc) : undefined}
+                          size="sm"
+                        />
+                      )}
+
+                      {/* Badge de Proxy */}
+                      {uc.is_proxy && (
+                        <span className="bg-red-600 text-white font-black text-[9px] px-1.5 py-0.2 rounded-md font-mono uppercase">
+                          PROXY
+                        </span>
+                      )}
+                    </div>
                   )}
 
                   {uc.quantity > 1 && (
                     <span className="absolute top-1.5 right-1.5 bg-zinc-900/90 text-white font-black text-[10px] px-2 py-0.5 rounded-lg shadow-xs font-mono">
                       x{uc.quantity}
-                    </span>
-                  )}
-                  {uc.is_proxy && !isSelectMode && (
-                    <span className="absolute top-1.5 left-1.5 bg-red-600 text-white font-black text-[9px] px-1.5 py-0.2 rounded-md font-mono uppercase">
-                      PROXY
                     </span>
                   )}
                   <button

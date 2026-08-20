@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
+import { computeCrossContainerDuplicateMap, DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 
 /**
  * Hook personalizado useCollectionState
@@ -18,9 +19,8 @@ export function useCollectionState() {
   const [inboxCards, setInboxCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(true);
 
-
   // Tab activo y listado de cartas de la colección completa
-  const [activeTab, setActiveTab] = useState<'containers' | 'sleeves' | 'decks' | 'complete' | 'favorites'>('containers');
+  const [activeTab, setActiveTab] = useState<'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites'>('containers');
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
   const [allCollectionFilters, setAllCollectionFilters] = useState<FilterState>({
@@ -191,7 +191,7 @@ export function useCollectionState() {
 
   // Carga reactiva de cartas y fundas
   useEffect(() => {
-    if (activeTab === 'complete' || activeTab === 'favorites') {
+    if (activeTab === 'complete' || activeTab === 'favorites' || activeTab === 'suggestions') {
       const timer = setTimeout(() => {
         fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
       }, 400);
@@ -201,6 +201,28 @@ export function useCollectionState() {
       fetchSleeves();
     }
   }, [activeTab, allSearchQuery, allCollectionFilters, locationFilter, deckFilter, fetchAllCards, fetchSleeves]);
+
+  // Carga silenciosa inicial de todas las cartas para alimentar el mapa de duplicados y sugerencias
+  useEffect(() => {
+    fetchAllCards('', {
+      type: '',
+      attribute: '',
+      race: '',
+      level: '',
+      atkMin: '',
+      atkMax: '',
+      defMin: '',
+      defMax: '',
+      archetype: '',
+      rarity: '',
+      status: ''
+    });
+  }, [fetchAllCards]);
+
+  // Mapa de duplicados cruzados entre contenedores
+  const crossContainerDuplicatesMap = useMemo(() => {
+    return computeCrossContainerDuplicateMap(allCollectionCards, locations);
+  }, [allCollectionCards, locations]);
 
   // Borrar carta
   const handleDeleteCard = async (userCardId: string) => {
@@ -674,5 +696,8 @@ export function useCollectionState() {
     handleOpenSplitModal,
     handleCloseSplitModal,
     handleSplitCopies,
+
+    // Cross-container duplicates map
+    crossContainerDuplicatesMap,
   };
 }

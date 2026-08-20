@@ -8,6 +8,7 @@ import { Card } from '@/components/deckbuilder/types';
 import { ContainerCenterHeader } from './ContainerCenterHeader';
 import { ContainerGridView } from './ContainerGridView';
 import { ContainerBinderView } from './ContainerBinderView';
+import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 import { GridCardGroup, DeckInContainer, MobileTab } from './types';
 
 interface ContainerCenterPanelProps {
@@ -82,6 +83,10 @@ interface ContainerCenterPanelProps {
   onClearSelection?: () => void;
   onToggleSelectGroup?: (group: GridCardGroup) => void;
   onToggleSelectCard?: (userCardId: string) => void;
+
+  // Duplicates map
+  duplicateMap?: Map<number, DuplicateMatchInfo>;
+  onOpenConsolidate?: (cardId: number) => void;
 }
 
 export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
@@ -150,6 +155,8 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
   onClearSelection,
   onToggleSelectGroup,
   onToggleSelectCard,
+  duplicateMap,
+  onOpenConsolidate,
 }) => {
   return (
     <main 
@@ -274,6 +281,8 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
             isSelectMode={isSelectMode}
             selectedCardIds={selectedCardIds}
             onToggleSelectCard={onToggleSelectCard}
+            duplicateMap={duplicateMap}
+            onOpenConsolidate={onOpenConsolidate}
           />
         ) : (
           <ContainerGridView
@@ -289,6 +298,8 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
             isSelectMode={isSelectMode}
             selectedCardIds={selectedCardIds}
             onToggleSelectGroup={onToggleSelectGroup}
+            duplicateMap={duplicateMap}
+            onOpenConsolidate={onOpenConsolidate}
           />
         )}
       </div>

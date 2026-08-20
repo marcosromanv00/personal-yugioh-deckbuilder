@@ -6,6 +6,8 @@ import { Box, Check } from 'lucide-react';
 import { UserCard } from '@/types/collection';
 import { getSleeveColorHex } from '@/lib/sleeves';
 import { getCategoryBadgeStyle, getLanguageDisplay } from '@/lib/collectionUtils';
+import { DuplicateCardAlertPopover } from '../DuplicateCardAlertPopover';
+import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 import { GridCardGroup, MobileTab } from './types';
 
 interface ContainerGridViewProps {
@@ -21,6 +23,8 @@ interface ContainerGridViewProps {
   isSelectMode?: boolean;
   selectedCardIds?: string[];
   onToggleSelectGroup?: (group: GridCardGroup) => void;
+  duplicateMap?: Map<number, DuplicateMatchInfo>;
+  onOpenConsolidate?: (cardId: number) => void;
 }
 
 export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
@@ -36,6 +40,8 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
   isSelectMode = false,
   selectedCardIds = [],
   onToggleSelectGroup,
+  duplicateMap,
+  onOpenConsolidate,
 }) => {
   if (filteredCards.length === 0) {
     return (
@@ -103,7 +109,7 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
                   />
                 )}
 
-                {/* Checkbox de Selección Múltiple */}
+                {/* Checkbox de Selección Múltiple o Indicador de Alerta de Duplicados */}
                 {isSelectMode ? (
                   <div 
                     className={`absolute top-1 left-1 w-5 h-5 rounded-md flex items-center justify-center transition-all shadow-md z-10 ${
@@ -114,11 +120,25 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
                   >
                     {isGroupSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                   </div>
-                ) : uc.is_proxy ? (
-                  <div className="absolute top-1 left-1 bg-red-600 text-white font-mono text-[8px] px-1 py-0.5 rounded font-black uppercase shadow-xs">
-                    Proxy
+                ) : (
+                  <div className="absolute top-1 left-1 flex items-center gap-1 z-10">
+                    {/* Alerta de Coincidencias en otros contenedores */}
+                    {duplicateMap?.has(group.card_id) && (
+                      <DuplicateCardAlertPopover
+                        matchInfo={duplicateMap.get(group.card_id)}
+                        onOpenConsolidate={onOpenConsolidate}
+                        size="sm"
+                      />
+                    )}
+
+                    {/* Badge de Proxy */}
+                    {uc.is_proxy && (
+                      <div className="bg-red-600 text-white font-mono text-[8px] px-1 py-0.5 rounded font-black uppercase shadow-xs">
+                        Proxy
+                      </div>
+                    )}
                   </div>
-                ) : null}
+                )}
 
                 <div className="absolute top-1 right-1 bg-zinc-950/90 text-white font-mono text-[9px] px-1.5 py-0.5 rounded border border-zinc-700 font-black shadow-xs">
                   {group.totalQuantity}x

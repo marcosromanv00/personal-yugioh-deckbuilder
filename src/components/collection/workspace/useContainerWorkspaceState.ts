@@ -13,6 +13,7 @@ import {
 } from '@/lib/cardClassificationEngine';
 import { findDispersedCardsAcrossLocations } from '@/lib/collectionUtils';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
+import { computeCrossContainerDuplicateMap, DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 import { GridCardGroup, DeckInContainer, RightPanelMode, AISubView, DetailsCopiesMode, MobileTab } from './types';
 
 interface UseContainerWorkspaceStateProps {
@@ -331,6 +332,12 @@ export const useContainerWorkspaceState = ({
   const allDispersedCards = useMemo(() => {
     const pool = allCollectionCards.length > 0 ? allCollectionCards : cards;
     return findDispersedCardsAcrossLocations(pool, locations);
+  }, [allCollectionCards, cards, locations]);
+
+  // Mapa de duplicados cruzados entre contenedores para badges de alerta
+  const crossContainerDuplicatesMap = useMemo(() => {
+    const pool = allCollectionCards.length > 0 ? allCollectionCards : cards;
+    return computeCrossContainerDuplicateMap(pool, locations);
   }, [allCollectionCards, cards, locations]);
 
   // Diagnóstico de dispersión para la carta activa seleccionada
@@ -1794,5 +1801,6 @@ export const useContainerWorkspaceState = ({
     handleFileUpload,
     allCollectionCards,
     setAllCollectionCards,
+    crossContainerDuplicatesMap,
   };
 };
