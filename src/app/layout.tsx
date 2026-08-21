@@ -38,11 +38,13 @@ export const viewport: Viewport = {
 };
 
 import { IdealEnvironmentProvider } from "@/context/IdealEnvironmentContext";
+import { AIChatProvider } from "@/context/AIChatContext";
+import { GlobalAIChatDrawer } from "@/components/chat/GlobalAIChatDrawer";
 import { IdealSyncLoaderModal } from "@/components/collection/IdealSyncLoaderModal";
 import { IdealReportModal } from "@/components/collection/IdealReportModal";
 import { PhysicalStagingAssistantModal } from "@/components/collection/PhysicalStagingAssistantModal";
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="es"
@@ -52,10 +54,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider>
           <ToastProvider>
             <IdealEnvironmentProvider>
-              {children}
-              <IdealSyncLoaderModal />
-              <IdealReportModal />
-              <PhysicalStagingAssistantModal />
+              <AIChatProvider>
+                {children}
+                <GlobalAIChatDrawer />
+                <IdealSyncLoaderModal />
+                <IdealReportModal />
+                <PhysicalStagingAssistantModal />
+              </AIChatProvider>
             </IdealEnvironmentProvider>
           </ToastProvider>
         </ThemeProvider>

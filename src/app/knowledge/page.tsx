@@ -20,6 +20,7 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '@/components/ui/ThemeProvider';
+import { useAIChat } from '@/context/AIChatContext';
 import { CardKnowledgeData } from '@/types/knowledge';
 import { CardIntelligenceView } from '@/components/knowledge/CardIntelligenceView';
 import { ARCHETYPE_IMPLICIT_SYNERGIES } from '@/lib/constants/archetypeSynergies';
@@ -39,6 +40,7 @@ const QUICK_SUGGESTIONS = [
 
 export default function KnowledgePage() {
   const { theme, toggleTheme } = useTheme();
+  const { openChatDrawer } = useAIChat();
   const [searchQuery, setSearchQuery] = useState<string>('Fallen of Albaz');
   const [activeTab, setActiveTab] = useState<'card_hub' | 'archetype_matrix' | 'rulings_base' | 'learning_log'>('card_hub');
   const [selectedCardKnowledge, setSelectedCardKnowledge] = useState<CardKnowledgeData | null>(null);
@@ -134,18 +136,35 @@ export default function KnowledgePage() {
             <button
               className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs transition-all cursor-default flex items-center gap-1.5"
             >
-              <span>🧠</span>
-              <span className="hidden sm:inline">Banco de Reglas</span>
+              <span>📜</span>
+              <span className="hidden sm:inline">Reglas</span>
             </button>
+            <Link
+              href="/chat"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+              title="Cerebro Virtual Exordio (/chat)"
+            >
+              <span>🧠</span>
+              <span className="hidden sm:inline">Cerebro</span>
+            </Link>
           </div>
 
-          {/* ZONA DERECHA: Acciones y Theme Toggle */}
+          {/* ZONA DERECHA: Botón Cerebro AI + Acciones y Theme Toggle */}
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setIsTeachSynergyModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display"
+              onClick={openChatDrawer}
+              className="flex items-center gap-1.5 px-3 py-2 bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display"
+              title="Abrir Cerebro Virtual Exordio"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <BrainCircuit className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Cerebro AI</span>
+            </button>
+
+            <button
+              onClick={() => setIsTeachSynergyModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer font-display"
+            >
+              <Plus className="w-3.5 h-3.5 text-red-500" />
               <span>Enseñar Sinergia</span>
             </button>
 
