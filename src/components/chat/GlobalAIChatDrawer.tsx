@@ -93,7 +93,7 @@ export const GlobalAIChatDrawer: React.FC = () => {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="fixed top-0 right-0 bottom-0 w-full sm:w-[480px] md:w-[540px] bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl z-50 flex flex-col font-sans"
+            className="fixed top-0 right-0 bottom-0 w-full sm:w-120 md:w-135 bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl z-50 flex flex-col font-sans"
           >
             {/* DRAWER HEADER */}
             <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/80 backdrop-blur-md shrink-0">
@@ -110,7 +110,7 @@ export const GlobalAIChatDrawer: React.FC = () => {
                       LIVE
                     </span>
                   </div>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-semibold truncate max-w-[240px]">
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-semibold truncate max-w-60">
                     {activeSession?.title || 'Nueva Consulta Táctica'}
                   </p>
                 </div>

@@ -281,7 +281,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
 
                       return (
                         <div className="sm:col-span-2 pt-2 border-t border-zinc-200 dark:border-zinc-800 animate-fade-in">
-                          <label className="block text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 font-mono mb-1 flex items-center justify-between">
+                          <label className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 font-mono mb-1 flex items-center justify-between">
                             <span>Carril / Fila en &quot;{selectedLoc.name}&quot; *</span>
                             <span className="text-[9px] text-zinc-400 font-normal">Selecciona dónde guardar el deck</span>
                           </label>

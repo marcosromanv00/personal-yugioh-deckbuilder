@@ -456,7 +456,7 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
 
                   {/* Ubicaciones y Selector Multinivel */}
                   <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
-                    <div className="flex items-center gap-1 text-zinc-400 truncate max-w-[140px]">
+                    <div className="flex items-center gap-1 text-zinc-400 truncate max-w-35">
                       {staple.isDispersed && (
                         <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
                       )}

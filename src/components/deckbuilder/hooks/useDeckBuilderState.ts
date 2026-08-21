@@ -311,12 +311,93 @@ export function useDeckBuilderState() {
     }
   }, [format]);
 
+  const fetchDecksAndLocations = useCallback(async () => {
+    setLoadingDecks(true);
+    try {
+      let fetchedDecks: Deck[] = [];
+      try {
+        const decksRes = await fetch('/api/decks');
+        if (decksRes.ok) {
+          const json = await decksRes.json();
+          fetchedDecks = json.data || [];
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando /api/decks:', err);
+      }
+
+      if (isIdealMode && syncData?.idealDecks) {
+        fetchedDecks = [...(syncData.idealDecks as Deck[]), ...fetchedDecks];
+      }
+      setSavedDecks(fetchedDecks);
+
+      try {
+        const locRes = await fetch('/api/collection/storage');
+        if (locRes.ok) {
+          const json = await locRes.json();
+          setLocations((json.data || []).filter((l: StorageLocation) => l.type === 'deckbox' || l.type === 'binder' || l.type === 'box'));
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando /api/collection/storage:', err);
+      }
+
+      try {
+        const invRes = await fetch('/api/collection/cards');
+        if (invRes.ok) {
+          const json = await invRes.json();
+          const rawCards = json.data || [];
+          setAllUserCards(rawCards);
+          const counts: Record<number, number> = {};
+          const proxies: Record<number, number> = {};
+          rawCards.forEach((uc: import('@/types/collection').UserCard) => {
+            counts[uc.card_id] = (counts[uc.card_id] || 0) + (uc.quantity || 1);
+            if (uc.is_proxy) {
+              proxies[uc.card_id] = (proxies[uc.card_id] || 0) + (uc.quantity || 1);
+            }
+          });
+          setUserInventoryCounts(counts);
+          setUserProxyCounts(proxies);
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando /api/collection/cards:', err);
+      }
+
+      try {
+        const sleevesRes = await fetch('/api/collection/sleeve-inventory');
+        if (sleevesRes.ok) {
+          const json = await sleevesRes.json();
+          setAvailableSleeves(json.data || []);
+        }
+      } catch (err) {
+        console.warn('Advertencia consultando fundas:', err);
+      }
+
+      if (deckId) {
+        const dsRes = await fetch(`/api/decks/${deckId}/sleeves`);
+        if (dsRes.ok) {
+          const json = await dsRes.json();
+          const assigned: DeckSleeve[] = json.data || [];
+          const mainSleeve = assigned.find(a => a.section_type === 'main_side');
+          const extraSleeve = assigned.find(a => a.section_type === 'extra');
+          setSelectedMainSleeveId(mainSleeve?.sleeve_id || '');
+          setSelectedExtraSleeveId(extraSleeve?.sleeve_id || '');
+        }
+      } else {
+        setSelectedMainSleeveId('');
+        setSelectedExtraSleeveId('');
+      }
+    } catch (e) {
+      console.error('Error cargando decks o inventario:', e);
+    } finally {
+      setLoadingDecks(false);
+    }
+  }, [isIdealMode, syncData, deckId]);
+
   useEffect(() => {
     Promise.resolve().then(() => {
       fetchArchetypes();
       fetchDecksAndLocations();
     });
-  }, [fetchArchetypes]);
+  }, [fetchArchetypes, fetchDecksAndLocations]);
 
 
 
@@ -740,87 +821,7 @@ export function useDeckBuilderState() {
     }
   };
 
-  const fetchDecksAndLocations = async () => {
-    setLoadingDecks(true);
-    try {
-      let fetchedDecks: Deck[] = [];
-      try {
-        const decksRes = await fetch('/api/decks');
-        if (decksRes.ok) {
-          const json = await decksRes.json();
-          fetchedDecks = json.data || [];
-        }
-      } catch (err) {
-        console.warn('Advertencia consultando /api/decks:', err);
-      }
 
-      if (isIdealMode && syncData?.idealDecks) {
-        fetchedDecks = [...(syncData.idealDecks as Deck[]), ...fetchedDecks];
-      }
-      setSavedDecks(fetchedDecks);
-
-      try {
-        const locRes = await fetch('/api/collection/storage');
-        if (locRes.ok) {
-          const json = await locRes.json();
-          setLocations((json.data || []).filter((l: StorageLocation) => l.type === 'deckbox' || l.type === 'binder' || l.type === 'box'));
-        }
-      } catch (err) {
-        console.warn('Advertencia consultando /api/collection/storage:', err);
-      }
-
-      try {
-        const invRes = await fetch('/api/collection/cards');
-        if (invRes.ok) {
-          const json = await invRes.json();
-          const rawCards = json.data || [];
-          setAllUserCards(rawCards);
-          const counts: Record<number, number> = {};
-          const proxies: Record<number, number> = {};
-          rawCards.forEach((uc: import('@/types/collection').UserCard) => {
-            counts[uc.card_id] = (counts[uc.card_id] || 0) + (uc.quantity || 1);
-            if (uc.is_proxy) {
-              proxies[uc.card_id] = (proxies[uc.card_id] || 0) + (uc.quantity || 1);
-            }
-          });
-          setUserInventoryCounts(counts);
-          setUserProxyCounts(proxies);
-        }
-      } catch (err) {
-        console.warn('Advertencia consultando /api/collection/cards:', err);
-      }
-
-      try {
-        const sleevesRes = await fetch('/api/collection/sleeve-inventory');
-        if (sleevesRes.ok) {
-          const json = await sleevesRes.json();
-          setAvailableSleeves(json.data || []);
-        }
-      } catch (err) {
-        console.warn('Advertencia consultando fundas:', err);
-      }
-
-
-      if (deckId) {
-        const dsRes = await fetch(`/api/decks/${deckId}/sleeves`);
-        if (dsRes.ok) {
-          const json = await dsRes.json();
-          const assigned: DeckSleeve[] = json.data || [];
-          const mainSleeve = assigned.find(a => a.section_type === 'main_side');
-          const extraSleeve = assigned.find(a => a.section_type === 'extra');
-          setSelectedMainSleeveId(mainSleeve?.sleeve_id || '');
-          setSelectedExtraSleeveId(extraSleeve?.sleeve_id || '');
-        }
-      } else {
-        setSelectedMainSleeveId('');
-        setSelectedExtraSleeveId('');
-      }
-    } catch (e) {
-      console.error('Error cargando decks o inventario:', e);
-    } finally {
-      setLoadingDecks(false);
-    }
-  };
 
   const handleOpenSaveModal = async () => {
     await fetchDecksAndLocations();
@@ -1222,13 +1223,15 @@ export function useDeckBuilderState() {
           try {
             const draft = JSON.parse(rawDraft);
             if (Array.isArray(draft.deckCards) && draft.deckCards.length > 0) {
-              setDeckId(null);
-              setDeckCards(draft.deckCards);
-              if (draft.deckName) setDeckName(draft.deckName);
-              if (draft.format) setFormat(draft.format);
-              if (draft.deckDescription) setDeckDescription(draft.deckDescription);
-              setHistoryStack([]);
-              setRedoStack([]);
+              queueMicrotask(() => {
+                setDeckId(null);
+                setDeckCards(draft.deckCards);
+                if (draft.deckName) setDeckName(draft.deckName);
+                if (draft.format) setFormat(draft.format);
+                if (draft.deckDescription) setDeckDescription(draft.deckDescription);
+                setHistoryStack([]);
+                setRedoStack([]);
+              });
             }
           } catch (e) {
             console.error('Error cargando borrador desde query param:', e);
