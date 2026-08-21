@@ -5,48 +5,82 @@ const YGOPRODECK_API_URL = 'https://db.ygoprodeck.com/api/v7/cardinfo.php';
 
 // Diccionario de pares de confusión visual comunes en OCR para dígitos numéricos
 const OCR_DIGIT_CONFUSIONS: Record<string, string[]> = {
-  '8': ['9', '0', '3', '6'],
-  '9': ['8', '0', '6'],
-  '0': ['8', '6', '9', '1'],
-  '1': ['7', '0'],
-  '7': ['1'],
-  '3': ['8'],
+  '1': ['4', '7', '0'],
+  '4': ['1', '7', '9'],
+  '9': ['5', '8', '0', '6', '4'],
+  '5': ['9', '6', '3', '8'],
+  '0': ['8', '6', '9', '1', '5'],
+  '8': ['0', '9', '6', '3', '5'],
+  '7': ['1', '4'],
   '6': ['8', '5', '0', '9'],
-  '5': ['6'],
+  '3': ['8', '5', '9'],
 };
 
 /**
  * Genera combinaciones de 8 dígitos sustituyendo un dígito con sus variantes
- * de confusión visual típicas de OCR (ej. 28616929 -> 29616929) o extrayendo
- * ventanas de 8 dígitos si se capturaron 9-10 dígitos por ruidos de borde lateral (ej. '1').
+ * de confusión visual típicas de OCR, priorizando sustituciones en los primeros 4 dígitos.
  */
 function generateOcrCandidatePasscodes(code: string): number[] {
   const digitsOnly = code.replace(/\D/g, '');
   if (digitsOnly.length < 8 || digitsOnly.length > 10) return [];
   const candidates: Set<number> = new Set();
 
-  // Si tiene 9 o 10 dígitos (ej. borde lateral izquierdo leído como '1' o '1st' al final)
-  if (digitsOnly.length === 9) {
-    candidates.add(parseInt(digitsOnly.slice(-8), 10)); // Prioridad 1: descartar ruido/borde '1' a la izquierda
-    candidates.add(parseInt(digitsOnly.slice(0, 8), 10)); // Descartar dígito al final
-  } else if (digitsOnly.length === 10) {
-    candidates.add(parseInt(digitsOnly.slice(1, 9), 10)); // Descartar borde izquierdo '1' y '1st' final
-    candidates.add(parseInt(digitsOnly.slice(-8), 10));
-    candidates.add(parseInt(digitsOnly.slice(0, 8), 10));
-  } else if (digitsOnly.length === 8) {
-    // Variantes de confusión visual típicas
+  if (digitsOnly.length === 8) {
     const chars = digitsOnly.split('');
-    for (let i = 0; i < chars.length; i++) {
-      const originalChar = chars[i];
-      const alternates = OCR_DIGIT_CONFUSIONS[originalChar];
+
+    // 1. Variantes de 1 dígito en las primeras 4 posiciones (mayor probabilidad de error OCR)
+    for (let i = 0; i < 4; i++) {
+      const alternates = OCR_DIGIT_CONFUSIONS[chars[i]];
       if (alternates) {
         for (const alt of alternates) {
           const candidateArr = [...chars];
           candidateArr[i] = alt;
-          candidates.add(parseInt(candidateArr.join(''), 10));
+          const num = parseInt(candidateArr.join(''), 10);
+          if (num > 0 && !isNaN(num)) candidates.add(num);
         }
       }
     }
+
+    // 2. Variantes de 1 dígito en las últimas 4 posiciones
+    for (let i = 4; i < 8; i++) {
+      const alternates = OCR_DIGIT_CONFUSIONS[chars[i]];
+      if (alternates) {
+        for (const alt of alternates) {
+          const candidateArr = [...chars];
+          candidateArr[i] = alt;
+          const num = parseInt(candidateArr.join(''), 10);
+          if (num > 0 && !isNaN(num)) candidates.add(num);
+        }
+      }
+    }
+
+    // 3. Doble sustitución común en primeras posiciones (ej. 1->4 y 5->9)
+    for (let i = 0; i < 2; i++) {
+      const altsI = OCR_DIGIT_CONFUSIONS[chars[i]];
+      if (altsI) {
+        for (const altI of altsI) {
+          for (let j = i + 1; j < 4; j++) {
+            const altsJ = OCR_DIGIT_CONFUSIONS[chars[j]];
+            if (altsJ) {
+              for (const altJ of altsJ) {
+                const candidateArr = [...chars];
+                candidateArr[i] = altI;
+                candidateArr[j] = altJ;
+                const num = parseInt(candidateArr.join(''), 10);
+                if (num > 0 && !isNaN(num)) candidates.add(num);
+              }
+            }
+          }
+        }
+      }
+    }
+  } else if (digitsOnly.length === 9) {
+    candidates.add(parseInt(digitsOnly.slice(-8), 10));
+    candidates.add(parseInt(digitsOnly.slice(0, 8), 10));
+  } else if (digitsOnly.length === 10) {
+    candidates.add(parseInt(digitsOnly.slice(1, 9), 10));
+    candidates.add(parseInt(digitsOnly.slice(-8), 10));
+    candidates.add(parseInt(digitsOnly.slice(0, 8), 10));
   }
 
   return Array.from(candidates).filter((n) => n > 0 && !isNaN(n));
@@ -163,7 +197,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        let { data, error } = await dbQuery;
+        const { data, error } = await dbQuery;
 
         // Si la búsqueda por ID exacto falló pero es un código de 8 a 10 dígitos, intentar autocorrección inteligente
         if ((!data || data.length === 0) && id && /^\d{8,10}$/.test(id)) {

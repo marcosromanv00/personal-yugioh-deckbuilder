@@ -82,22 +82,41 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Obtener la cantidad de cartas guardadas en cada contenedor
+    // Obtener la cantidad de cartas guardadas en cada contenedor con paginación completa
     let cardCounts: Array<{ storage_location_id: string; quantity?: number }> = [];
     if (isSupabaseConfigured) {
       try {
-        let countQuery = supabase
-          .from('yg_user_cards')
-          .select('storage_location_id, quantity')
-          .not('storage_location_id', 'is', null);
-        
-        if (id) {
-          countQuery = countQuery.eq('storage_location_id', id);
-        }
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
 
-        const { data: counts, error: countError } = await countQuery;
-        if (!countError) {
-          cardCounts = (counts as Array<{ storage_location_id: string; quantity?: number }>) || [];
+        while (hasMore) {
+          let countQuery = supabase
+            .from('yg_user_cards')
+            .select('storage_location_id, quantity')
+            .not('storage_location_id', 'is', null)
+            .range(from, from + step - 1);
+          
+          if (id) {
+            countQuery = countQuery.eq('storage_location_id', id);
+          }
+
+          const { data: counts, error: countError } = await countQuery;
+          if (countError) {
+            console.warn('Error calculando ocupación desde Supabase (chunk):', countError.message);
+            break;
+          }
+
+          if (counts && counts.length > 0) {
+            cardCounts = cardCounts.concat(counts as Array<{ storage_location_id: string; quantity?: number }>);
+            if (counts.length < step) {
+              hasMore = false;
+            } else {
+              from += step;
+            }
+          } else {
+            hasMore = false;
+          }
         }
       } catch (err) {
         console.warn('Error calculando ocupación desde Supabase:', err);

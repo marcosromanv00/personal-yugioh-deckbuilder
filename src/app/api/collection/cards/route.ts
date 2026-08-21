@@ -8,7 +8,6 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
     const locationId = searchParams.get('location_id');
     const deckIdFilter = searchParams.get('deck_id');
-    const statusFlag = searchParams.get('status');
     const sleeveType = searchParams.get('sleeve');
     const query = searchParams.get('q');
     const isProxyFilter = searchParams.get('is_proxy');
@@ -31,40 +30,57 @@ export async function GET(req: NextRequest) {
     const rarity = searchParams.get('rarity');
     const onlyFavorites = searchParams.get('favorites') === 'true';
 
-    let dbQuery = supabase
-      .from('yg_user_cards')
-      .select('*, card_details:yg_cards(*), deck_details:yg_decks(name)')
-      .order('created_at', { ascending: true });
-
-    if (locationId === 'null' || locationId === 'inbox') {
-      dbQuery = dbQuery.is('storage_location_id', null).is('deck_id', null);
-    } else if (locationId === 'in_deck') {
-      dbQuery = dbQuery.not('deck_id', 'is', null);
-    } else if (locationId) {
-      dbQuery = dbQuery.eq('storage_location_id', locationId);
-    }
-
-    if (deckIdFilter) {
-      dbQuery = dbQuery.eq('deck_id', deckIdFilter);
-    }
-
-    if (isProxyFilter === 'true') {
-      dbQuery = dbQuery.eq('is_proxy', true);
-    } else if (isProxyFilter === 'false') {
-      dbQuery = dbQuery.eq('is_proxy', false);
-    }
-
-    if (sleeveType) {
-      dbQuery = dbQuery.eq('sleeve_type', sleeveType);
-    }
-
     let cards: UserCard[] = [];
     try {
-      const { data, error } = await dbQuery;
-      if (error) {
-        console.warn('Advertencia de consulta Supabase en cards:', error.message);
-      } else {
-        cards = (data as UserCard[]) || [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        let chunkQuery = supabase
+          .from('yg_user_cards')
+          .select('*, card_details:yg_cards(*), deck_details:yg_decks(name)')
+          .order('created_at', { ascending: true })
+          .range(from, from + step - 1);
+
+        if (locationId === 'null' || locationId === 'inbox') {
+          chunkQuery = chunkQuery.is('storage_location_id', null).is('deck_id', null);
+        } else if (locationId === 'in_deck') {
+          chunkQuery = chunkQuery.not('deck_id', 'is', null);
+        } else if (locationId) {
+          chunkQuery = chunkQuery.eq('storage_location_id', locationId);
+        }
+
+        if (deckIdFilter) {
+          chunkQuery = chunkQuery.eq('deck_id', deckIdFilter);
+        }
+
+        if (isProxyFilter === 'true') {
+          chunkQuery = chunkQuery.eq('is_proxy', true);
+        } else if (isProxyFilter === 'false') {
+          chunkQuery = chunkQuery.eq('is_proxy', false);
+        }
+
+        if (sleeveType) {
+          chunkQuery = chunkQuery.eq('sleeve_type', sleeveType);
+        }
+
+        const { data, error } = await chunkQuery;
+        if (error) {
+          console.warn('Advertencia de consulta Supabase en cards chunk:', error.message);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          cards = cards.concat(data as UserCard[]);
+          if (data.length < step) {
+            hasMore = false;
+          } else {
+            from += step;
+          }
+        } else {
+          hasMore = false;
+        }
       }
     } catch (supabaseErr) {
       console.warn('Error de red/DNS al consultar Supabase (cards):', supabaseErr);
