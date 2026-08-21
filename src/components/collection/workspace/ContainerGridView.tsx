@@ -57,8 +57,10 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
     );
   }
 
+  const hasActiveSelection = isSelectMode || selectedCardIds.length > 0;
+
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 transition-all ${hasActiveSelection ? 'pb-28 sm:pb-32' : 'pb-4'}`}>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
         {paginatedGridCards.map((group) => {
           const uc = group.representativeUserCard;
@@ -118,7 +120,7 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
                         : 'bg-black/60 border border-white/50 text-transparent hover:border-white'
                     }`}
                   >
-                    {isGroupSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    {isGroupSelected && <Check className="w-3.5 h-3.5 stroke-3" />}
                   </div>
                 ) : (
                   <div className="absolute top-1 left-1 flex items-center gap-1 z-10">

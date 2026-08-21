@@ -64,8 +64,10 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
   duplicateMap,
   onOpenConsolidate,
 }) => {
+  const hasActiveSelection = isSelectMode || selectedCardIds.length > 0;
+
   return (
-    <div className="h-full flex flex-col items-center justify-between">
+    <div className={`h-full flex flex-col items-center justify-between transition-all ${hasActiveSelection ? 'pb-28 sm:pb-32' : 'pb-2'}`}>
       <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 items-center justify-center">
         {/* Página Izquierda */}
         <div className="bg-zinc-100 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
@@ -133,7 +135,7 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                               : 'bg-black/60 border border-white/50 text-transparent hover:border-white'
                           }`}
                         >
-                          {isSlotCardSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          {isSlotCardSelected && <Check className="w-3 h-3 stroke-3" />}
                         </div>
                       ) : (
                         duplicateMap?.has(cardInSlot.card_id) && (
@@ -233,7 +235,7 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                               : 'bg-black/60 border border-white/50 text-transparent hover:border-white'
                           }`}
                         >
-                          {isSlotCardSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          {isSlotCardSelected && <Check className="w-3 h-3 stroke-3" />}
                         </div>
                       ) : (
                         duplicateMap?.has(cardInSlot.card_id) && (

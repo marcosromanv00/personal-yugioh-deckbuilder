@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, MapPin, ChevronDown, Heart, RefreshCw, Trash, CheckSquare, CheckCheck, X, Scissors, Check } from 'lucide-react';
+import { Search, MapPin, Heart, RefreshCw, Trash, CheckSquare, CheckCheck, X, Scissors, Check } from 'lucide-react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
 import { getSleeveColorHex } from '@/lib/sleeves';
@@ -280,7 +280,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                           : 'bg-black/60 border border-white/50 text-transparent hover:border-white'
                       }`}
                     >
-                      {isCardSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      {isCardSelected && <Check className="w-3.5 h-3.5 stroke-3" />}
                     </div>
                   ) : (
                     <div className="absolute top-1.5 left-1.5 flex items-center gap-1 z-10">

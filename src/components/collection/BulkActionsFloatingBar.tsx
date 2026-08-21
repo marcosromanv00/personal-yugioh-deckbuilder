@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  CheckSquare, 
   FolderInput, 
   Tag, 
   Sparkles, 
@@ -15,7 +14,7 @@ import {
   AlertTriangle 
 } from 'lucide-react';
 import { StorageLocation, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
-import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface BulkActionsFloatingBarProps {
   selectedCount: number;
@@ -218,9 +217,9 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
+              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-visible flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
             >
-              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50">
+              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50 rounded-t-3xl">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
                     <FolderInput className="w-4 h-4" />
@@ -243,7 +242,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 overflow-visible">
                 <div>
                   <label className="block text-[11px] font-mono font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                     Contenedor de Destino:
@@ -258,17 +257,19 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                     size="md"
                     options={[
                       { value: 'inbox', label: '📥 Bandeja Sin Clasificar (Inbox)' },
-                      ...locations.map((loc) => ({
-                        value: loc.id,
-                        label: `📦 ${loc.name} (${loc.type})`,
-                      })),
+                      ...locations
+                        .filter((loc) => !currentLocationId || loc.id !== currentLocationId)
+                        .map((loc) => ({
+                          value: loc.id,
+                          label: `📦 ${loc.name} (${loc.type})`,
+                        })),
                     ]}
                   />
                 </div>
 
                 {targetLocationObj?.compartments && targetLocationObj.compartments.count > 1 && (
                   <div>
-                    <label className="block text-[11px] font-mono font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <label className="text-[11px] font-mono font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-purple-400" />
                       <span>Carril / Compartimento:</span>
                     </label>
@@ -286,7 +287,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 )}
               </div>
 
-              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5">
+              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5 rounded-b-3xl">
                 <button
                   type="button"
                   onClick={() => setActiveModal('none')}
@@ -321,9 +322,9 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
+              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-visible flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
             >
-              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50">
+              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50 rounded-t-3xl">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
                     <Tag className="w-4 h-4" />
@@ -346,7 +347,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 </button>
               </div>
 
-              <div className="p-5 space-y-3">
+              <div className="p-5 space-y-3 overflow-visible">
                 {[
                   { value: 'collection', label: 'Colección Permanente', desc: 'Cartas conservadas para tu archivo personal', dot: 'bg-green-500' },
                   { value: 'trade_sale', label: 'Venta / Trade', desc: 'Disponibles para intercambio o venta física', dot: 'bg-amber-500' },
@@ -382,7 +383,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 ))}
               </div>
 
-              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5">
+              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5 rounded-b-3xl">
                 <button
                   type="button"
                   onClick={() => setActiveModal('none')}
@@ -417,9 +418,9 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
+              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-visible flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
             >
-              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50">
+              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50 rounded-t-3xl">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/40">
                     <Sparkles className="w-4 h-4" />
@@ -442,7 +443,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 overflow-visible">
                 <div>
                   <label className="block text-[11px] font-mono font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
                     Condición Física:
@@ -492,7 +493,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 </div>
               </div>
 
-              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5">
+              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5 rounded-b-3xl">
                 <button
                   type="button"
                   onClick={() => setActiveModal('none')}
@@ -527,9 +528,9 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-red-300 dark:border-red-900/60 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
+              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-red-300 dark:border-red-900/60 rounded-3xl shadow-2xl overflow-visible flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
             >
-              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-red-50/50 dark:bg-red-950/30">
+              <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-red-50/50 dark:bg-red-950/30 rounded-t-3xl">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800">
                     <AlertTriangle className="w-4 h-4" />
@@ -552,7 +553,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 </button>
               </div>
 
-              <div className="p-5 space-y-3">
+              <div className="p-5 space-y-3 overflow-visible">
                 <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
                   ¿Estás seguro de que deseas eliminar permanentemente <strong>{selectedCount} registros</strong> ({totalPhysicalCount} cartas físicas) de tu colección?
                 </p>
@@ -561,7 +562,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                 </div>
               </div>
 
-              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5">
+              <div className="px-5 py-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex items-center justify-end gap-2.5 rounded-b-3xl">
                 <button
                   type="button"
                   onClick={() => setActiveModal('none')}
