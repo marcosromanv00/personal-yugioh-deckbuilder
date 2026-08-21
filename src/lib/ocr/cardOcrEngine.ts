@@ -119,7 +119,7 @@ export function hasCardVisualFeatures(canvas: HTMLCanvasElement): boolean {
   const variance = sumSq / sampleCount - mean * mean;
   const stdDev = Math.sqrt(Math.max(0, variance));
 
-  return stdDev > 12;
+  return stdDev > 5;
 }
 
 /**
@@ -282,19 +282,19 @@ export function extractAndPreprocessViewfinder(
  * Diccionario de pares de confusión visual comunes en OCR para dígitos de cartas Yu-Gi-Oh!
  */
 export const OCR_DIGIT_CONFUSION_MAP: Record<string, string[]> = {
-  '1': ['4', '7', '0'],
-  '4': ['1', '7', '9'],
-  '9': ['5', '8', '0', '6', '4'],
-  '5': ['9', '6', '3', '8'],
-  '0': ['8', '6', '9', '1', '5'],
-  '8': ['0', '9', '6', '3', '5'],
-  '7': ['1', '4'],
-  '6': ['8', '5', '0', '9'],
+  '1': ['4', '7'],
+  '4': ['1', '9'],
+  '9': ['5', '8', '0'],
+  '5': ['9', '6', '8'],
+  '0': ['8', '6', '9'],
+  '8': ['0', '9', '6', '3'],
+  '7': ['1'],
+  '6': ['8', '5', '0'],
   '3': ['8', '5', '9'],
 };
 
 /**
- * Genera candidatos inteligentes de 8 dígitos priorizando sustituciones en los primeros 4 dígitos.
+ * Genera candidatos inteligentes de 8 dígitos de forma acotada y de alta probabilidad (máximo 6 variantes).
  */
 export function generatePasscodeCandidates(rawCode: string): string[] {
   const digits = rawCode.replace(/\D/g, '');
@@ -307,11 +307,12 @@ export function generatePasscodeCandidates(rawCode: string): string[] {
 
     const chars = digits.split('');
 
-    // Prioridad 1: Sustituciones en los primeros 4 dígitos (posiciones 0..3)
-    for (let i = 0; i < 4; i++) {
+    // Prioridad 1: Sustituciones en los primeros 3 dígitos (donde más suelen ocurrir fallos de OCR)
+    for (let i = 0; i < 3 && results.size < 6; i++) {
       const alts = OCR_DIGIT_CONFUSION_MAP[chars[i]];
       if (alts) {
         for (const alt of alts) {
+          if (results.size >= 6) break;
           const variant = [...chars];
           variant[i] = alt;
           results.add(variant.join(''));
@@ -319,34 +320,15 @@ export function generatePasscodeCandidates(rawCode: string): string[] {
       }
     }
 
-    // Prioridad 2: Sustituciones en los últimos 4 dígitos (posiciones 4..7)
-    for (let i = 4; i < 8; i++) {
+    // Prioridad 2: Sustituciones en dígitos restantes si aún hay espacio
+    for (let i = 3; i < 8 && results.size < 6; i++) {
       const alts = OCR_DIGIT_CONFUSION_MAP[chars[i]];
       if (alts) {
         for (const alt of alts) {
+          if (results.size >= 6) break;
           const variant = [...chars];
           variant[i] = alt;
           results.add(variant.join(''));
-        }
-      }
-    }
-
-    // Prioridad 3: Doble sustitución en las primeras 4 posiciones (ej. 1->4 y 5->9)
-    for (let i = 0; i < 2; i++) {
-      const altsI = OCR_DIGIT_CONFUSION_MAP[chars[i]];
-      if (altsI) {
-        for (const altI of altsI) {
-          for (let j = i + 1; j < 4; j++) {
-            const altsJ = OCR_DIGIT_CONFUSION_MAP[chars[j]];
-            if (altsJ) {
-              for (const altJ of altsJ) {
-                const variant = [...chars];
-                variant[i] = altI;
-                variant[j] = altJ;
-                results.add(variant.join(''));
-              }
-            }
-          }
         }
       }
     }
@@ -358,12 +340,12 @@ export function generatePasscodeCandidates(rawCode: string): string[] {
     results.add(digits.slice(-8));
     results.add(digits.slice(0, 8));
   } else {
-    for (let i = 0; i <= digits.length - 8; i++) {
+    for (let i = 0; i <= digits.length - 8 && results.size < 4; i++) {
       results.add(digits.slice(i, i + 8));
     }
   }
 
-  return Array.from(results);
+  return Array.from(results).slice(0, 6);
 }
 
 /**
@@ -445,7 +427,10 @@ export async function recognizeCardPasscode(
 ): Promise<PasscodeOcrResult | null> {
   try {
     const worker = await getCardOcrWorker();
-    const result = await worker.recognize(canvas);
+    const timeoutPromise = new Promise<{ data: { text: string } }>((_, reject) =>
+      setTimeout(() => reject(new Error('OCR Timeout')), 2200)
+    );
+    const result = await Promise.race([worker.recognize(canvas), timeoutPromise]);
     const rawText = result.data.text || '';
 
     // 1. Limpieza de textos y palabras clave del borde inferior
@@ -472,12 +457,14 @@ export async function recognizeCardPasscode(
 
     if (rawCandidatesSet.size === 0) return null;
 
-    // 4. Generar candidatos con matriz de confusión ponderada
+    // 4. Generar candidatos con matriz de confusión ponderada (máximo 6)
     const fullCandidateList: string[] = [];
     rawCandidatesSet.forEach(rawCand => {
       const generated = generatePasscodeCandidates(rawCand);
       generated.forEach(g => {
-        if (!fullCandidateList.includes(g)) fullCandidateList.push(g);
+        if (!fullCandidateList.includes(g) && fullCandidateList.length < 6) {
+          fullCandidateList.push(g);
+        }
       });
     });
 

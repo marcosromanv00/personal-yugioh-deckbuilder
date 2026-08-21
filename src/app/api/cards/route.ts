@@ -18,7 +18,7 @@ const OCR_DIGIT_CONFUSIONS: Record<string, string[]> = {
 
 /**
  * Genera combinaciones de 8 dígitos sustituyendo un dígito con sus variantes
- * de confusión visual típicas de OCR, priorizando sustituciones en los primeros 4 dígitos.
+ * de confusión visual típicas de OCR, acotando a las variantes de más alta probabilidad.
  */
 function generateOcrCandidatePasscodes(code: string): number[] {
   const digitsOnly = code.replace(/\D/g, '');
@@ -28,11 +28,12 @@ function generateOcrCandidatePasscodes(code: string): number[] {
   if (digitsOnly.length === 8) {
     const chars = digitsOnly.split('');
 
-    // 1. Variantes de 1 dígito en las primeras 4 posiciones (mayor probabilidad de error OCR)
-    for (let i = 0; i < 4; i++) {
+    // 1. Variantes de 1 dígito en las primeras 3 posiciones
+    for (let i = 0; i < 3 && candidates.size < 6; i++) {
       const alternates = OCR_DIGIT_CONFUSIONS[chars[i]];
       if (alternates) {
         for (const alt of alternates) {
+          if (candidates.size >= 6) break;
           const candidateArr = [...chars];
           candidateArr[i] = alt;
           const num = parseInt(candidateArr.join(''), 10);
@@ -41,36 +42,16 @@ function generateOcrCandidatePasscodes(code: string): number[] {
       }
     }
 
-    // 2. Variantes de 1 dígito en las últimas 4 posiciones
-    for (let i = 4; i < 8; i++) {
+    // 2. Variantes de 1 dígito en posiciones restantes si aún hay espacio
+    for (let i = 3; i < 8 && candidates.size < 6; i++) {
       const alternates = OCR_DIGIT_CONFUSIONS[chars[i]];
       if (alternates) {
         for (const alt of alternates) {
+          if (candidates.size >= 6) break;
           const candidateArr = [...chars];
           candidateArr[i] = alt;
           const num = parseInt(candidateArr.join(''), 10);
           if (num > 0 && !isNaN(num)) candidates.add(num);
-        }
-      }
-    }
-
-    // 3. Doble sustitución común en primeras posiciones (ej. 1->4 y 5->9)
-    for (let i = 0; i < 2; i++) {
-      const altsI = OCR_DIGIT_CONFUSIONS[chars[i]];
-      if (altsI) {
-        for (const altI of altsI) {
-          for (let j = i + 1; j < 4; j++) {
-            const altsJ = OCR_DIGIT_CONFUSIONS[chars[j]];
-            if (altsJ) {
-              for (const altJ of altsJ) {
-                const candidateArr = [...chars];
-                candidateArr[i] = altI;
-                candidateArr[j] = altJ;
-                const num = parseInt(candidateArr.join(''), 10);
-                if (num > 0 && !isNaN(num)) candidates.add(num);
-              }
-            }
-          }
         }
       }
     }
@@ -83,7 +64,7 @@ function generateOcrCandidatePasscodes(code: string): number[] {
     candidates.add(parseInt(digitsOnly.slice(0, 8), 10));
   }
 
-  return Array.from(candidates).filter((n) => n > 0 && !isNaN(n));
+  return Array.from(candidates).filter((n) => n > 0 && !isNaN(n)).slice(0, 6);
 }
 
 
@@ -249,18 +230,21 @@ export async function GET(req: NextRequest) {
 
     let response = await fetch(url);
     
-    // Si YGOPRODeck no encontró el ID exacto, probar candidatos de confusión OCR
+    // Si YGOPRODeck no encontró el ID exacto, probar candidatos de confusión OCR en paralelo ultra-rápido (máx 4)
     if (!response.ok && response.status === 400 && id && /^\d{8,10}$/.test(id)) {
-      const candidates = generateOcrCandidatePasscodes(id);
-      for (const candId of candidates) {
+      const candidates = generateOcrCandidatePasscodes(id).slice(0, 4);
+      if (candidates.length > 0) {
         try {
-          const candRes = await fetch(`${YGOPRODECK_API_URL}?id=${candId}`);
-          if (candRes.ok) {
-            response = candRes;
-            break;
-          }
+          const candidatePromises = candidates.map(async (candId) => {
+            const candRes = await fetch(`${YGOPRODECK_API_URL}?id=${candId}`, {
+              signal: AbortSignal.timeout(1500),
+            });
+            if (candRes.ok) return candRes;
+            throw new Error('Candidate not found');
+          });
+          response = await Promise.any(candidatePromises);
         } catch {
-          // Continuar con el siguiente candidato
+          // Ningún candidato alternativo coincidió
         }
       }
     }

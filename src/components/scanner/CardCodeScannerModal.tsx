@@ -102,11 +102,14 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   // Quick Manual Code Edit State
   const [isManualEditOpen, setIsManualEditOpen] = useState<boolean>(false);
   const [manualCodeInput, setManualCodeInput] = useState<string>('');
+  const [isManualSearching, setIsManualSearching] = useState<boolean>(false);
+  const [manualSearchError, setManualSearchError] = useState<string>('');
 
   // Refs para control estricto de concurrencia y descarte de tareas obsoletas (cero colas/buffer)
   const isScanningRef = useRef<boolean>(false);
   const currentScanIdRef = useRef<number>(0);
   const detectedCardRef = useRef<YgoDetectedCard | null>(null);
+  const currentAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     detectedCardRef.current = detectedCard;
@@ -167,7 +170,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     }
   };
 
-  // Fetch card details with multi-candidate sequential fallback and cancellation checks
+  // Fetch card details with parallel fast candidate resolution and cancellation checks
   const fetchCardInfo = useCallback(
     async (
       code: string,
@@ -175,6 +178,11 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       isManualTrigger: boolean = false,
       candidates: string[] = []
     ) => {
+      // Cancelar cualquier petición HTTP anterior en vuelo
+      currentAbortControllerRef.current?.abort();
+      const abortController = new AbortController();
+      currentAbortControllerRef.current = abortController;
+
       setLoadingCard(true);
       setCameraError('');
       setScannedCode(code);
@@ -183,32 +191,58 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
       }
       setScannerStage('fetching_card');
 
-      // Probar lista de candidatos sin duplicados
-      const codesToTry = Array.from(new Set([code, ...candidates]));
+      const resolvedCode = OcrLearningMemory.resolve(code);
+      const targetCandidates = Array.from(new Set([resolvedCode, code, ...candidates.slice(0, 4)])).filter(Boolean);
 
       try {
         let foundCardData: YgoDetectedCard | null = null;
-        let matchedCode = code;
+        let matchedCode = resolvedCode;
 
-        for (const testCode of codesToTry) {
-          if (scanId !== currentScanIdRef.current) return;
-          try {
-            const res = await fetch(`/api/cards?id=${encodeURIComponent(testCode)}`);
-            if (res.ok) {
-              const json = await res.json();
-              const cardData: YgoDetectedCard | undefined = json.data?.[0] || json.card;
-              if (cardData && cardData.name) {
-                foundCardData = cardData;
-                matchedCode = testCode;
-                break;
-              }
+        // 1. Probar primero el código exacto resuelto
+        try {
+          const res = await fetch(`/api/cards?id=${encodeURIComponent(resolvedCode)}`, {
+            signal: abortController.signal,
+          });
+          if (res.ok) {
+            const json = await res.json();
+            const cardData: YgoDetectedCard | undefined = json.data?.[0] || json.card;
+            if (cardData && cardData.name) {
+              foundCardData = cardData;
+              matchedCode = resolvedCode;
             }
-          } catch {
-            // Continuar con el siguiente candidato
+          }
+        } catch (e: unknown) {
+          if ((e as Error)?.name === 'AbortError') return;
+        }
+
+        // 2. Si no se encontró y hay candidatos alternativos, consultar en paralelo rápido (Promise.any)
+        if (!foundCardData && targetCandidates.length > 1) {
+          const remaining = targetCandidates.filter((c) => c !== resolvedCode).slice(0, 3);
+          if (remaining.length > 0) {
+            try {
+              const parallelPromises = remaining.map(async (testCode) => {
+                const res = await fetch(`/api/cards?id=${encodeURIComponent(testCode)}`, {
+                  signal: abortController.signal,
+                });
+                if (res.ok) {
+                  const json = await res.json();
+                  const cardData: YgoDetectedCard | undefined = json.data?.[0] || json.card;
+                  if (cardData && cardData.name) {
+                    return { cardData, testCode };
+                  }
+                }
+                throw new Error('Not found');
+              });
+              const result = await Promise.any(parallelPromises);
+              foundCardData = result.cardData;
+              matchedCode = result.testCode;
+            } catch (e: unknown) {
+              if ((e as Error)?.name === 'AbortError') return;
+            }
           }
         }
 
-        if (scanId !== currentScanIdRef.current) return;
+        if (scanId !== currentScanIdRef.current || abortController.signal.aborted) return;
 
         if (foundCardData && foundCardData.name) {
           // Registrar aprendizaje continuo
@@ -234,22 +268,23 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
               if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
                 setScannerStage('idle');
               }
-            }, 3000);
+            }, 2500);
           } else {
-            // En automático continuo, volver inmediatamente a idle sin bloquear
+            // En automático continuo, volver INMEDIATAMENTE a idle para tomar la siguiente foto sin demoras
             setScannerStage('idle');
           }
         }
-      } catch {
+      } catch (e: unknown) {
+        if ((e as Error)?.name === 'AbortError') return;
         if (scanId !== currentScanIdRef.current) return;
         if (isManualTrigger) {
           setScannerStage('not_found');
-          setCameraError(`Código (#${code}) no encontrado en el registro.`);
+          setCameraError(`Código (#${code}) no encontrado.`);
           setTimeout(() => {
             if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
               setScannerStage('idle');
             }
-          }, 3000);
+          }, 2500);
         } else {
           setScannerStage('idle');
         }
@@ -262,23 +297,65 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     [isManualEditOpen]
   );
 
-  // Open manual code edit dialog
+  // Open manual code edit dialog (cancela tareas automáticas en segundo plano de inmediato)
   const handleOpenManualEdit = () => {
+    currentAbortControllerRef.current?.abort();
+    currentScanIdRef.current++;
+    isScanningRef.current = false;
+    setLoadingCard(false);
+    setScannerStage('idle');
+    setManualSearchError('');
     setManualCodeInput(scannedCode || '');
     setIsManualEditOpen(true);
   };
 
-  // Submit manual 8-digit code
-  const handleManualCodeSubmit = (e?: React.FormEvent) => {
+  // Submit manual 8-digit code or direct ID/name search
+  const handleManualCodeSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const cleanDigits = manualCodeInput.trim().replace(/\D/g, '');
-    if (cleanDigits.length >= 8) {
-      const codeToUse = cleanDigits.slice(0, 8);
-      const scanId = ++currentScanIdRef.current;
-      if (scannedCode && scannedCode !== codeToUse) {
-        OcrLearningMemory.learnCorrection(scannedCode, codeToUse, 'Corrección manual');
+    const clean = manualCodeInput.trim();
+    if (!clean) return;
+
+    currentAbortControllerRef.current?.abort();
+    const scanId = ++currentScanIdRef.current;
+    setIsManualSearching(true);
+    setManualSearchError('');
+
+    const isNumeric = /^\d+$/.test(clean);
+    const codeToUse = isNumeric ? clean.slice(0, 8) : clean;
+
+    try {
+      const res = await fetch(
+        `/api/cards?${isNumeric ? `id=${encodeURIComponent(codeToUse)}` : `q=${encodeURIComponent(codeToUse)}`}`
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const cardData: YgoDetectedCard | undefined = json.data?.[0] || json.card;
+        if (cardData && cardData.name) {
+          if (isNumeric && scannedCode && scannedCode !== codeToUse) {
+            OcrLearningMemory.learnCorrection(scannedCode, codeToUse, cardData.name);
+          }
+          setScannedCode(cardData.id.toString());
+          setDetectedCard(cardData);
+          setScannerStage('card_found');
+          setQuantity(1);
+          setIsManualEditOpen(false);
+          if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+            navigator.vibrate([40, 50, 40]);
+          }
+          return;
+        }
       }
-      fetchCardInfo(codeToUse, scanId, true);
+      if (scanId === currentScanIdRef.current) {
+        setManualSearchError(`No se encontró la carta con #${codeToUse}`);
+      }
+    } catch {
+      if (scanId === currentScanIdRef.current) {
+        setManualSearchError('Error de red al consultar el ID.');
+      }
+    } finally {
+      if (scanId === currentScanIdRef.current) {
+        setIsManualSearching(false);
+      }
     }
   };
 
@@ -327,9 +404,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     const rawCropW = Math.round(unzoomedWidth / scale);
     const rawCropH = Math.round(unzoomedHeight / scale);
 
-    // Margen horizontal y vertical balanceado para evitar recortes en los primeros y últimos dígitos
-    const marginXLeft = Math.round(rawCropW * 0.08);
-    const marginXRight = Math.round(rawCropW * 0.08);
+    // Margen horizontal y vertical balanceado para enfocar estrictamente los 8 dígitos
+    const marginXLeft = Math.round(rawCropW * 0.05);
+    const marginXRight = Math.round(rawCropW * 0.05);
     const marginY = Math.round(rawCropH * 0.04);
     const cropX = Math.max(0, rawCropX - marginXLeft);
     const cropY = Math.max(0, rawCropY - marginY);
@@ -344,7 +421,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     };
   }, [digitalZoomFactor]);
 
-  // Single OCR Scan Step with Strict Concurrency Lock, Multi-pass Adaptive Binarization & Live Snapshot
+  // Single OCR Scan Step with fast single-pass in auto mode and multi-pass on manual trigger
   const performScan = useCallback(
     async (isManualTrigger: boolean = false) => {
       // Si ya hay carta detectada o escaneo en progreso o consulta de red activa o modal manual abierto, no ejecutar nada
@@ -369,7 +446,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
       if (isManualTrigger) {
         setIsSnapshotRefreshing(true);
-        setTimeout(() => setIsSnapshotRefreshing(false), 300);
+        setTimeout(() => setIsSnapshotRefreshing(false), 200);
       }
 
       const canvas = extractAndPreprocessViewfinder(videoRef.current, cropRect);
@@ -395,19 +472,17 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
         // Pase 1: Umbralización Adaptativa Local O(1) con Quiet Zone y supresión de bordes
         let match = await recognizeCardPasscode(canvas);
 
-        // Pase 2: Escala de Grises con realce de contraste
-        if (!match && videoRef.current) {
+        // Pase 2 y 3: Solo si es disparo manual o explícito para no ralentizar el ciclo continuo
+        if (!match && isManualTrigger && videoRef.current) {
           const grayCanvas = extractGrayscaleViewfinder(videoRef.current, cropRect);
           if (grayCanvas) {
             match = await recognizeCardPasscode(grayCanvas);
           }
-        }
-
-        // Pase 3: Binarización Adaptativa Invertida (para cartas oscuras como XYZ / Link o letras foil)
-        if (!match && videoRef.current) {
-          const invertedCanvas = extractAndPreprocessViewfinder(videoRef.current, cropRect, true);
-          if (invertedCanvas) {
-            match = await recognizeCardPasscode(invertedCanvas);
+          if (!match && videoRef.current) {
+            const invertedCanvas = extractAndPreprocessViewfinder(videoRef.current, cropRect, true);
+            if (invertedCanvas) {
+              match = await recognizeCardPasscode(invertedCanvas);
+            }
           }
         }
 
@@ -426,7 +501,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
             if (!detectedCardRef.current && scanId === currentScanIdRef.current) {
               setScannerStage('idle');
             }
-          }, 2800);
+          }, 2000);
         } else {
           setScannerStage('idle');
         }
@@ -434,25 +509,38 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
         console.error('Error durante performScan:', e);
         setScannerStage('idle');
       } finally {
-        if (scanId === currentScanIdRef.current) {
-          isScanningRef.current = false;
-        }
+        isScanningRef.current = false;
       }
     },
     [loadingCard, getCropRect, fetchCardInfo, scannerStage, isManualEditOpen]
   );
 
-  // Bucle de escaneo periódico (SE DETIENE POR COMPLETO cuando una carta ya fue identificada, está consultando o editando manualmente)
+  // Bucle de escaneo periódico secuencial continuo (~200ms tras completar el frame anterior sin bloqueo de cola)
   useEffect(() => {
-    if (!isOpen || !stream || loadingCard || detectedCard || isManualEditOpen) return;
+    if (!isOpen || !stream || detectedCard || isManualEditOpen) return;
 
-    const interval = setInterval(() => {
-      if (!isScanningRef.current && !loadingCard && !detectedCardRef.current && !isManualEditOpen) {
-        performScan(false);
-      }
-    }, 500);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let isCancelled = false;
 
-    return () => clearInterval(interval);
+    const scheduleNextScan = () => {
+      if (isCancelled || detectedCardRef.current || isManualEditOpen) return;
+      timeoutId = setTimeout(async () => {
+        if (isCancelled || detectedCardRef.current || isManualEditOpen) return;
+        if (!isScanningRef.current && !loadingCard && !detectedCardRef.current && !isManualEditOpen) {
+          await performScan(false);
+        }
+        if (!isCancelled && !detectedCardRef.current && !isManualEditOpen) {
+          scheduleNextScan();
+        }
+      }, 200);
+    };
+
+    scheduleNextScan();
+
+    return () => {
+      isCancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [isOpen, stream, loadingCard, detectedCard, isManualEditOpen, performScan]);
 
   // Gestión de ciclo de vida de cámara y liberación completa de memoria de Worker al cerrar
@@ -551,6 +639,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     onCardRegistered(detectedCard, registeredQty);
 
     // Invalidar tareas en vuelo y reiniciar estado
+    currentAbortControllerRef.current?.abort();
     currentScanIdRef.current++;
     isScanningRef.current = false;
     setLastRegisteredNotice(`+${registeredQty}x ${registeredName}`);
@@ -564,6 +653,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
   // Handle modal close with full state reset
   const handleClose = () => {
+    currentAbortControllerRef.current?.abort();
     currentScanIdRef.current++;
     isScanningRef.current = false;
     setDetectedCard(null);
@@ -572,6 +662,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     setScannerStage('idle');
     setCameraError('');
     setLastRegisteredNotice(null);
+    setIsManualEditOpen(false);
+    setIsManualSearching(false);
+    setManualSearchError('');
     setZoomLevel(1.0);
     setAppliedHardwareZoom(1.0);
     onClose();
@@ -579,6 +672,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
   // Reset/Cambiar carta para escanear otra
   const handleResetScan = () => {
+    currentAbortControllerRef.current?.abort();
     currentScanIdRef.current++;
     isScanningRef.current = false;
     setDetectedCard(null);
@@ -714,12 +808,12 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   {/* Horizontal strip target container */}
                   <div
                     ref={viewfinderRef}
-                    className={`relative z-10 w-76 sm:w-80 max-w-[90%] h-20 sm:h-22 rounded-2xl border-2 transition-colors duration-200 flex items-center justify-center overflow-hidden ${vfStyles.box}`}
+                    className={`relative z-10 w-64 sm:w-68 max-w-[80%] h-18 sm:h-20 rounded-2xl border-2 transition-colors duration-200 flex items-center justify-center overflow-hidden ${vfStyles.box}`}
                   >
                     {/* Laser scanning line animation */}
                     {vfStyles.showLaser && (
                       <motion.div
-                        animate={{ y: [-38, 38, -38] }}
+                        animate={{ y: [-32, 32, -32] }}
                         transition={{
                           duration: scannerStage === 'reading_ocr' ? 0.9 : 1.6,
                           repeat: Infinity,
@@ -845,7 +939,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                           <span className="truncate">Recorte analizado</span>
                         </span>
                         <span className="text-[10px] text-zinc-200 font-mono truncate">
-                          {scannedCode ? `#${scannedCode}` : 'Listo'}
+                          {scannedCode ? `#${scannedCode}` : scannerStage === 'reading_ocr' ? 'Analizando...' : scannerStage === 'fetching_card' ? 'Consultando...' : 'Buscando...'}
                         </span>
                       </div>
                     </div>
@@ -1063,32 +1157,34 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                     </button>
                   </div>
 
-                  {/* Live camera assistance banner for mobile */}
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-300 text-xs font-medium sm:hidden">
-                    <span className="text-base leading-none">👁️</span>
-                    <span>La cámara sigue visible arriba para que leas el código en pantalla sin mover la carta</span>
-                  </div>
-
                   <form onSubmit={handleManualCodeSubmit} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="block text-[11px] font-mono font-bold text-zinc-300">
-                        Dígitos detectados / Passcode (8 cifras):
+                        Código Passcode (8 cifras) o Nombre:
                       </label>
                       <input
                         type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={8}
                         autoFocus
                         value={manualCodeInput}
-                        onChange={(e) => setManualCodeInput(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                        onChange={(e) => {
+                          setManualCodeInput(e.target.value);
+                          if (manualSearchError) setManualSearchError('');
+                        }}
                         placeholder="Ej. 29616929"
                         className="w-full text-center font-mono font-black text-2xl tracking-widest py-3.5 sm:py-3 px-4 bg-zinc-950 border-2 border-red-500/60 focus:border-red-500 rounded-2xl text-zinc-100 placeholder:text-zinc-700 focus:outline-none shadow-inner"
                       />
-                      <p className="text-[10px] text-zinc-500 text-center font-mono">
-                        {manualCodeInput.length}/8 dígitos ingresados
-                      </p>
+                      <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono px-1">
+                        <span>{manualCodeInput.length} caracteres</span>
+                        <span>Introduce el código o nombre</span>
+                      </div>
                     </div>
+
+                    {manualSearchError && (
+                      <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-800 text-red-300 text-xs font-mono flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                        <span className="truncate">{manualSearchError}</span>
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-2.5 pt-1">
                       <button
@@ -1100,15 +1196,15 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       </button>
                       <button
                         type="submit"
-                        disabled={manualCodeInput.trim().length < 8 || loadingCard}
+                        disabled={manualCodeInput.trim().length === 0 || isManualSearching}
                         className="flex-1 min-h-12 sm:h-auto py-3 sm:py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md shadow-red-950 flex items-center justify-center gap-1.5 cursor-pointer font-mono active:scale-95 touch-manipulation"
                       >
-                        {loadingCard ? (
+                        {isManualSearching ? (
                           <Loader2 className="w-4 h-4 animate-spin text-white" />
                         ) : (
                           <Check className="w-4 h-4" />
                         )}
-                        <span>Buscar Carta</span>
+                        <span>{isManualSearching ? 'Buscando...' : 'Buscar Carta'}</span>
                       </button>
                     </div>
                   </form>
