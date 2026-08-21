@@ -124,15 +124,15 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ showToast, dismissToast, success, error, info, warning }}>
       {children}
 
-      {/* TOAST CONTAINER FIXED */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+      {/* TOAST CONTAINER FIXED - En mobile: top-4 inset-x-4, en desktop: bottom-5 right-5 */}
+      <div className="fixed top-4 sm:top-auto sm:bottom-5 inset-x-4 sm:inset-x-auto sm:right-5 z-60 flex flex-col gap-2.5 max-w-sm w-auto sm:w-full pointer-events-none">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div
               key={toast.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              initial={{ opacity: 0, y: -15, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              exit={{ opacity: 0, scale: 0.9, y: -10 }}
               transition={{ duration: 0.2 }}
               className={`pointer-events-auto rounded-xl p-3.5 border shadow-xl backdrop-blur-md flex items-start justify-between gap-3 text-xs ${getBorderColor(
                 toast.type

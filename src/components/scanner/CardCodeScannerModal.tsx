@@ -877,7 +877,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       initial={{ opacity: 0, y: -10, scale: 0.9 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.9 }}
-                      className="absolute top-3 inset-x-0 mx-auto w-fit z-40 px-3.5 py-1.5 rounded-full bg-emerald-600/95 text-white text-xs font-bold shadow-xl flex items-center gap-1.5 border border-emerald-400/40 pointer-events-none"
+                      className="absolute top-12 inset-x-0 mx-auto w-fit z-40 px-3.5 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-xl flex items-center gap-1.5 border border-emerald-400/40 pointer-events-none"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>{lastRegisteredNotice} añadida</span>
