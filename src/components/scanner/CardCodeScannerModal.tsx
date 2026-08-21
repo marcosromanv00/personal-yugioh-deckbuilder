@@ -80,6 +80,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   const [activeDeviceId, setActiveDeviceId] = useState<string>('');
   const [hasTorch, setHasTorch] = useState<boolean>(false);
   const [torchOn, setTorchOn] = useState<boolean>(false);
+  const [retryTrigger, setRetryTrigger] = useState<number>(0);
 
   // Zoom State (1.0x to 5.0x)
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
@@ -106,80 +107,10 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   const isScanningRef = useRef<boolean>(false);
   const currentScanIdRef = useRef<number>(0);
   const detectedCardRef = useRef<YgoDetectedCard | null>(null);
-  detectedCardRef.current = detectedCard;
 
-  // Stop camera tracks cleanly
-  const stopStream = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
-  }, [stream]);
-
-  // Start Camera Feed
-  const startCamera = useCallback(async (deviceId?: string) => {
-    setCameraError('');
-    try {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-
-      const constraints: MediaStreamConstraints = {
-        audio: false,
-        video: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          facingMode: deviceId ? undefined : { ideal: 'environment' },
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-          // @ts-expect-error advanced focusMode
-          advanced: [{ focusMode: 'continuous' }],
-        },
-      };
-
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      setStream(mediaStream);
-      setCameraPermission(true);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        await videoRef.current.play().catch(() => {});
-      }
-
-      // Check capabilities for Torch & Zoom
-      const videoTrack = mediaStream.getVideoTracks()[0];
-      if (videoTrack) {
-        const capabilities = videoTrack.getCapabilities?.() as {
-          torch?: boolean;
-          zoom?: { min: number; max: number; step: number };
-        } | undefined;
-
-        setHasTorch(Boolean(capabilities?.torch));
-        if (capabilities?.zoom && capabilities.zoom.max > 1) {
-          setMaxHardwareZoom(capabilities.zoom.max);
-        } else {
-          setMaxHardwareZoom(1.0);
-        }
-      }
-
-      // Enumerate devices for switching
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
-      setAvailableDevices(videoDevices);
-      if (!deviceId && videoDevices.length > 0) {
-        const currentDeviceId = videoTrack?.getSettings()?.deviceId;
-        if (currentDeviceId) setActiveDeviceId(currentDeviceId);
-      }
-    } catch (err: unknown) {
-      console.error('Error al acceder a la cámara:', err);
-      setCameraPermission(false);
-      const errorObj = err as Error;
-      if (errorObj.name === 'NotAllowedError' || errorObj.name === 'PermissionDeniedError') {
-        setCameraError('Permiso de cámara denegado. Concede acceso a la cámara para escanear.');
-      } else {
-        setCameraError('No se pudo inicializar la cámara. Verifica que no esté en uso por otra app.');
-      }
-    }
-  }, [stream]);
+  useEffect(() => {
+    detectedCardRef.current = detectedCard;
+  }, [detectedCard]);
 
   // Set Zoom (1.0x to 5.0x) with hardware + digital hybrid scaling
   const handleSetZoom = useCallback(
@@ -233,7 +164,6 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     const nextDevice = availableDevices[nextIndex];
     if (nextDevice) {
       setActiveDeviceId(nextDevice.deviceId);
-      startCamera(nextDevice.deviceId);
     }
   };
 
@@ -397,12 +327,13 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     const rawCropW = Math.round(unzoomedWidth / scale);
     const rawCropH = Math.round(unzoomedHeight / scale);
 
-    // En el lado izquierdo, usar rawCropX directamente para evitar invadir el bisel vertical del marco de la carta
-    const marginXRight = Math.round(rawCropW * 0.05);
-    const marginY = Math.round(rawCropH * 0.02);
-    const cropX = Math.max(0, rawCropX);
+    // Margen horizontal y vertical balanceado para evitar recortes en los primeros y últimos dígitos
+    const marginXLeft = Math.round(rawCropW * 0.08);
+    const marginXRight = Math.round(rawCropW * 0.08);
+    const marginY = Math.round(rawCropH * 0.04);
+    const cropX = Math.max(0, rawCropX - marginXLeft);
     const cropY = Math.max(0, rawCropY - marginY);
-    const cropW = Math.min(rawCropW + marginXRight, vWidth - cropX);
+    const cropW = Math.min(rawCropW + marginXLeft + marginXRight, vWidth - cropX);
     const cropH = Math.min(rawCropH + marginY * 2, vHeight - cropY);
 
     return {
@@ -526,28 +457,89 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
   // Gestión de ciclo de vida de cámara y liberación completa de memoria de Worker al cerrar
   useEffect(() => {
-    if (isOpen) {
-      startCamera();
-      setScannerStage('idle');
-    } else {
-      stopStream();
-      terminateCardOcrWorker();
-      currentScanIdRef.current++;
-      isScanningRef.current = false;
-      setDetectedCard(null);
-      setScannedCode(null);
-      setLastSnapshotUrl(null);
-      setScannerStage('idle');
-      setCameraError('');
-      setLastRegisteredNotice(null);
-      setZoomLevel(1.0);
-      setAppliedHardwareZoom(1.0);
-    }
+    if (!isOpen) return;
+
+    let isMounted = true;
+    let localStream: MediaStream | null = null;
+
+    const initCamera = async () => {
+      try {
+        const constraints: MediaStreamConstraints = {
+          audio: false,
+          video: {
+            deviceId: activeDeviceId ? { exact: activeDeviceId } : undefined,
+            facingMode: activeDeviceId ? undefined : { ideal: 'environment' },
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
+            // @ts-expect-error advanced focusMode
+            advanced: [{ focusMode: 'continuous' }],
+          },
+        };
+
+        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        localStream = mediaStream;
+
+        if (!isMounted) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        setCameraError('');
+        setStream(mediaStream);
+        setCameraPermission(true);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const videoTrack = mediaStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const capabilities = videoTrack.getCapabilities?.() as {
+            torch?: boolean;
+            zoom?: { min: number; max: number; step: number };
+          } | undefined;
+
+          setHasTorch(Boolean(capabilities?.torch));
+          if (capabilities?.zoom && capabilities.zoom.max > 1) {
+            setMaxHardwareZoom(capabilities.zoom.max);
+          } else {
+            setMaxHardwareZoom(1.0);
+          }
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        if (isMounted) {
+          const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+          setAvailableDevices(videoDevices);
+          if (!activeDeviceId && videoDevices.length > 0) {
+            const currentDeviceId = videoTrack?.getSettings()?.deviceId;
+            if (currentDeviceId) setActiveDeviceId(currentDeviceId);
+          }
+        }
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        console.error('Error al acceder a la cámara:', err);
+        setCameraPermission(false);
+        const errorObj = err as Error;
+        if (errorObj.name === 'NotAllowedError' || errorObj.name === 'PermissionDeniedError') {
+          setCameraError('Permiso de cámara denegado. Concede acceso a la cámara para escanear.');
+        } else {
+          setCameraError('No se pudo inicializar la cámara. Verifica que no esté en uso por otra app.');
+        }
+      }
+    };
+
+    initCamera();
+
     return () => {
-      stopStream();
+      isMounted = false;
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
       terminateCardOcrWorker();
     };
-  }, [isOpen]);
+  }, [isOpen, activeDeviceId, retryTrigger]);
 
   // Handle register action (invalida escaneos anteriores y reanuda el escáner fresco)
   const handleRegister = () => {
@@ -568,6 +560,21 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     setScannedCode(null);
     setScannerStage('idle');
     setQuantity(1);
+  };
+
+  // Handle modal close with full state reset
+  const handleClose = () => {
+    currentScanIdRef.current++;
+    isScanningRef.current = false;
+    setDetectedCard(null);
+    setScannedCode(null);
+    setLastSnapshotUrl(null);
+    setScannerStage('idle');
+    setCameraError('');
+    setLastRegisteredNotice(null);
+    setZoomLevel(1.0);
+    setAppliedHardwareZoom(1.0);
+    onClose();
   };
 
   // Reset/Cambiar carta para escanear otra
@@ -662,7 +669,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="p-2 sm:p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer touch-manipulation"
               title="Cerrar escáner"
             >
@@ -678,7 +685,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                 <p className="text-sm text-zinc-300">{cameraError || 'Acceso a cámara no disponible.'}</p>
                 <button
                   type="button"
-                  onClick={() => startCamera(activeDeviceId)}
+                  onClick={() => setRetryTrigger((c) => c + 1)}
                   className="px-5 py-2.5 sm:px-4 sm:py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer touch-manipulation"
                 >
                   Reintentar Permisos
@@ -1002,7 +1009,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => performScan(true)}
-                    disabled={isScanningRef.current || loadingCard}
+                    disabled={scannerStage === 'reading_ocr' || scannerStage === 'fetching_card' || loadingCard || isSnapshotRefreshing}
                     className="flex-1 sm:flex-initial min-h-12 sm:h-auto px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-red-950/50 disabled:opacity-50 cursor-pointer touch-manipulation"
                   >
                     <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-red-200" />

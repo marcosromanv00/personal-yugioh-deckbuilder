@@ -233,25 +233,39 @@ export function extractAndPreprocessViewfinder(
     }
   }
 
-  // 4. Supresión de artefacto de borde izquierdo (línea vertical del marco de la carta)
-  // Las primeras 6 columnas se limpian a blanco; columnas 6-12 se revisan si son una barra vertical continua
-  for (let x = 0; x < Math.min(12, targetW); x++) {
+  // 4. Supresión inteligente de artefacto de borde izquierdo (solo líneas continuas reales >80% altura)
+  let foundBorder = false;
+  for (let x = 0; x < Math.min(6, targetW); x++) {
     let darkCount = 0;
     for (let y = 0; y < targetH; y++) {
       if (binaryGrid[y * targetW + x] === 0) darkCount++;
     }
-    // Si la columna está a la izquierda extrema (x < 6) o es una línea vertical continua (>50% de la altura)
-    if (x < 6 || darkCount > targetH * 0.5) {
+    // Solo suprimir si es una línea vertical continua extrema que abarca >80% de la altura
+    if (darkCount > targetH * 0.8) {
+      foundBorder = true;
       for (let y = 0; y < targetH; y++) {
         binaryGrid[y * targetW + x] = 255;
+      }
+    } else if (foundBorder) {
+      break; // Dejar de suprimir una vez que termina el borde
+    }
+  }
+
+  // 5. Micro-cierre morfológico horizontal para unir trazos finos (barra del 4, bucle del 9)
+  const closedGrid = new Uint8Array(binaryGrid);
+  for (let y = 1; y < targetH - 1; y++) {
+    for (let x = 1; x < targetW - 1; x++) {
+      const idx = y * targetW + x;
+      if (binaryGrid[idx] === 255 && binaryGrid[idx - 1] === 0 && binaryGrid[idx + 1] === 0) {
+        closedGrid[idx] = 0;
       }
     }
   }
 
-  // Renderizar al canvas final con padding
+  // Renderizar al canvas final con padding (Quiet-Zone)
   for (let y = 0; y < targetH; y++) {
     for (let x = 0; x < targetW; x++) {
-      const val = binaryGrid[y * targetW + x];
+      const val = closedGrid[y * targetW + x];
       const dstIdx = ((y + pad) * finalW + (x + pad)) * 4;
       dst[dstIdx] = val;
       dst[dstIdx + 1] = val;
@@ -262,6 +276,94 @@ export function extractAndPreprocessViewfinder(
 
   finalCtx.putImageData(finalImgData, 0, 0);
   return finalCanvas;
+}
+
+/**
+ * Diccionario de pares de confusión visual comunes en OCR para dígitos de cartas Yu-Gi-Oh!
+ */
+export const OCR_DIGIT_CONFUSION_MAP: Record<string, string[]> = {
+  '1': ['4', '7', '0'],
+  '4': ['1', '7', '9'],
+  '9': ['5', '8', '0', '6', '4'],
+  '5': ['9', '6', '3', '8'],
+  '0': ['8', '6', '9', '1', '5'],
+  '8': ['0', '9', '6', '3', '5'],
+  '7': ['1', '4'],
+  '6': ['8', '5', '0', '9'],
+  '3': ['8', '5', '9'],
+};
+
+/**
+ * Genera candidatos inteligentes de 8 dígitos priorizando sustituciones en los primeros 4 dígitos.
+ */
+export function generatePasscodeCandidates(rawCode: string): string[] {
+  const digits = rawCode.replace(/\D/g, '');
+  if (digits.length < 8) return [rawCode];
+
+  const results = new Set<string>();
+
+  if (digits.length === 8) {
+    results.add(digits);
+
+    const chars = digits.split('');
+
+    // Prioridad 1: Sustituciones en los primeros 4 dígitos (posiciones 0..3)
+    for (let i = 0; i < 4; i++) {
+      const alts = OCR_DIGIT_CONFUSION_MAP[chars[i]];
+      if (alts) {
+        for (const alt of alts) {
+          const variant = [...chars];
+          variant[i] = alt;
+          results.add(variant.join(''));
+        }
+      }
+    }
+
+    // Prioridad 2: Sustituciones en los últimos 4 dígitos (posiciones 4..7)
+    for (let i = 4; i < 8; i++) {
+      const alts = OCR_DIGIT_CONFUSION_MAP[chars[i]];
+      if (alts) {
+        for (const alt of alts) {
+          const variant = [...chars];
+          variant[i] = alt;
+          results.add(variant.join(''));
+        }
+      }
+    }
+
+    // Prioridad 3: Doble sustitución en las primeras 4 posiciones (ej. 1->4 y 5->9)
+    for (let i = 0; i < 2; i++) {
+      const altsI = OCR_DIGIT_CONFUSION_MAP[chars[i]];
+      if (altsI) {
+        for (const altI of altsI) {
+          for (let j = i + 1; j < 4; j++) {
+            const altsJ = OCR_DIGIT_CONFUSION_MAP[chars[j]];
+            if (altsJ) {
+              for (const altJ of altsJ) {
+                const variant = [...chars];
+                variant[i] = altI;
+                variant[j] = altJ;
+                results.add(variant.join(''));
+              }
+            }
+          }
+        }
+      }
+    }
+  } else if (digits.length === 9) {
+    results.add(digits.slice(-8));
+    results.add(digits.slice(0, 8));
+  } else if (digits.length === 10) {
+    results.add(digits.slice(1, 9));
+    results.add(digits.slice(-8));
+    results.add(digits.slice(0, 8));
+  } else {
+    for (let i = 0; i <= digits.length - 8; i++) {
+      results.add(digits.slice(i, i + 8));
+    }
+  }
+
+  return Array.from(results);
 }
 
 /**
@@ -351,12 +453,12 @@ export async function recognizeCardPasscode(
       .replace(/\b1\s*(?:st|ST|St|ed|ED|Ed|a|A)?\b/gi, ' ')
       .replace(/\b(?:edition|edicion|limited|unlimited|kazuki|takahashi|konami|studio|dice|shueisha|tv|tokyo)\b/gi, ' ');
 
-    const candidatesSet: Set<string> = new Set();
+    const rawCandidatesSet: Set<string> = new Set();
 
     // 2. Buscar primero cualquier bloque aislado exacto de 8 dígitos (\b\d{8}\b)
     const match8 = cleanedText.match(/(?:^|\D)(\d{8})(?:\D|$)/) || rawText.match(/(?:^|\D)(\d{8})(?:\D|$)/);
     if (match8 && match8[1]) {
-      candidatesSet.add(match8[1]);
+      rawCandidatesSet.add(match8[1]);
     }
 
     // 3. Extracción secuencial de dígitos limpios
@@ -364,33 +466,30 @@ export async function recognizeCardPasscode(
     const rawDigits = rawText.replace(/\D/g, '');
     const digitsToUse = cleanDigits.length >= 8 ? cleanDigits : rawDigits;
 
-    if (digitsToUse.length === 8) {
-      candidatesSet.add(digitsToUse);
-    } else if (digitsToUse.length === 9) {
-      // Prioridad 1: descartar ruido/borde '1' a la izquierda (ej. 167835547 -> 67835547)
-      candidatesSet.add(digitsToUse.slice(-8));
-      candidatesSet.add(digitsToUse.slice(0, 8));
-    } else if (digitsToUse.length === 10) {
-      // Descartar borde izquierdo '1' y '1st' al final (ej. 1678355471 -> 67835547)
-      candidatesSet.add(digitsToUse.slice(1, 9));
-      candidatesSet.add(digitsToUse.slice(-8));
-      candidatesSet.add(digitsToUse.slice(0, 8));
-    } else if (digitsToUse.length > 10) {
-      for (let i = 0; i <= digitsToUse.length - 8; i++) {
-        candidatesSet.add(digitsToUse.slice(i, i + 8));
-      }
+    if (digitsToUse.length >= 8) {
+      rawCandidatesSet.add(digitsToUse);
     }
 
-    const candidateList = Array.from(candidatesSet);
-    if (candidateList.length === 0) return null;
+    if (rawCandidatesSet.size === 0) return null;
 
-    const primaryCode = candidateList[0];
+    // 4. Generar candidatos con matriz de confusión ponderada
+    const fullCandidateList: string[] = [];
+    rawCandidatesSet.forEach(rawCand => {
+      const generated = generatePasscodeCandidates(rawCand);
+      generated.forEach(g => {
+        if (!fullCandidateList.includes(g)) fullCandidateList.push(g);
+      });
+    });
+
+    if (fullCandidateList.length === 0) return null;
+
+    const primaryCode = fullCandidateList[0];
     const resolvedFromMemory = OcrLearningMemory.resolve(primaryCode);
     const isLearned = resolvedFromMemory !== primaryCode;
 
     return {
       code: resolvedFromMemory,
-      candidates: candidateList,
+      candidates: fullCandidateList,
       rawText,
       fromLearningMemory: isLearned,
     };
