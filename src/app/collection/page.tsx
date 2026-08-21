@@ -14,8 +14,10 @@ import {
   Sun, 
   Moon,
   Menu,
+  BrainCircuit,
 } from 'lucide-react';
 import { useTheme } from '@/components/ui/ThemeProvider';
+import { useAIChat } from '@/context/AIChatContext';
 
 // Custom State Hook
 import { useCollectionState } from '@/components/collection/hooks/useCollectionState';
@@ -70,6 +72,7 @@ export default function CollectionPage() {
   const suggestionsCount = suggestionsAnalysis.stats.totalArchetypesDetected + suggestionsAnalysis.stats.totalDispersedDuplicates;
 
   const { theme, toggleTheme } = useTheme();
+  const { openChatDrawer } = useAIChat();
 
   // Handler para crear deck desde arquetipo sugerido
   const handleCreateDeckFromArchetype = async (archetype: string, cards: UserCard[]) => {
@@ -174,13 +177,31 @@ export default function CollectionPage() {
               className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
               title="Banco de Reglas e Interpretaciones del Agente"
             >
+              <span>📜</span>
+              <span className="hidden sm:inline">Reglas</span>
+            </Link>
+            <Link
+              href="/chat"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+              title="Cerebro Virtual Exordio (/chat)"
+            >
               <span>🧠</span>
-              <span className="hidden sm:inline">Banco de Reglas</span>
+              <span className="hidden sm:inline">Cerebro</span>
             </Link>
           </div>
 
           {/* ACCIONES SUPERIORES */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Botón Flotante Cerebro AI */}
+            <button
+              onClick={openChatDrawer}
+              className="flex items-center gap-1.5 px-3 py-2 bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display"
+              title="Abrir Cerebro Virtual Exordio"
+            >
+              <BrainCircuit className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Cerebro AI</span>
+            </button>
+
             <button
               onClick={state.handleNewContainerClick}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer"
@@ -325,6 +346,7 @@ export default function CollectionPage() {
                   decks={state.decks}
                   locations={state.locations}
                   sleeves={state.sleeves}
+                  allUserCards={state.allCollectionCards}
                   setDecks={state.setDecks}
                   onDeckClick={(deck) => {
                     setSelectedDeck(deck);

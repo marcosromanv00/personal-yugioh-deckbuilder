@@ -64,80 +64,115 @@ export interface AssistantActionCard {
   secondaryActionLabel?: string;
 }
 
+export interface MultiLevelDestination {
+  level: 1 | 2 | 3 | 4;
+  levelLabel: string;
+  targetId: string | null;
+  targetName: string;
+  targetType: 'deck' | 'archetype_container' | 'staples_binder' | 'trade_binder' | 'storage_box' | 'inbox';
+  targetColor?: string;
+  affinityScore: number; // 0 - 100
+  rationale: string;
+  actionPayload: {
+    storage_location_id: string | null;
+    deck_id?: string | null;
+    deck_section?: 'main' | 'extra' | 'side' | null;
+    status_flag?: string;
+  };
+}
+
 // Catálogo de Staples y Handtraps Universales de Yu-Gi-Oh!
-export const KNOWN_STAPLES_CATALOG: Record<string, { category: StapleCategory; tier: 'S' | 'A' | 'B' }> = {
+export const KNOWN_STAPLES_CATALOG: Record<string, { category: StapleCategory; tier: 'S' | 'A' | 'B'; optimalDeckMax?: number }> = {
   // Handtraps
-  'Ash Blossom & Joyous Spring': { category: 'handtrap', tier: 'S' },
-  'Maxx "C"': { category: 'handtrap', tier: 'S' },
-  'Infinite Impermanence': { category: 'handtrap', tier: 'S' },
-  'Nibiru, the Primal Being': { category: 'handtrap', tier: 'S' },
-  'Effect Veiler': { category: 'handtrap', tier: 'A' },
-  'Droll & Lock Bird': { category: 'handtrap', tier: 'S' },
-  'Ghost Ogre & Snow Rabbit': { category: 'handtrap', tier: 'A' },
-  'Ghost Belle & Haunted Mansion': { category: 'handtrap', tier: 'A' },
-  'Ghost Mourner & Moonlit Chill': { category: 'handtrap', tier: 'B' },
-  'Dimension Shifter': { category: 'handtrap', tier: 'S' },
-  'Artifact Lancea': { category: 'handtrap', tier: 'B' },
-  'Skull Meister': { category: 'handtrap', tier: 'B' },
-  'Mulcharmy Purulia': { category: 'handtrap', tier: 'S' },
-  'Mulcharmy Fuwalos': { category: 'handtrap', tier: 'S' },
+  'Ash Blossom & Joyous Spring': { category: 'handtrap', tier: 'S', optimalDeckMax: 3 },
+  'Maxx "C"': { category: 'handtrap', tier: 'S', optimalDeckMax: 3 },
+  'Infinite Impermanence': { category: 'handtrap', tier: 'S', optimalDeckMax: 3 },
+  'Nibiru, the Primal Being': { category: 'handtrap', tier: 'S', optimalDeckMax: 2 },
+  'Effect Veiler': { category: 'handtrap', tier: 'A', optimalDeckMax: 3 },
+  'Droll & Lock Bird': { category: 'handtrap', tier: 'S', optimalDeckMax: 3 },
+  'Ghost Ogre & Snow Rabbit': { category: 'handtrap', tier: 'A', optimalDeckMax: 2 },
+  'Ghost Belle & Haunted Mansion': { category: 'handtrap', tier: 'A', optimalDeckMax: 2 },
+  'Ghost Mourner & Moonlit Chill': { category: 'handtrap', tier: 'B', optimalDeckMax: 2 },
+  'Dimension Shifter': { category: 'handtrap', tier: 'S', optimalDeckMax: 2 },
+  'Artifact Lancea': { category: 'handtrap', tier: 'B', optimalDeckMax: 2 },
+  'Skull Meister': { category: 'handtrap', tier: 'B', optimalDeckMax: 2 },
+  'Mulcharmy Purulia': { category: 'handtrap', tier: 'S', optimalDeckMax: 3 },
+  'Mulcharmy Fuwalos': { category: 'handtrap', tier: 'S', optimalDeckMax: 3 },
 
   // Board Breakers & Spells
-  'Super Polymerization': { category: 'board_breaker', tier: 'S' },
-  'Dark Ruler No More': { category: 'board_breaker', tier: 'A' },
-  'Forbidden Droplet': { category: 'board_breaker', tier: 'S' },
-  'Lightning Storm': { category: 'board_breaker', tier: 'A' },
-  "Harpie's Feather Duster": { category: 'board_breaker', tier: 'S' },
-  'Evenly Matched': { category: 'board_breaker', tier: 'S' },
-  'Cosmic Cyclone': { category: 'board_breaker', tier: 'A' },
-  'Twin Twisters': { category: 'board_breaker', tier: 'B' },
-  'Called by the Grave': { category: 'board_breaker', tier: 'S' },
-  'Crossout Designator': { category: 'board_breaker', tier: 'S' },
-  'Triple Tactics Talent': { category: 'board_breaker', tier: 'S' },
-  'Triple Tactics Thrust': { category: 'board_breaker', tier: 'S' },
-  'Book of Eclipse': { category: 'board_breaker', tier: 'A' },
-  'Book of Moon': { category: 'board_breaker', tier: 'B' },
-  'Raigeki': { category: 'board_breaker', tier: 'B' },
-  'Change of Heart': { category: 'board_breaker', tier: 'B' },
-  'Kashtira Fenrir': { category: 'board_breaker', tier: 'S' },
+  'Super Polymerization': { category: 'board_breaker', tier: 'S', optimalDeckMax: 3 },
+  'Dark Ruler No More': { category: 'board_breaker', tier: 'A', optimalDeckMax: 3 },
+  'Forbidden Droplet': { category: 'board_breaker', tier: 'S', optimalDeckMax: 3 },
+  'Lightning Storm': { category: 'board_breaker', tier: 'A', optimalDeckMax: 2 },
+  "Harpie's Feather Duster": { category: 'board_breaker', tier: 'S', optimalDeckMax: 1 },
+  'Evenly Matched': { category: 'board_breaker', tier: 'S', optimalDeckMax: 3 },
+  'Cosmic Cyclone': { category: 'board_breaker', tier: 'A', optimalDeckMax: 3 },
+  'Twin Twisters': { category: 'board_breaker', tier: 'B', optimalDeckMax: 2 },
+  'Called by the Grave': { category: 'board_breaker', tier: 'S', optimalDeckMax: 2 },
+  'Crossout Designator': { category: 'board_breaker', tier: 'S', optimalDeckMax: 3 },
+  'Triple Tactics Talent': { category: 'board_breaker', tier: 'S', optimalDeckMax: 2 },
+  'Triple Tactics Thrust': { category: 'board_breaker', tier: 'S', optimalDeckMax: 3 },
+  'Book of Eclipse': { category: 'board_breaker', tier: 'A', optimalDeckMax: 3 },
+  'Book of Moon': { category: 'board_breaker', tier: 'B', optimalDeckMax: 3 },
+  'Raigeki': { category: 'board_breaker', tier: 'B', optimalDeckMax: 2 },
+  'Change of Heart': { category: 'board_breaker', tier: 'B', optimalDeckMax: 1 },
+  'Kashtira Fenrir': { category: 'board_breaker', tier: 'S', optimalDeckMax: 1 },
 
   // Motores de Robo / Consistencia
-  'Pot of Prosperity': { category: 'draw_engine', tier: 'S' },
-  'Pot of Extravagance': { category: 'draw_engine', tier: 'A' },
-  'Pot of Desires': { category: 'draw_engine', tier: 'A' },
-  'Pot of Duality': { category: 'draw_engine', tier: 'B' },
-  'Upstart Goblin': { category: 'draw_engine', tier: 'B' },
+  'Pot of Prosperity': { category: 'draw_engine', tier: 'S', optimalDeckMax: 1 },
+  'Pot of Extravagance': { category: 'draw_engine', tier: 'A', optimalDeckMax: 2 },
+  'Pot of Desires': { category: 'draw_engine', tier: 'A', optimalDeckMax: 2 },
+  'Pot of Duality': { category: 'draw_engine', tier: 'B', optimalDeckMax: 2 },
+  'Upstart Goblin': { category: 'draw_engine', tier: 'B', optimalDeckMax: 1 },
 
   // Monstruos Genéricos de Extra Deck
-  'S:P Little Knight': { category: 'extra_deck_generic', tier: 'S' },
-  'I:P Masquerena': { category: 'extra_deck_generic', tier: 'S' },
-  'Divine Arsenal AA-ZEUS - Sky Thunder': { category: 'extra_deck_generic', tier: 'S' },
-  'Super Starslayer TY-PHON - Sky Crisis': { category: 'extra_deck_generic', tier: 'S' },
-  'Underworld Goddess of the Closed World': { category: 'extra_deck_generic', tier: 'S' },
-  'Accesscode Talker': { category: 'extra_deck_generic', tier: 'S' },
-  'Apollousa, Bow of the Goddess': { category: 'extra_deck_generic', tier: 'S' },
-  'Knightmare Unicorn': { category: 'extra_deck_generic', tier: 'A' },
-  'Knightmare Phoenix': { category: 'extra_deck_generic', tier: 'A' },
-  'Abyss Dweller': { category: 'extra_deck_generic', tier: 'A' },
-  'Number 41: Bagooska the Terribly Tired Tapir': { category: 'extra_deck_generic', tier: 'A' },
-  'Baronne de Fleur': { category: 'extra_deck_generic', tier: 'S' },
-  'Borreload Savage Dragon': { category: 'extra_deck_generic', tier: 'A' },
-  'Linkuriboh': { category: 'extra_deck_generic', tier: 'A' },
-  'Relinquished Anima': { category: 'extra_deck_generic', tier: 'A' },
-  'Garura, Wings of Resonant Life': { category: 'extra_deck_generic', tier: 'S' },
-  'Mudragon of the Swamp': { category: 'extra_deck_generic', tier: 'A' },
+  'S:P Little Knight': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'I:P Masquerena': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Divine Arsenal AA-ZEUS - Sky Thunder': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Super Starslayer TY-PHON - Sky Crisis': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Underworld Goddess of the Closed World': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Accesscode Talker': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Apollousa, Bow of the Goddess': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Knightmare Unicorn': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
+  'Knightmare Phoenix': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
+  'Abyss Dweller': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
+  'Number 41: Bagooska the Terribly Tired Tapir': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
+  'Baronne de Fleur': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Borreload Savage Dragon': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
+  'Linkuriboh': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
+  'Relinquished Anima': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
+  'Garura, Wings of Resonant Life': { category: 'extra_deck_generic', tier: 'S', optimalDeckMax: 1 },
+  'Mudragon of the Swamp': { category: 'extra_deck_generic', tier: 'A', optimalDeckMax: 1 },
 
   // Negaciones y Trampas
-  'Solemn Judgment': { category: 'floodgate_negate', tier: 'A' },
-  'Solemn Strike': { category: 'floodgate_negate', tier: 'A' },
-  'Anti-Spell Fragrance': { category: 'floodgate_negate', tier: 'A' },
-  'Dimensional Barrier': { category: 'floodgate_negate', tier: 'S' },
-  'Red Reboot': { category: 'floodgate_negate', tier: 'S' },
+  'Solemn Judgment': { category: 'floodgate_negate', tier: 'A', optimalDeckMax: 3 },
+  'Solemn Strike': { category: 'floodgate_negate', tier: 'A', optimalDeckMax: 3 },
+  'Anti-Spell Fragrance': { category: 'floodgate_negate', tier: 'A', optimalDeckMax: 1 },
+  'Dimensional Barrier': { category: 'floodgate_negate', tier: 'S', optimalDeckMax: 3 },
+  'Red Reboot': { category: 'floodgate_negate', tier: 'S', optimalDeckMax: 1 },
+};
+
+// Ratios óptimos para cartas clave comúnmente jugadas a 1 o 2 copias
+const CARD_OPTIMAL_DECK_RATIOS: Record<string, number> = {
+  'Blazing Cartesia, the Virtuous': 2,
+  'Guiding Quem, the Virtuous': 1,
+  'Aluber the Jester of Despia': 3,
+  'Fallen of Albaz': 3,
+  'Branded Fusion': 1,
+  'Lubellion the Searing Dragon': 2,
+  'Albion the Branded Dragon': 2,
+  'Mirrorjade the Iceblade Dragon': 2,
+  'Granguignol the Dusk Dragon': 1,
+  'Bystial Magnamhut': 1,
+  'Bystial Druiswurm': 1,
+  'Bystial Saronir': 3,
+  'Bystial Lubellion': 3,
 };
 
 /**
  * Computa el mapa de duplicados cruzados entre contenedores para toda la colección.
- * Devuelve un Map<card_id, DuplicateMatchInfo>.
+ * REGLA INVARIANTE: Las cartas en decks activos (is_deck === true) están blindadas
+ * y NO generan alertas de consolidación hacia cajas.
  */
 export function computeCrossContainerDuplicateMap(
   allUserCards: UserCard[],
@@ -207,7 +242,10 @@ export function computeCrossContainerDuplicateMap(
     });
 
     const locationsList = Array.from(locationMap.values());
-    const hasDuplicates = locationsList.length >= 2;
+    
+    // REGLA: Solo se consideran duplicados dispersos si existen al menos 2 ubicaciones que NO sean decks
+    const nonDeckLocations = locationsList.filter(l => !l.is_deck);
+    const hasDuplicates = nonDeckLocations.length >= 2;
 
     resultMap.set(cardId, {
       card_id: cardId,
@@ -221,6 +259,159 @@ export function computeCrossContainerDuplicateMap(
   });
 
   return resultMap;
+}
+
+/**
+ * Genera opciones multinivel de movimiento con justificación táctica para una carta específica.
+ */
+export function computeMultiLevelDestinationsForCard(
+  card: UserCard,
+  allUserCards: UserCard[],
+  locations: StorageLocation[],
+  decks: Deck[]
+): MultiLevelDestination[] {
+  const destinations: MultiLevelDestination[] = [];
+  const cardName = card.card_details?.name || '';
+  const cardArchetype = card.card_details?.archetype || '';
+  const cardType = card.card_details?.type || '';
+  const isExtraDeck = cardType.includes('Fusion') || cardType.includes('Synchro') || cardType.includes('XYZ') || cardType.includes('Link');
+  const targetSection = isExtraDeck ? 'extra' : 'main';
+
+  // 1. NIVEL 1: Completar Deck Activo (Solo si el deck necesita la carta y no ha alcanzado su ratio óptimo)
+  if (cardArchetype) {
+    const matchingDecks = decks.filter(d => 
+      d.is_active !== false && 
+      (d.name.toLowerCase().includes(cardArchetype.toLowerCase()) || 
+       (cardArchetype === 'Branded' && d.name.toLowerCase().includes('despia')) ||
+       (cardArchetype === 'Despia' && d.name.toLowerCase().includes('branded')))
+    );
+
+    for (const deck of matchingDecks) {
+      // Contar cuántas copias de esta carta ya tiene el deck
+      const copiesInDeck = allUserCards
+        .filter(c => c.deck_id === deck.id && c.card_id === card.card_id)
+        .reduce((acc, c) => acc + (c.quantity || 1), 0);
+
+      const optimalMax = CARD_OPTIMAL_DECK_RATIOS[cardName] || (KNOWN_STAPLES_CATALOG[cardName]?.optimalDeckMax ?? 3);
+
+      if (copiesInDeck < optimalMax) {
+        destinations.push({
+          level: 1,
+          levelLabel: 'Nivel 1: Completar Deck Activo',
+          targetId: `deck_${deck.id}`,
+          targetName: deck.name,
+          targetType: 'deck',
+          targetColor: '#9333ea',
+          affinityScore: 98,
+          rationale: `El deck "${deck.name}" lleva ${copiesInDeck}/${optimalMax} copias óptimas. Añadir esta copia completa su ratio competitivo.`,
+          actionPayload: {
+            storage_location_id: deck.storage_location_id || null,
+            deck_id: deck.id,
+            deck_section: targetSection,
+            status_flag: 'in_deck',
+          },
+        });
+      }
+    }
+  }
+
+  // 2. NIVEL 2: Contenedor / Base del Arquetipo
+  if (cardArchetype) {
+    const archetypeLocs = locations.filter(l => 
+      l.name.toLowerCase().includes(cardArchetype.toLowerCase()) ||
+      (l.description && l.description.toLowerCase().includes(cardArchetype.toLowerCase())) ||
+      (cardArchetype === 'Branded' && l.name.toLowerCase().includes('legendary')) ||
+      (cardArchetype === 'Despia' && l.name.toLowerCase().includes('branded'))
+    );
+
+    archetypeLocs.forEach(loc => {
+      if (loc.id !== card.storage_location_id) {
+        destinations.push({
+          level: 2,
+          levelLabel: 'Nivel 2: Base del Arquetipo',
+          targetId: loc.id,
+          targetName: loc.name,
+          targetType: 'archetype_container',
+          targetColor: loc.color_code || '#6366f1',
+          affinityScore: 88,
+          rationale: `Contenedor físico dedicado a la base de "${cardArchetype}". Mantiene agrupadas tus piezas de arquetipo.`,
+          actionPayload: {
+            storage_location_id: loc.id,
+            deck_id: null,
+            status_flag: 'collection',
+          },
+        });
+      }
+    });
+  }
+
+  // 3. NIVEL 3: Binder de Staples / Carpeta de Trade
+  const stapleEntry = KNOWN_STAPLES_CATALOG[cardName];
+  const isHighRarity = (card.rarity || '').includes('Secret') || (card.rarity || '').includes('Ultimate') || (card.rarity || '').includes('Quarter');
+  const isTrade = card.status_flag === 'trade_sale';
+
+  const tradeAndStapleBinders = locations.filter(l => 
+    l.type === 'binder' && 
+    (l.name.toLowerCase().includes('staple') || 
+     l.name.toLowerCase().includes('trade') || 
+     l.name.toLowerCase().includes('cambio') || 
+     l.name.toLowerCase().includes('colección'))
+  );
+
+  tradeAndStapleBinders.forEach(binder => {
+    if (binder.id !== card.storage_location_id) {
+      destinations.push({
+        level: 3,
+        levelLabel: isTrade ? 'Nivel 3: Carpeta de Trade / Venta' : 'Nivel 3: Binder de Staples / Colección',
+        targetId: binder.id,
+        targetName: binder.name,
+        targetType: isTrade ? 'trade_binder' : 'staples_binder',
+        targetColor: binder.color_code || '#06b6d4',
+        affinityScore: stapleEntry ? 82 : (isHighRarity ? 78 : 70),
+        rationale: stapleEntry 
+          ? `Staple universal Tier ${stapleEntry.tier}. Ideal para tener en tu carpeta de acceso rápido.`
+          : (isHighRarity ? `Alta rareza (${card.rarity}). Protegida en carpeta física.` : `Destinada para intercambio o catálogo de colección.`),
+        actionPayload: {
+          storage_location_id: binder.id,
+          deck_id: null,
+          status_flag: isTrade ? 'trade_sale' : 'collection',
+        },
+      });
+    }
+  });
+
+  // 4. NIVEL 4: Almacén Alfabético / Bulk
+  const storageBoxes = locations.filter(l => 
+    (l.type === 'box' || l.type === 'tin' || l.type === 'drawer') &&
+    !destinations.some(d => d.targetId === l.id) &&
+    l.id !== card.storage_location_id
+  );
+
+  storageBoxes.slice(0, 3).forEach(box => {
+    destinations.push({
+      level: 4,
+      levelLabel: 'Nivel 4: Almacén General / Bulk Alfabético',
+      targetId: box.id,
+      targetName: box.name,
+      targetType: 'storage_box',
+      targetColor: box.color_code || '#71717a',
+      affinityScore: 50,
+      rationale: `Caja de almacenamiento general para archivo alfabético y stock de reserva.`,
+      actionPayload: {
+        storage_location_id: box.id,
+        deck_id: null,
+        status_flag: 'bulk',
+      },
+    });
+  });
+
+  // Ordenar por nivel (1 > 2 > 3 > 4) y luego afinidad descendente
+  destinations.sort((a, b) => {
+    if (a.level !== b.level) return a.level - b.level;
+    return b.affinityScore - a.affinityScore;
+  });
+
+  return destinations;
 }
 
 /**
@@ -261,7 +452,6 @@ export function analyzeCollectionSuggestions(
   const archetypeSuggestions: ArchetypeSuggestionGroup[] = [];
 
   archetypeMap.forEach((cards, archName) => {
-    // Considerar arquetipo viable si tiene al menos 3 copias o cartas
     const distinctCards = new Set(cards.map(c => c.card_id));
     const totalCopies = cards.reduce((acc, c) => acc + (c.quantity || 1), 0);
 
@@ -294,7 +484,6 @@ export function analyzeCollectionSuggestions(
         }
       });
 
-      // Cálculo de puntaje de compleción de arquetipo (base 15 cartas para un core jugable)
       const completionScore = Math.min(100, Math.round((totalCopies / 15) * 100));
       const sampleCard = cards.find(c => c.card_details?.image_url) || cards[0];
 
@@ -314,7 +503,6 @@ export function analyzeCollectionSuggestions(
     }
   });
 
-  // Ordenar arquetipos por total de cartas descendente
   archetypeSuggestions.sort((a, b) => b.totalCardsCount - a.totalCardsCount);
 
   // 2. Identificar Staples
@@ -337,7 +525,6 @@ export function analyzeCollectionSuggestions(
     }
   });
 
-  // Ordenar staples por Tier (S > A > B) y luego copias
   const tierOrder: Record<string, number> = { S: 3, A: 2, B: 1 };
   stapleSuggestions.sort((a, b) => {
     const diffTier = (tierOrder[b.tier] || 0) - (tierOrder[a.tier] || 0);
@@ -345,7 +532,7 @@ export function analyzeCollectionSuggestions(
     return b.copiesOwned - a.copiesOwned;
   });
 
-  // 3. Duplicados Dispersos
+  // 3. Duplicados Dispersos (Excluyendo decks)
   const duplicateSuggestions = Array.from(duplicateMap.values())
     .filter(d => d.hasDuplicatesInOtherContainers)
     .sort((a, b) => b.totalCopies - a.totalCopies);
@@ -353,7 +540,6 @@ export function analyzeCollectionSuggestions(
   // 4. Tarjetas Asistente de Acción Rápida
   const assistantActionCards: AssistantActionCard[] = [];
 
-  // Sugerencia de Inbox Triage
   const inboxCards = allUserCards.filter(c => !c.storage_location_id && !c.deck_id);
   if (inboxCards.length > 0) {
     assistantActionCards.push({
@@ -368,7 +554,6 @@ export function analyzeCollectionSuggestions(
     });
   }
 
-  // Top 2 Arquetipos con más cartas
   archetypeSuggestions.slice(0, 2).forEach((arch, idx) => {
     const hasDeck = decks.some(d => d.name.toLowerCase().includes(arch.archetype.toLowerCase()));
     if (!hasDeck && arch.totalCardsCount >= 5) {
@@ -388,7 +573,6 @@ export function analyzeCollectionSuggestions(
     }
   });
 
-  // Top Staples Dispersas
   const dispersedStaples = stapleSuggestions.filter(s => s.isDispersed);
   if (dispersedStaples.length > 0) {
     const firstStaple = dispersedStaples[0];
@@ -406,7 +590,6 @@ export function analyzeCollectionSuggestions(
     });
   }
 
-  // Top Duplicados dispersos
   if (duplicateSuggestions.length > 0 && !dispersedStaples.some(s => s.card_id === duplicateSuggestions[0].card_id)) {
     const topDup = duplicateSuggestions[0];
     assistantActionCards.push({

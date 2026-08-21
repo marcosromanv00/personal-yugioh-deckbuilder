@@ -25,6 +25,7 @@ import {
   DuplicateMatchInfo,
   StapleCategory
 } from '@/lib/collectionSuggestions';
+import { MultiLevelMovementDropdown } from '@/components/collection/MultiLevelMovementDropdown';
 
 interface SuggestionsTabProps {
   allUserCards: UserCard[];
@@ -453,9 +454,9 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Ubicaciones y Alerta */}
-                  <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between gap-1.5 text-[10px]">
-                    <div className="flex items-center gap-1 text-zinc-400 truncate">
+                  {/* Ubicaciones y Selector Multinivel */}
+                  <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
+                    <div className="flex items-center gap-1 text-zinc-400 truncate max-w-[140px]">
                       {staple.isDispersed && (
                         <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
                       )}
@@ -466,14 +467,15 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
                       </span>
                     </div>
 
-                    {staple.isDispersed && onOpenConsolidateCard && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenConsolidateCard(staple.card_id)}
-                        className="text-[9px] font-bold text-amber-500 hover:text-amber-400 uppercase tracking-wider shrink-0 cursor-pointer"
-                      >
-                        Consolidar
-                      </button>
+                    {staple.cards[0] && (
+                      <MultiLevelMovementDropdown
+                        card={staple.cards[0]}
+                        allUserCards={allUserCards}
+                        locations={locations}
+                        decks={decks}
+                        onMoveSuccess={onOrganizeInbox}
+                        buttonClassName="px-2 py-1 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1 cursor-pointer"
+                      />
                     )}
                   </div>
                 </div>
@@ -546,15 +548,34 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
                     </div>
                   </div>
 
-                  {onOpenConsolidateCard && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenConsolidateCard(dup.card_id)}
-                      className="py-1.5 px-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer shadow-xs"
-                    >
-                      Consolidar
-                    </button>
-                  )}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                    {(() => {
+                      const repCard = allUserCards.find(c => c.card_id === dup.card_id && !c.deck_id);
+                      if (repCard) {
+                        return (
+                          <MultiLevelMovementDropdown
+                            card={repCard}
+                            allUserCards={allUserCards}
+                            locations={locations}
+                            decks={decks}
+                            onMoveSuccess={onOrganizeInbox}
+                            buttonClassName="px-2.5 py-1.5 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl text-[10px] font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1 cursor-pointer shadow-2xs"
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {onOpenConsolidateCard && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenConsolidateCard(dup.card_id)}
+                        className="py-1.5 px-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer shadow-xs"
+                      >
+                        Consolidar
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

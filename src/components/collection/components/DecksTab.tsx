@@ -1,16 +1,16 @@
-'use client';
-
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, Search, Plus, Shield, Box, Eye, Trash2, ArrowUpRight, CheckCircle2, Sparkles, Filter } from 'lucide-react';
+import { Layers, Search, Plus, Shield, Box, Eye, Trash2, ArrowUpRight, CheckCircle2, Sparkles, Filter, Swords } from 'lucide-react';
 import Link from 'next/link';
-import { Deck, StorageLocation, SleeveInventory } from '@/types/collection';
+import { Deck, StorageLocation, SleeveInventory, UserCard } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
+import { RecommendedDecksGallery } from './RecommendedDecksGallery';
 
 interface DecksTabProps {
   decks: Deck[];
   locations: StorageLocation[];
   sleeves: SleeveInventory[];
+  allUserCards?: UserCard[];
   setDecks: React.Dispatch<React.SetStateAction<Deck[]>>;
   onDeckClick: (deck: Deck) => void;
   onRefreshData?: () => void;
@@ -18,17 +18,19 @@ interface DecksTabProps {
 
 /**
  * DecksTab Component
- * Main gallery view for managing all user deck recipes, physical status, 
- * formats, assigned sleeves and physical storage locations.
+ * Main gallery view for managing user deck recipes, physical status, 
+ * formats, assigned sleeves, plus the subcategory for recommended decks built from free collection.
  */
 export const DecksTab: React.FC<DecksTabProps> = ({
   decks,
   locations,
   sleeves,
+  allUserCards = [],
   setDecks,
   onDeckClick,
   onRefreshData,
 }) => {
+  const [subCategory, setSubCategory] = useState<'my_decks' | 'recommended'>('my_decks');
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState<'all' | 'Master Duel' | 'TCG' | 'Duel Links'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'recipe'>('all');
@@ -90,81 +92,135 @@ export const DecksTab: React.FC<DecksTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* TOOLBAR: BUSCADOR Y FILTROS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-        <div className="relative flex-1 min-w-50">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            placeholder="Buscar baraja por nombre..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-red-500 transition-colors shadow-xs"
-          />
+      
+      {/* SUBCATEGORY SEGMENTED SELECTOR */}
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-3">
+        <div className="flex items-center gap-1.5 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+          <button
+            type="button"
+            onClick={() => setSubCategory('my_decks')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              subCategory === 'my_decks'
+                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-purple-500" />
+            <span>Mis Decks &amp; Recetas ({decks.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubCategory('recommended')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              subCategory === 'recommended'
+                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>Decks Recomendados (Colección Libre)</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-500 text-[10px] font-mono font-bold">
+              NUEVO
+            </span>
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Formato Filter */}
-          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            {(['all', 'Master Duel', 'TCG', 'Duel Links'] as const).map((fmt) => (
-              <button
-                key={fmt}
-                onClick={() => setFormatFilter(fmt)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  formatFilter === fmt
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                }`}
-              >
-                {fmt === 'all' ? 'Todos' : fmt === 'Master Duel' ? 'MD' : fmt === 'Duel Links' ? 'DL' : 'TCG'}
-              </button>
-            ))}
-          </div>
-
-          {/* Status Filter */}
-          <PremiumDropdown
-            value={statusFilter}
-            onChange={(val) => setStatusFilter(val as 'all' | 'active' | 'recipe')}
-            size="md"
-            options={[
-              { value: 'all', label: 'Estado: Todos' },
-              { value: 'active', label: 'Solo Activos (Físicos)' },
-              { value: 'recipe', label: 'Solo Recetas / Inactivos' },
-            ]}
-          />
-
+        {subCategory === 'my_decks' && (
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-red-600/30 transition-all cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-red-600/30 transition-all cursor-pointer font-display"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Crear en Constructor</span>
+            <span>Crear en Taller</span>
           </Link>
-        </div>
+        )}
       </div>
 
-      {/* GRID DE DECKS */}
-      {filteredDecks.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl p-6 shadow-xs">
-          <Layers className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
-          <h3 className="text-base font-black text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">No se encontraron barajas</h3>
-          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto font-medium">
-            {decks.length === 0
-              ? 'Aún no tienes barajas guardadas en tu cuenta. Diseña una en el constructor inteligente.'
-              : 'Ninguna baraja coincide con los filtros de búsqueda aplicados.'}
-          </p>
-          {decks.length === 0 && (
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-red-500 shadow-md shadow-red-600/30 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Construir mi primer deck</span>
-            </Link>
-          )}
-        </div>
+      {/* RENDER RECOMMENDED DECKS GALLERY OR MY DECKS */}
+      {subCategory === 'recommended' ? (
+        <RecommendedDecksGallery
+          allUserCards={allUserCards}
+          decks={decks}
+          locations={locations}
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="space-y-6">
+          {/* TOOLBAR: BUSCADOR Y FILTROS */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+            <div className="relative flex-1 min-w-50">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Buscar baraja por nombre..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-red-500 transition-colors shadow-xs"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Formato Filter */}
+              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                {(['all', 'Master Duel', 'TCG', 'Duel Links'] as const).map((fmt) => (
+                  <button
+                    key={fmt}
+                    onClick={() => setFormatFilter(fmt)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      formatFilter === fmt
+                        ? 'bg-red-600 text-white shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {fmt === 'all' ? 'Todos' : fmt === 'Master Duel' ? 'MD' : fmt === 'Duel Links' ? 'DL' : 'TCG'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Status Filter */}
+              <PremiumDropdown
+                value={statusFilter}
+                onChange={(val) => setStatusFilter(val as 'all' | 'active' | 'recipe')}
+                size="md"
+                options={[
+                  { value: 'all', label: 'Estado: Todos' },
+                  { value: 'active', label: 'Solo Activos (Físicos)' },
+                  { value: 'recipe', label: 'Solo Recetas / Inactivos' },
+                ]}
+              />
+
+              <Link
+                href="/"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-red-600/30 transition-all cursor-pointer sm:hidden"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nuevo</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* GRID DE DECKS */}
+          {filteredDecks.length === 0 ? (
+            <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl p-6 shadow-xs">
+              <Layers className="w-12 h-12 text-zinc-400 mx-auto mb-3" />
+              <h3 className="text-base font-black text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">No se encontraron barajas</h3>
+              <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto font-medium">
+                {decks.length === 0
+                  ? 'Aún no tienes barajas guardadas en tu cuenta. Diseña una en el taller inteligente.'
+                  : 'Ninguna baraja coincide con los filtros de búsqueda aplicados.'}
+              </p>
+              {decks.length === 0 && (
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-red-600 text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-red-500 shadow-md shadow-red-600/30 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Construir mi primer deck</span>
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filteredDecks.map((deck) => {
             const storedIn = locations.find(
               l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
@@ -270,6 +326,8 @@ export const DecksTab: React.FC<DecksTabProps> = ({
               </motion.div>
             );
           })}
+        </div>
+      )}
         </div>
       )}
     </div>
