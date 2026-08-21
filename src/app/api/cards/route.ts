@@ -17,27 +17,41 @@ const OCR_DIGIT_CONFUSIONS: Record<string, string[]> = {
 
 /**
  * Genera combinaciones de 8 dígitos sustituyendo un dígito con sus variantes
- * de confusión visual típicas de OCR (ej. 28616929 -> 29616929).
+ * de confusión visual típicas de OCR (ej. 28616929 -> 29616929) o extrayendo
+ * ventanas de 8 dígitos si se capturaron 9-10 dígitos por ruidos de borde lateral (ej. '1').
  */
 function generateOcrCandidatePasscodes(code: string): number[] {
-  if (!/^\d{8}$/.test(code)) return [];
+  const digitsOnly = code.replace(/\D/g, '');
+  if (digitsOnly.length < 8 || digitsOnly.length > 10) return [];
   const candidates: Set<number> = new Set();
-  const chars = code.split('');
 
-  for (let i = 0; i < chars.length; i++) {
-    const originalChar = chars[i];
-    const alternates = OCR_DIGIT_CONFUSIONS[originalChar];
-    if (alternates) {
-      for (const alt of alternates) {
-        const candidateArr = [...chars];
-        candidateArr[i] = alt;
-        candidates.add(parseInt(candidateArr.join(''), 10));
+  // Si tiene 9 o 10 dígitos (ej. borde lateral izquierdo leído como '1' o '1st' al final)
+  if (digitsOnly.length === 9) {
+    candidates.add(parseInt(digitsOnly.slice(-8), 10)); // Prioridad 1: descartar ruido/borde '1' a la izquierda
+    candidates.add(parseInt(digitsOnly.slice(0, 8), 10)); // Descartar dígito al final
+  } else if (digitsOnly.length === 10) {
+    candidates.add(parseInt(digitsOnly.slice(1, 9), 10)); // Descartar borde izquierdo '1' y '1st' final
+    candidates.add(parseInt(digitsOnly.slice(-8), 10));
+    candidates.add(parseInt(digitsOnly.slice(0, 8), 10));
+  } else if (digitsOnly.length === 8) {
+    // Variantes de confusión visual típicas
+    const chars = digitsOnly.split('');
+    for (let i = 0; i < chars.length; i++) {
+      const originalChar = chars[i];
+      const alternates = OCR_DIGIT_CONFUSIONS[originalChar];
+      if (alternates) {
+        for (const alt of alternates) {
+          const candidateArr = [...chars];
+          candidateArr[i] = alt;
+          candidates.add(parseInt(candidateArr.join(''), 10));
+        }
       }
     }
   }
 
-  return Array.from(candidates);
+  return Array.from(candidates).filter((n) => n > 0 && !isNaN(n));
 }
+
 
 interface YGOPRODeckCard {
   id: number;
@@ -151,8 +165,8 @@ export async function GET(req: NextRequest) {
 
         let { data, error } = await dbQuery;
 
-        // Si la búsqueda por ID exacto falló pero es un código de 8 dígitos, intentar autocorrección inteligente
-        if ((!data || data.length === 0) && id && /^\d{8}$/.test(id)) {
+        // Si la búsqueda por ID exacto falló pero es un código de 8 a 10 dígitos, intentar autocorrección inteligente
+        if ((!data || data.length === 0) && id && /^\d{8,10}$/.test(id)) {
           const candidates = generateOcrCandidatePasscodes(id);
           if (candidates.length > 0) {
             const { data: correctedData, error: corrError } = await supabase
@@ -202,7 +216,7 @@ export async function GET(req: NextRequest) {
     let response = await fetch(url);
     
     // Si YGOPRODeck no encontró el ID exacto, probar candidatos de confusión OCR
-    if (!response.ok && response.status === 400 && id && /^\d{8}$/.test(id)) {
+    if (!response.ok && response.status === 400 && id && /^\d{8,10}$/.test(id)) {
       const candidates = generateOcrCandidatePasscodes(id);
       for (const candId of candidates) {
         try {

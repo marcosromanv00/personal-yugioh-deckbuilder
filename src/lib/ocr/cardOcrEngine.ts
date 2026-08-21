@@ -45,6 +45,13 @@ export interface ViewfinderCropRect {
   height: number;
 }
 
+export interface PasscodeOcrResult {
+  code: string;
+  candidates: string[];
+  rawText: string;
+  fromLearningMemory?: boolean;
+}
+
 /**
  * Captura un snapshot visual del área del recorte del visor en formato Data URL
  * para mostrar feedback visual en tiempo real en la interfaz.
@@ -120,7 +127,8 @@ export function hasCardVisualFeatures(canvas: HTMLCanvasElement): boolean {
  * 1. Normalización de resolución: Altura fija a 80px (glifos de ~36px para Tesseract LSTM).
  * 2. Conversión a escala de grises.
  * 3. Umbralización adaptativa local mediante Imagen Integral O(1) (inmune a fondos y sombras).
- * 4. Margen perimetral blanco (Quiet Zone de 24px).
+ * 4. Supresión de líneas verticales de borde lateral izquierdo (previene '1' falso).
+ * 5. Margen perimetral blanco (Quiet Zone de 24px).
  */
 export function extractAndPreprocessViewfinder(
   video: HTMLVideoElement,
@@ -197,6 +205,9 @@ export function extractAndPreprocessViewfinder(
   const finalImgData = finalCtx.getImageData(0, 0, finalW, finalH);
   const dst = finalImgData.data;
 
+  // Matriz de píxeles binarizados antes de supresión de bordes
+  const binaryGrid = new Uint8Array(total);
+
   for (let y = 0; y < targetH; y++) {
     const y1 = Math.max(0, y - ry);
     const y2 = Math.min(targetH - 1, y + ry);
@@ -218,8 +229,29 @@ export function extractAndPreprocessViewfinder(
       const p = y * targetW + x;
       const isDarker = gray[p] < threshold;
       const isInk = invert ? !isDarker : isDarker;
-      const val = isInk ? 0 : 255;
+      binaryGrid[p] = isInk ? 0 : 255;
+    }
+  }
 
+  // 4. Supresión de artefacto de borde izquierdo (línea vertical del marco de la carta)
+  // Las primeras 6 columnas se limpian a blanco; columnas 6-12 se revisan si son una barra vertical continua
+  for (let x = 0; x < Math.min(12, targetW); x++) {
+    let darkCount = 0;
+    for (let y = 0; y < targetH; y++) {
+      if (binaryGrid[y * targetW + x] === 0) darkCount++;
+    }
+    // Si la columna está a la izquierda extrema (x < 6) o es una línea vertical continua (>50% de la altura)
+    if (x < 6 || darkCount > targetH * 0.5) {
+      for (let y = 0; y < targetH; y++) {
+        binaryGrid[y * targetW + x] = 255;
+      }
+    }
+  }
+
+  // Renderizar al canvas final con padding
+  for (let y = 0; y < targetH; y++) {
+    for (let x = 0; x < targetW; x++) {
+      const val = binaryGrid[y * targetW + x];
       const dstIdx = ((y + pad) * finalW + (x + pad)) * 4;
       dst[dstIdx] = val;
       dst[dstIdx + 1] = val;
@@ -303,12 +335,12 @@ export function extractGrayscaleViewfinder(
 /**
  * Escanea el canvas preprocesado con Tesseract y busca el código de 8 dígitos de la carta.
  * Aplica:
- * - Extracción estricta de los 8 dígitos de izquierda a derecha.
+ * - Extracción inteligente de candidatos (descartando '1' espurio de bordes o '1st').
  * - Resolución instantánea mediante Memoria de Aprendizaje Continuo (OcrLearningMemory).
  */
 export async function recognizeCardPasscode(
   canvas: HTMLCanvasElement
-): Promise<{ code: string; rawText: string; fromLearningMemory?: boolean } | null> {
+): Promise<PasscodeOcrResult | null> {
   try {
     const worker = await getCardOcrWorker();
     const result = await worker.recognize(canvas);
@@ -319,33 +351,46 @@ export async function recognizeCardPasscode(
       .replace(/\b1\s*(?:st|ST|St|ed|ED|Ed|a|A)?\b/gi, ' ')
       .replace(/\b(?:edition|edicion|limited|unlimited|kazuki|takahashi|konami|studio|dice|shueisha|tv|tokyo)\b/gi, ' ');
 
-    let extractedDigits: string | null = null;
+    const candidatesSet: Set<string> = new Set();
 
     // 2. Buscar primero cualquier bloque aislado exacto de 8 dígitos (\b\d{8}\b)
     const match8 = cleanedText.match(/(?:^|\D)(\d{8})(?:\D|$)/) || rawText.match(/(?:^|\D)(\d{8})(?:\D|$)/);
     if (match8 && match8[1]) {
-      extractedDigits = match8[1];
-    } else {
-      // 3. Extracción secuencial de dígitos limpios (primeros 8)
-      const cleanDigits = cleanedText.replace(/\D/g, '');
-      if (cleanDigits.length >= 8) {
-        extractedDigits = cleanDigits.slice(0, 8);
-      } else {
-        const rawDigits = rawText.replace(/\D/g, '');
-        if (rawDigits.length >= 8) {
-          extractedDigits = rawDigits.slice(0, 8);
-        }
+      candidatesSet.add(match8[1]);
+    }
+
+    // 3. Extracción secuencial de dígitos limpios
+    const cleanDigits = cleanedText.replace(/\D/g, '');
+    const rawDigits = rawText.replace(/\D/g, '');
+    const digitsToUse = cleanDigits.length >= 8 ? cleanDigits : rawDigits;
+
+    if (digitsToUse.length === 8) {
+      candidatesSet.add(digitsToUse);
+    } else if (digitsToUse.length === 9) {
+      // Prioridad 1: descartar ruido/borde '1' a la izquierda (ej. 167835547 -> 67835547)
+      candidatesSet.add(digitsToUse.slice(-8));
+      candidatesSet.add(digitsToUse.slice(0, 8));
+    } else if (digitsToUse.length === 10) {
+      // Descartar borde izquierdo '1' y '1st' al final (ej. 1678355471 -> 67835547)
+      candidatesSet.add(digitsToUse.slice(1, 9));
+      candidatesSet.add(digitsToUse.slice(-8));
+      candidatesSet.add(digitsToUse.slice(0, 8));
+    } else if (digitsToUse.length > 10) {
+      for (let i = 0; i <= digitsToUse.length - 8; i++) {
+        candidatesSet.add(digitsToUse.slice(i, i + 8));
       }
     }
 
-    if (!extractedDigits) return null;
+    const candidateList = Array.from(candidatesSet);
+    if (candidateList.length === 0) return null;
 
-    // 4. Consultar memoria de aprendizaje continuo
-    const resolvedFromMemory = OcrLearningMemory.resolve(extractedDigits);
-    const isLearned = resolvedFromMemory !== extractedDigits;
+    const primaryCode = candidateList[0];
+    const resolvedFromMemory = OcrLearningMemory.resolve(primaryCode);
+    const isLearned = resolvedFromMemory !== primaryCode;
 
     return {
       code: resolvedFromMemory,
+      candidates: candidateList,
       rawText,
       fromLearningMemory: isLearned,
     };
