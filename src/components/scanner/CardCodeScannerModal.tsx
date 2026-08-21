@@ -1164,6 +1164,8 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         autoFocus
                         value={manualCodeInput}
                         onChange={(e) => {
