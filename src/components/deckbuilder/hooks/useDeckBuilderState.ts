@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, DeckCard, ArchetypeItem, BreakdownCardItem, BanlistAlert, Replacement, HistoryItem } from '../types';
 import { FilterState } from '../CardFilters';
-import { StorageLocation, SleeveInventory, DeckSleeve, Deck } from '@/types/collection';
+import { StorageLocation, SleeveInventory, DeckSleeve, Deck, UserCard } from '@/types/collection';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 
 export interface YgoApiCardDetails {
@@ -22,14 +22,49 @@ export function useDeckBuilderState() {
   const { isIdealMode, syncData } = useIdealEnvironment();
 
   // Formato y Deck
-  const [format, setFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('Master Duel');
-  const [saveFormat, setSaveFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('Master Duel');
+  const [format, setFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('TCG');
+  const [saveFormat, setSaveFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('TCG');
   const [saveIsActive, setSaveIsActive] = useState<boolean>(true);
   const [deckCards, setDeckCards] = useState<DeckCard[]>([]);
-  const [deckName, setDeckName] = useState('Mi Deck Yu-Gi-Oh!');
+  const [deckName, setDeckName] = useState('Nuevo Deck TCG');
+  const [isManualDeckName, setIsManualDeckName] = useState(false);
+  const isManualDeckNameRef = useRef(false);
   const [deckDescription, setDeckDescription] = useState('');
   const [deckId, setDeckId] = useState<string | null>(null);
   const [searchLimit, setSearchLimit] = useState(45);
+
+  const handleUpdateDeckName = (name: string, isManual = true) => {
+    if (!name.trim()) {
+      setIsManualDeckName(false);
+      isManualDeckNameRef.current = false;
+      if (detectedArchetypes.length >= 2 && detectedArchetypes[0].count >= 2 && detectedArchetypes[1].count >= 2) {
+        setDeckName(`${detectedArchetypes[0].name} ${detectedArchetypes[1].name}`);
+      } else if (detectedArchetypes.length >= 1) {
+        setDeckName(`Deck ${detectedArchetypes[0].name}`);
+      } else {
+        setDeckName('Nuevo Deck TCG');
+      }
+      return;
+    }
+
+    setDeckName(name);
+    if (isManual) {
+      setIsManualDeckName(true);
+      isManualDeckNameRef.current = true;
+    }
+  };
+
+  const handleResetDeckName = () => {
+    setIsManualDeckName(false);
+    isManualDeckNameRef.current = false;
+    if (detectedArchetypes.length >= 2 && detectedArchetypes[0].count >= 2 && detectedArchetypes[1].count >= 2) {
+      setDeckName(`${detectedArchetypes[0].name} ${detectedArchetypes[1].name}`);
+    } else if (detectedArchetypes.length >= 1) {
+      setDeckName(`Deck ${detectedArchetypes[0].name}`);
+    } else {
+      setDeckName('Nuevo Deck TCG');
+    }
+  };
 
   // Portal de exploración (Archetype Hub)
   const [activeView, setActiveView] = useState<'builder' | 'breakdowns' | 'exordio'>('builder');
@@ -81,9 +116,11 @@ export function useDeckBuilderState() {
 
   const [loadingDecks, setLoadingDecks] = useState(false);
   const [locations, setLocations] = useState<StorageLocation[]>([]);
+  const [allUserCards, setAllUserCards] = useState<UserCard[]>([]);
   const [userInventoryCounts, setUserInventoryCounts] = useState<Record<number, number>>({});
   const [userProxyCounts, setUserProxyCounts] = useState<Record<number, number>>({});
   const [targetLocationId, setTargetLocationId] = useState<string>('inbox');
+  const [selectedLaneIndex, setSelectedLaneIndex] = useState<number>(0);
   const [registerToInventory, setRegisterToInventory] = useState(false);
   const [cardsToRegister, setCardsToRegister] = useState<Record<number, boolean>>({});
 
@@ -185,6 +222,21 @@ export function useDeckBuilderState() {
 
         setBanlistAlerts(json.banlistAlerts || []);
         setReplacements(json.replacements || {});
+
+        // Precarga dinámica del nombre basada en el balance de arquetipos detectados
+        if (!isManualDeckNameRef.current) {
+          if (currentCards.length === 0) {
+            setDeckName('Nuevo Deck TCG');
+          } else if (detected.length >= 2 && detected[0].count >= 2 && detected[1].count >= 2) {
+            setDeckName(`${detected[0].name} ${detected[1].name}`);
+          } else if (detected.length >= 1 && detected[0].count >= 2) {
+            setDeckName(`Deck ${detected[0].name}`);
+          } else if (detected.length >= 1) {
+            setDeckName(detected[0].name);
+          } else {
+            setDeckName('Nuevo Deck TCG');
+          }
+        }
       }
     } catch (e) {
       console.error('Error analizando deck:', e);
@@ -262,6 +314,7 @@ export function useDeckBuilderState() {
   useEffect(() => {
     Promise.resolve().then(() => {
       fetchArchetypes();
+      fetchDecksAndLocations();
     });
   }, [fetchArchetypes]);
 
@@ -478,30 +531,6 @@ export function useDeckBuilderState() {
         }
       }
     }, [deckCards, deckName, deckDescription, format]);
-
-    // Restaurar borrador si el deck está vacío al inicio
-    useEffect(() => {
-      if (typeof window !== 'undefined') {
-        const rawDraft = localStorage.getItem('yg_deck_draft');
-        if (rawDraft) {
-          try {
-            const draft = JSON.parse(rawDraft);
-            const ageMs = Date.now() - (draft.timestamp || 0);
-            // Si el borrador es de menos de 7 días y tiene cartas
-            if (ageMs < 7 * 24 * 60 * 60 * 1000 && Array.isArray(draft.deckCards) && draft.deckCards.length > 0) {
-              Promise.resolve().then(() => {
-                setDeckCards((current) => (current.length === 0 ? draft.deckCards : current));
-                if (draft.deckName) setDeckName(draft.deckName);
-                if (draft.format) setFormat(draft.format);
-                if (draft.deckDescription) setDeckDescription(draft.deckDescription);
-              });
-            }
-          } catch (e) {
-            console.error('Error restaurando borrador de deck:', e);
-          }
-        }
-      }
-    }, []);
 
 
 
@@ -744,9 +773,11 @@ export function useDeckBuilderState() {
         const invRes = await fetch('/api/collection/cards');
         if (invRes.ok) {
           const json = await invRes.json();
+          const rawCards = json.data || [];
+          setAllUserCards(rawCards);
           const counts: Record<number, number> = {};
           const proxies: Record<number, number> = {};
-          (json.data || []).forEach((uc: import('@/types/collection').UserCard) => {
+          rawCards.forEach((uc: import('@/types/collection').UserCard) => {
             counts[uc.card_id] = (counts[uc.card_id] || 0) + (uc.quantity || 1);
             if (uc.is_proxy) {
               proxies[uc.card_id] = (proxies[uc.card_id] || 0) + (uc.quantity || 1);
@@ -942,6 +973,7 @@ export function useDeckBuilderState() {
         format: saveFormat,
         is_active: saveIsActive,
         storage_location_id: targetLocationId === 'inbox' ? null : targetLocationId,
+        compartment_index: targetLocationId === 'inbox' ? 0 : selectedLaneIndex,
         cards: deckCards.map(c => ({
           id: c.id,
           name: c.name,
@@ -1233,6 +1265,9 @@ export function useDeckBuilderState() {
     setDeckCards,
     deckName,
     setDeckName,
+    handleUpdateDeckName,
+    handleResetDeckName,
+    isManualDeckName,
     deckDescription,
     setDeckDescription,
     deckId,
@@ -1272,12 +1307,15 @@ export function useDeckBuilderState() {
     savedDecks,
     loadingDecks,
     locations,
+    allUserCards,
     userInventoryCounts,
     setUserInventoryCounts,
     userProxyCounts,
     setUserProxyCounts,
     targetLocationId,
     setTargetLocationId,
+    selectedLaneIndex,
+    setSelectedLaneIndex,
     registerToInventory,
     setRegisterToInventory,
     cardsToRegister,

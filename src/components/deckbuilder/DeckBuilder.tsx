@@ -27,6 +27,7 @@ import { useTheme } from '@/components/ui/ThemeProvider';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { YdkUploadModal } from '@/components/collection/YdkUploadModal';
 import { EnvironmentSwitcher } from '@/components/collection/EnvironmentSwitcher';
+import { useAIChat } from '@/context/AIChatContext';
 
 // Custom Hooks for State & Resizing
 import { usePanelResize } from './hooks/usePanelResize';
@@ -151,12 +152,13 @@ export default function DeckBuilder() {
 
   const toast = useToast();
   const { theme, toggleTheme } = useTheme();
+  const { openChatDrawer } = useAIChat();
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isYdkUploadOpen, setIsYdkUploadOpen] = useState(false);
   const [isAICopilotOpen, setIsAICopilotOpen] = useState(false);
 
   // 5. Right panel tabs & card detail selection
-  const [activeRightTab, setActiveRightTab] = useState<'detail' | 'meta'>('detail');
+  const [activeRightTab, setActiveRightTab] = useState<'detail' | 'meta' | 'collection'>('detail');
   const [selectedDetailCard, setSelectedDetailCard] = useState<Card | DeckCard | HoverCardBase | null>(null);
 
   const selectedDeckCard = selectedDetailCard
@@ -657,21 +659,40 @@ export default function DeckBuilder() {
               className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
               title="Banco de Reglas e Interpretaciones del Agente"
             >
+              <span>📜</span>
+              <span className="hidden sm:inline">Reglas</span>
+            </Link>
+
+            <Link
+              href="/chat"
+              className="px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+              title="Cerebro Virtual Exordio (/chat)"
+            >
               <span>🧠</span>
-              <span className="hidden sm:inline">Banco de Reglas</span>
+              <span className="hidden sm:inline">Cerebro</span>
             </Link>
           </div>
 
-          {/* ZONA DERECHA: Botón AI Copilot + Menú Desplegable Deck + Theme Toggle */}
+          {/* ZONA DERECHA: Botón Cerebro AI + Botón AI Copilot + Menú Desplegable Deck + Theme Toggle */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Botón Principal de IA */}
+            {/* Botón Principal Cerebro AI Flotante */}
+            <button
+              onClick={openChatDrawer}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display"
+              title="Abrir Asistente Global (Cerebro Virtual Exordio)"
+            >
+              <BrainCircuit className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Cerebro AI</span>
+            </button>
+
+            {/* Botón AI Copilot */}
             <button
               onClick={() => setIsAICopilotOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 text-xs font-black uppercase tracking-wider transition-all cursor-pointer font-display"
               title="Abrir AI Copilot (Sintetizador de Decks & Juez de Duelo)"
             >
-              <Bot className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">IA Copilot</span>
+              <Bot className="w-3.5 h-3.5 text-red-500" />
+              <span className="hidden lg:inline">Copilot</span>
             </button>
 
             {/* Menú Desplegable de Operaciones de Deck */}
@@ -758,10 +779,17 @@ export default function DeckBuilder() {
             <section className="flex-1 min-w-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 overflow-hidden shadow-sm transition-colors">
               <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 shrink-0">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="font-black text-sm sm:text-base uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
-                    <span className="text-red-500">📋</span>
-                    <span>Lista de Cartas</span>
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-red-500 font-bold">📋</span>
+                    <input
+                      type="text"
+                      value={state.deckName}
+                      onChange={(e) => state.handleUpdateDeckName(e.target.value, true)}
+                      placeholder="Nombre de la baraja..."
+                      className="bg-transparent font-black text-sm sm:text-base text-zinc-900 dark:text-zinc-100 border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 focus:outline-hidden px-1 py-0.5 transition-colors font-display"
+                      title="Haz clic para editar el nombre de la baraja (o borra el texto para renombrar automáticamente)"
+                    />
+                  </div>
                   
                   {/* Undo / Redo Actions Toolbar */}
                   <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-0.5 shadow-xs">
@@ -823,7 +851,7 @@ export default function DeckBuilder() {
               />
             )}
 
-            {/* META ANALYSIS & CARD DETAIL */}
+            {/* META ANALYSIS, COLLECTION SYNERGIES & CARD DETAIL */}
             <MetaAnalysisPanel
               rightPanelOpen={resize.rightPanelOpen}
               setRightPanelOpen={resize.setRightPanelOpen}
@@ -831,6 +859,10 @@ export default function DeckBuilder() {
               isMobile={false}
               activeRightTab={activeRightTab}
               setActiveRightTab={setActiveRightTab}
+              allUserCards={state.allUserCards}
+              locations={state.locations}
+              savedDecks={state.savedDecks}
+              deckCards={state.deckCards}
               selectedDetailCard={selectedDetailCard}
               selectedDeckCard={selectedDeckCard}
               onUpdateDeckCard={handleUpdateDeckCard}
@@ -1051,6 +1083,10 @@ export default function DeckBuilder() {
                   isMobile={true}
                   activeRightTab={activeRightTab}
                   setActiveRightTab={setActiveRightTab}
+                  allUserCards={state.allUserCards}
+                  locations={state.locations}
+                  savedDecks={state.savedDecks}
+                  deckCards={state.deckCards}
                   selectedDetailCard={selectedDetailCard}
                   selectedDeckCard={selectedDeckCard}
                   onUpdateDeckCard={handleUpdateDeckCard}
@@ -1469,6 +1505,8 @@ export default function DeckBuilder() {
         setRegisterToInventory={state.setRegisterToInventory}
         targetLocationId={state.targetLocationId}
         setTargetLocationId={state.setTargetLocationId}
+        selectedLaneIndex={state.selectedLaneIndex}
+        setSelectedLaneIndex={state.setSelectedLaneIndex}
         cardsToRegister={state.cardsToRegister}
         setCardsToRegister={state.setCardsToRegister}
         availableSleeves={state.availableSleeves}

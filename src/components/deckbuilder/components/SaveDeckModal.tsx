@@ -24,6 +24,8 @@ interface SaveDeckModalProps {
   setRegisterToInventory: (reg: boolean) => void;
   targetLocationId: string;
   setTargetLocationId: (id: string) => void;
+  selectedLaneIndex?: number;
+  setSelectedLaneIndex?: (index: number) => void;
   cardsToRegister: Record<number, boolean>;
   setCardsToRegister: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
   availableSleeves: SleeveInventory[];
@@ -59,6 +61,8 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   setRegisterToInventory,
   targetLocationId,
   setTargetLocationId,
+  selectedLaneIndex = 0,
+  setSelectedLaneIndex,
   cardsToRegister,
   setCardsToRegister,
 
@@ -244,7 +248,10 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                       <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">Contenedor Físico</label>
                       <PremiumDropdown
                         value={targetLocationId}
-                        onChange={(val) => setTargetLocationId(val)}
+                        onChange={(val) => {
+                          setTargetLocationId(val);
+                          if (setSelectedLaneIndex) setSelectedLaneIndex(0);
+                        }}
                         align="full"
                         size="sm"
                         options={[
@@ -256,6 +263,46 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                         ]}
                       />
                     </div>
+
+                    {/* SELECTOR DE CARRIL / FILA (SI LA CAJA TIENE COMPARTIMENTOS MÚLTIPLES) */}
+                    {(() => {
+                      const selectedLoc = locations.find((l) => l.id === targetLocationId);
+                      const hasMultipleLanes = Boolean(
+                        selectedLoc &&
+                        selectedLoc.compartments &&
+                        (selectedLoc.compartments.count > 1 || (selectedLoc.compartments.names && selectedLoc.compartments.names.length > 1))
+                      );
+
+                      if (!hasMultipleLanes || !selectedLoc) return null;
+
+                      const laneNames = selectedLoc.compartments.names && selectedLoc.compartments.names.length > 0
+                        ? selectedLoc.compartments.names
+                        : Array.from({ length: selectedLoc.compartments.count || 2 }).map((_, i) => `Fila ${i + 1}`);
+
+                      return (
+                        <div className="sm:col-span-2 pt-2 border-t border-zinc-200 dark:border-zinc-800 animate-fade-in">
+                          <label className="block text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 font-mono mb-1 flex items-center justify-between">
+                            <span>Carril / Fila en &quot;{selectedLoc.name}&quot; *</span>
+                            <span className="text-[9px] text-zinc-400 font-normal">Selecciona dónde guardar el deck</span>
+                          </label>
+                          <PremiumDropdown
+                            value={String(selectedLaneIndex)}
+                            onChange={(val) => {
+                              if (setSelectedLaneIndex) setSelectedLaneIndex(Number(val));
+                            }}
+                            align="full"
+                            size="sm"
+                            options={laneNames.map((laneName, idx) => {
+                              const isOccupied = Boolean(selectedLoc.compartments?.deck_ids?.[idx]);
+                              return {
+                                value: String(idx),
+                                label: `Carril ${idx + 1}: ${laneName}${isOccupied ? ' (Ocupado)' : ' (Disponible)'}`,
+                              };
+                            })}
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Fundas Asignadas */}

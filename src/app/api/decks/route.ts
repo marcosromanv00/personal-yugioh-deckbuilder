@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
       if (cardsErr) throw cardsErr;
     }
 
-    // 3. Registrar cartas al inventario general (yg_user_cards)
+    // 3. Registrar cartas al inventario general (yg_user_cards) si fue solicitado
     if (register_to_inventory && inventory_cards_to_add && inventory_cards_to_add.length > 0) {
       const inventoryPayload = inventory_cards_to_add.map((c: InputDeckCard) => {
         const matchingDeckCard = (cards || []).find((dc: InputDeckCard) => dc.id === c.id);
@@ -246,6 +246,52 @@ export async function POST(req: NextRequest) {
 
       if (invErr) {
         console.error('Error al registrar cartas en inventario:', invErr);
+      }
+    }
+
+    // 4. Si se asignó un contenedor físico de almacenamiento al deck, recolocar las cartas existentes libres hacia esa ubicación
+    if (storage_location_id && cards && cards.length > 0) {
+      const compIdx = typeof body.compartment_index === 'number' ? body.compartment_index : 0;
+      for (const dc of cards) {
+        if (['main', 'extra', 'side'].includes(dc.section)) {
+          await supabase
+            .from('yg_user_cards')
+            .update({
+              storage_location_id: storage_location_id,
+              deck_id: deck.id,
+              deck_section: dc.section,
+              compartment_index: compIdx,
+              status_flag: isActiveVal ? 'in_deck' : 'collection',
+              binder_page: null,
+              binder_slot: null
+            })
+            .eq('card_id', dc.id)
+            .or(`storage_location_id.is.null,deck_id.is.null`);
+        }
+      }
+
+      // Actualizar registro del deck en el carril del contenedor
+      try {
+        const { data: locData } = await supabase
+          .from('yg_storage_locations')
+          .select('compartments')
+          .eq('id', storage_location_id)
+          .single();
+        if (locData?.compartments) {
+          const comps = { ...locData.compartments };
+          const deckIds = Array.isArray(comps.deck_ids) ? [...comps.deck_ids] : [];
+          while (deckIds.length <= compIdx) {
+            deckIds.push(null);
+          }
+          deckIds[compIdx] = deck.id;
+          comps.deck_ids = deckIds;
+          await supabase
+            .from('yg_storage_locations')
+            .update({ compartments: comps })
+            .eq('id', storage_location_id);
+        }
+      } catch (locErr) {
+        console.warn('Advertencia al vincular deck al carril del contenedor:', locErr);
       }
     }
 
@@ -344,6 +390,7 @@ export async function PUT(req: NextRequest) {
 
     // Si se asigna el deck a una ubicación física (Deckbox / Contenedor)
     if (storage_location_id !== undefined) {
+      const compIdx = typeof body.compartment_index === 'number' ? body.compartment_index : 0;
       // 1. Obtener cartas que pertenecen a este deck en yg_deck_cards
       const { data: currentDeckCards } = await supabase
         .from('yg_deck_cards')
@@ -361,12 +408,38 @@ export async function PUT(req: NextRequest) {
                 storage_location_id: storage_location_id,
                 deck_id: id,
                 deck_section: dc.section,
+                compartment_index: compIdx,
                 binder_page: null,
                 binder_slot: null
               })
               .eq('card_id', dc.card_id)
               .or(`storage_location_id.is.null,deck_id.eq.${id}`);
           }
+        }
+      }
+
+      if (storage_location_id) {
+        try {
+          const { data: locData } = await supabase
+            .from('yg_storage_locations')
+            .select('compartments')
+            .eq('id', storage_location_id)
+            .single();
+          if (locData?.compartments) {
+            const comps = { ...locData.compartments };
+            const deckIds = Array.isArray(comps.deck_ids) ? [...comps.deck_ids] : [];
+            while (deckIds.length <= compIdx) {
+              deckIds.push(null);
+            }
+            deckIds[compIdx] = id;
+            comps.deck_ids = deckIds;
+            await supabase
+              .from('yg_storage_locations')
+              .update({ compartments: comps })
+              .eq('id', storage_location_id);
+          }
+        } catch (locErr) {
+          console.warn('Advertencia al actualizar carril del contenedor:', locErr);
         }
       }
     }
