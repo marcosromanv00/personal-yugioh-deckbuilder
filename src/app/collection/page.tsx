@@ -15,6 +15,7 @@ import {
   Moon,
   Menu,
   BrainCircuit,
+  TrendingUp,
 } from 'lucide-react';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { useAIChat } from '@/context/AIChatContext';
@@ -30,9 +31,11 @@ import { SleevesTab } from '@/components/collection/components/SleevesTab';
 import { DecksTab } from '@/components/collection/components/DecksTab';
 import { DecksPanel } from '@/components/collection/components/DecksPanel';
 import { SuggestionsTab } from '@/components/collection/components/SuggestionsTab';
+import { ValuationTab } from '@/components/collection/components/ValuationTab';
 import { CollectionSidebar, CollectionTab } from '@/components/collection/components/CollectionSidebar';
 
 import { UniversalContainerWorkspaceModal } from '@/components/collection/UniversalContainerWorkspaceModal';
+import { CollectionValuationModal } from '@/components/collection/CollectionValuationModal';
 import { BulkActionsFloatingBar } from '@/components/collection/BulkActionsFloatingBar';
 import { CardCopySplitModal } from '@/components/collection/CardCopySplitModal';
 import { StorageFormModal } from '@/components/collection/StorageFormModal';
@@ -202,6 +205,17 @@ export default function CollectionPage() {
               <span className="hidden sm:inline">Cerebro AI</span>
             </button>
 
+            {/* Botón Acceso Rápido Valoración / Reporte Financiero */}
+            <button
+              type="button"
+              onClick={() => state.setIsValuationModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-900 dark:bg-zinc-800 hover:bg-black dark:hover:bg-zinc-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+              title="Abrir Reporte Financiero y Valoración de la Colección"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Valoración</span>
+            </button>
+
             <button
               onClick={state.handleNewContainerClick}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer"
@@ -257,6 +271,7 @@ export default function CollectionPage() {
           <div className="lg:hidden mb-4 overflow-x-auto scrollbar-none flex items-center gap-1.5 p-1 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
             {[
               { id: 'containers' as const, label: 'Contenedores', icon: '📦', count: state.locations.length },
+              { id: 'valuation' as const, label: 'Costos & Valor', icon: '💰' },
               { id: 'complete' as const, label: 'Colección', icon: '🃏', count: totalCardsInCollection },
               { id: 'decks' as const, label: 'Decks', icon: '📋', count: state.decks.length },
               { id: 'sleeves' as const, label: 'Fundas', icon: '🛡️', count: state.sleeves.length },
@@ -275,7 +290,7 @@ export default function CollectionPage() {
                 >
                   <span>{tabItem.icon}</span>
                   <span>{tabItem.label}</span>
-                  {tabItem.count > 0 && (
+                  {tabItem.count !== undefined && tabItem.count > 0 && (
                     <span
                       className={`text-[10px] font-mono px-1.5 py-px rounded-full font-bold ${
                         isActive
@@ -312,6 +327,20 @@ export default function CollectionPage() {
                   handleDropDeck={state.handleDropDeck}
                   handleNewContainerClick={state.handleNewContainerClick}
                   onDeckClick={(deck) => {
+                    setSelectedDeck(deck);
+                    setIsDeckDetailsOpen(true);
+                  }}
+                />
+              ) : state.activeTab === 'valuation' ? (
+                <ValuationTab
+                  userCards={state.allCollectionCards}
+                  locations={state.locations}
+                  decks={state.decks}
+                  onOpenContainer={(containerId) => {
+                    const loc = state.locations.find((l) => l.id === containerId);
+                    if (loc) state.handleOpenContainer(loc);
+                  }}
+                  onOpenDeck={(deck) => {
                     setSelectedDeck(deck);
                     setIsDeckDetailsOpen(true);
                   }}
@@ -508,6 +537,23 @@ export default function CollectionPage() {
           canSplitSingleCard={state.canSplitSingleCard}
         />
       )}
+
+      {/* Modal de Reporte Financiero y Valoración Completa */}
+      <CollectionValuationModal
+        isOpen={state.isValuationModalOpen}
+        onClose={() => state.setIsValuationModalOpen(false)}
+        userCards={state.allCollectionCards}
+        locations={state.locations}
+        decks={state.decks}
+        onOpenContainer={(containerId) => {
+          const loc = state.locations.find((l) => l.id === containerId);
+          if (loc) state.handleOpenContainer(loc);
+        }}
+        onOpenDeck={(deck) => {
+          setSelectedDeck(deck);
+          setIsDeckDetailsOpen(true);
+        }}
+      />
     </div>
   );
 }

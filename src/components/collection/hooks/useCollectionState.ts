@@ -20,7 +20,7 @@ export function useCollectionState() {
   const [loading, setLoading] = useState(true);
 
   // Tab activo y listado de cartas de la colección completa
-  const [activeTab, setActiveTab] = useState<'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites'>('containers');
+  const [activeTab, setActiveTab] = useState<'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation'>('containers');
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
   const [allCollectionFilters, setAllCollectionFilters] = useState<FilterState>({
@@ -51,6 +51,7 @@ export function useCollectionState() {
   const [isYdkOpen, setIsYdkOpen] = useState(false);
   const [isOrganizeOpen, setIsOrganizeOpen] = useState(false);
   const [isSleevesOpen, setIsSleevesOpen] = useState(false);
+  const [isValuationModalOpen, setIsValuationModalOpen] = useState(false);
 
   // Estados anteriores conservados por compatibilidad
   const [isBinderBuilderOpen, setIsBinderBuilderOpen] = useState(false);
@@ -645,6 +646,8 @@ export function useCollectionState() {
     setIsOrganizeOpen,
     isSleevesOpen,
     setIsSleevesOpen,
+    isValuationModalOpen,
+    setIsValuationModalOpen,
     sleeves,
     loadingSleeves,
     isSleeveFormOpen,

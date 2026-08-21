@@ -13,10 +13,11 @@ import {
   ChevronRight, 
   X,
   Plus,
-  Inbox
+  Inbox,
+  TrendingUp
 } from 'lucide-react';
 
-export type CollectionTab = 'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites';
+export type CollectionTab = 'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation';
 
 interface CollectionSidebarProps {
   activeTab: CollectionTab;
@@ -61,6 +62,15 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
       color: 'text-purple-500',
       activeBorder: 'border-purple-600',
       activeBg: 'bg-purple-600/10 text-purple-600 dark:text-purple-400 font-black',
+    },
+    {
+      id: 'valuation' as CollectionTab,
+      label: 'Costos & Valor',
+      icon: TrendingUp,
+      color: 'text-emerald-500',
+      activeBorder: 'border-emerald-500',
+      activeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black',
+      isNew: true,
     },
     {
       id: 'suggestions' as CollectionTab,
