@@ -16,9 +16,8 @@ import { ContainerDeckAssignmentModal } from './workspace/ContainerDeckAssignmen
 import { BulkActionsFloatingBar } from './BulkActionsFloatingBar';
 import { CardCopySplitModal } from './CardCopySplitModal';
 import { Card } from '@/components/deckbuilder/types';
-import { CardCodeScannerModal, YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
 
-export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorkspaceModalProps> = (props) => {
+const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModalProps> = (props) => {
   const {
     isOpen,
     onClose,
@@ -32,7 +31,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
 
   const { theme } = useTheme();
   const panelResize = usePanelResize(422, 384);
-  const [isHeaderScannerOpen, setIsHeaderScannerOpen] = React.useState(false);
 
   const state = useContainerWorkspaceState({
     isOpen,
@@ -44,39 +42,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
     allCollectionCards,
     onMutate,
   });
-
-  const handleHeaderScannerCardRegistered = async (card: YgoDetectedCard, quantity: number) => {
-    try {
-      const locId = state.isInbox ? null : location?.id || null;
-      const effectiveCompartment = state.activeCompartment === -1 ? 0 : state.activeCompartment;
-      const res = await fetch('/api/collection/cards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          card_id: card.id,
-          storage_location_id: locId,
-          quantity: quantity,
-          rarity: 'Common',
-          condition: 'Near Mint',
-          language: 'en',
-          status_flag: 'collection',
-          sleeve_type: 'none',
-          is_proxy: false,
-          notes: '',
-          compartment_index: effectiveCompartment,
-        }),
-      });
-
-      if (res.ok) {
-        state.setHasMutated(true);
-        state.fetchCards();
-      }
-    } catch (e) {
-      console.error('Error al registrar carta en contenedor desde escáner:', e);
-    }
-  };
-
-  if (!isOpen) return null;
 
   return (
     <div 
@@ -101,7 +66,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           displayedGridCardsCount={state.displayedGridCards.length}
           hasMutated={state.hasMutated}
           onClose={onClose}
-          onOpenScanner={() => setIsHeaderScannerOpen(true)}
           mobileTab={state.mobileTab}
           setMobileTab={state.setMobileTab}
           cardsCount={state.cards.length}
@@ -327,7 +291,7 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
               state.setPickListSubtitle(`Consolida las ${state.currentCardDispersedInfo.totalCopies} copias de esta carta en una sola ubicación.`);
               state.setIsPickListOpen(true);
             }}
-            onMoveMisplacedCard={async (userCardId, suggestedLocationId, cardName, suggestedLocationName) => {
+            onMoveMisplacedCard={async (userCardId, suggestedLocationId) => {
               if (!suggestedLocationId) return;
               try {
                 await fetch('/api/collection/cards', {
@@ -433,15 +397,6 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
           }}
         />
 
-        {/* Modal de Escaneo con Cámara Directo al Contenedor */}
-        <CardCodeScannerModal
-          isOpen={isHeaderScannerOpen}
-          onClose={() => setIsHeaderScannerOpen(false)}
-          onCardRegistered={handleHeaderScannerCardRegistered}
-          title={`Escanear a ${state.isInbox ? 'Sin Clasificar (Inbox)' : location?.name || 'Contenedor'}`}
-          subtitle="Apunta al código de 8 dígitos para agregar directamente"
-        />
-
         {/* Modal de Separar Copia Individual */}
         <CardCopySplitModal
           isOpen={state.isSplitModalOpen}
@@ -468,4 +423,9 @@ export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorksp
       </motion.div>
     </div>
   );
+};
+
+export const UniversalContainerWorkspaceModal: React.FC<UniversalContainerWorkspaceModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <UniversalContainerWorkspaceInner key={props.location?.id || 'inbox'} {...props} />;
 };

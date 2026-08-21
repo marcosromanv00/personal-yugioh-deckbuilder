@@ -13,7 +13,7 @@ import {
 } from '@/lib/cardClassificationEngine';
 import { findDispersedCardsAcrossLocations } from '@/lib/collectionUtils';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
-import { computeCrossContainerDuplicateMap, DuplicateMatchInfo } from '@/lib/collectionSuggestions';
+import { computeCrossContainerDuplicateMap } from '@/lib/collectionSuggestions';
 import { GridCardGroup, DeckInContainer, RightPanelMode, AISubView, DetailsCopiesMode, MobileTab } from './types';
 
 interface UseContainerWorkspaceStateProps {
@@ -86,12 +86,6 @@ export const useContainerWorkspaceState = ({
   // Click-to-place / Selected search card
   const [selectedSearchCard, setSelectedSearchCard] = useState<Card | null>(null);
 
-  // Estado local del contenedor activo
-  const [currentLocation, setCurrentLocation] = useState<StorageLocation | null>(location);
-  useEffect(() => {
-    setCurrentLocation(location);
-  }, [location]);
-
   // Modal de Asignación de Mazos a Carriles
   const [isAssignDeckModalOpen, setIsAssignDeckModalOpen] = useState(false);
   const [assignCompartmentIdx, setAssignCompartmentIdx] = useState<number>(0);
@@ -127,37 +121,39 @@ export const useContainerWorkspaceState = ({
   const [expandedClusterSubId, setExpandedClusterSubId] = useState<string | null>(null);
 
   // Contexto global de colección para precisión analítica
-  const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>(initialAllCollectionCards || []);
-  const [internalDecks, setInternalDecks] = useState<Deck[]>(decks || []);
-
-  useEffect(() => {
-    if (initialAllCollectionCards && initialAllCollectionCards.length > 0) {
-      setAllCollectionCards(initialAllCollectionCards);
-    }
-  }, [initialAllCollectionCards]);
-
-  useEffect(() => {
-    if (decks && decks.length > 0) {
-      setInternalDecks(decks);
-    }
-  }, [decks]);
+  const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>(() => initialAllCollectionCards || []);
+  const [internalDecks, setInternalDecks] = useState<Deck[]>(() => decks || []);
 
   useEffect(() => {
     if (isOpen) {
       let isMounted = true;
       const fetchGlobalContext = async () => {
         try {
-          const [cardsRes, decksRes] = await Promise.all([
-            fetch('/api/collection/cards'),
-            fetch('/api/decks')
-          ]);
-          if (cardsRes.ok && isMounted) {
-            const json = await cardsRes.json();
-            setAllCollectionCards(json.data || []);
+          const needsCards = !initialAllCollectionCards || initialAllCollectionCards.length === 0;
+          const needsDecks = !decks || decks.length === 0;
+          if (!needsCards && !needsDecks) return;
+
+          const promises: Promise<Response>[] = [];
+          if (needsCards) promises.push(fetch('/api/collection/cards'));
+          if (needsDecks) promises.push(fetch('/api/decks'));
+
+          const results = await Promise.all(promises);
+          if (!isMounted) return;
+
+          let idx = 0;
+          if (needsCards) {
+            const res = results[idx++];
+            if (res && res.ok) {
+              const json = await res.json();
+              setAllCollectionCards(json.data || []);
+            }
           }
-          if (decksRes.ok && isMounted) {
-            const json = await decksRes.json();
-            setInternalDecks(json.data || []);
+          if (needsDecks) {
+            const res = results[idx++];
+            if (res && res.ok) {
+              const json = await res.json();
+              setInternalDecks(json.data || []);
+            }
           }
         } catch (e) {
           console.warn('Error loading global collection context:', e);
@@ -166,7 +162,7 @@ export const useContainerWorkspaceState = ({
       fetchGlobalContext();
       return () => { isMounted = false; };
     }
-  }, [isOpen]);
+  }, [isOpen, initialAllCollectionCards, decks]);
 
   // Paginación y filtros internos del contenedor (panel central)
   const [containerSearch, setContainerSearch] = useState('');
@@ -203,9 +199,11 @@ export const useContainerWorkspaceState = ({
   const containerType = isInbox ? 'box' : (location?.type || 'box');
 
   const selectedUserCardIdRef = useRef<string | null>(null);
-  selectedUserCardIdRef.current = selectedUserCard?.id || null;
+  useEffect(() => {
+    selectedUserCardIdRef.current = selectedUserCard?.id || null;
+  }, [selectedUserCard?.id]);
 
-  // Cargar cartas de este contenedor específico de forma estable
+  // Cargar cartas de este contenedor específico de forma estable para acciones de usuario
   const fetchCards = useCallback(async () => {
     if (!isOpen) return;
     setLoading(true);
@@ -248,23 +246,65 @@ export const useContainerWorkspaceState = ({
     } finally {
       setLoading(false);
     }
-  }, [isOpen, isInbox, containerId, isIdealMode, location?.id, syncData?.idealCards]);
+  }, [isOpen, isInbox, containerId, isIdealMode, location, syncData]);
 
+  // Carga inicial al montar el contenedor
   useEffect(() => {
-    if (isOpen) {
-      setHasMutated(false);
-      setSelectedUserCard(null);
-      setSelectedSearchCard(null);
-      setCurrentGridPage(1);
-      setCurrentBinderViewIndex(0);
-      setActiveClusterFilter(null);
-      setActiveCompartment(-1);
-      setSelectedDeckFilter('all');
-      setStatusFilter('all');
-      setContainerSearch('');
-      fetchCards();
-    }
-  }, [isOpen, location?.id, fetchCards]);
+    if (!isOpen) return;
+    let isMounted = true;
+
+    const loadInitialCards = async () => {
+      try {
+        if (isIdealMode && syncData?.idealCards) {
+          const physicalLocId = (location as { physical_storage_location_id?: string } | null)?.physical_storage_location_id;
+          const targetId = location?.id;
+
+          const filtered = (syncData.idealCards as UserCard[]).filter(c => {
+            if (isInbox) return !c.storage_location_id;
+            return (
+              c.storage_location_id === targetId ||
+              (physicalLocId && c.storage_location_id === physicalLocId)
+            );
+          });
+
+          if (isMounted) {
+            setCards(filtered);
+            if (selectedUserCardIdRef.current) {
+              const fresh = filtered.find(c => c.id === selectedUserCardIdRef.current);
+              if (fresh) setSelectedUserCard(fresh);
+            }
+          }
+          return;
+        }
+
+        const url = isInbox 
+          ? '/api/collection/inbox' 
+          : `/api/collection/cards?location_id=${containerId}`;
+        const res = await fetch(url);
+        if (res.ok && isMounted) {
+          const json = await res.json();
+          const data: UserCard[] = json.data || [];
+          setCards(data);
+          if (selectedUserCardIdRef.current) {
+            const fresh = data.find(c => c.id === selectedUserCardIdRef.current);
+            if (fresh) setSelectedUserCard(fresh);
+          }
+        }
+      } catch (err) {
+        console.error('Error al cargar cartas del contenedor:', err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadInitialCards();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, isInbox, containerId, isIdealMode, location, syncData]);
 
   // Decks detectados físicamente en las cartas de este contenedor
   const decksInContainer = useMemo<DeckInContainer[]>(() => {
@@ -306,47 +346,54 @@ export const useContainerWorkspaceState = ({
     return cards.filter(c => (c.compartment_index || 0) === activeCompartment);
   }, [cards, activeCompartment]);
 
+  // Pool unificado que garantiza la inclusión de la colección completa y las cartas del contenedor activo
+  const consolidatedPool = useMemo(() => {
+    if (allCollectionCards.length === 0) return cards;
+    const cardMap = new Map<string, UserCard>();
+    allCollectionCards.forEach(c => cardMap.set(c.id, c));
+    cards.forEach(c => cardMap.set(c.id, c));
+    return Array.from(cardMap.values());
+  }, [allCollectionCards, cards]);
+
   // Diagnóstico y clasificación en tiempo real de la carta activa
   const classificationReport = useMemo(() => {
     if (!selectedUserCard) return null;
     return analyzeCardClassification(
       selectedUserCard,
-      allCollectionCards.length > 0 ? allCollectionCards : cards,
+      consolidatedPool,
       internalDecks.length > 0 ? internalDecks : (decks || []),
       locations
     );
-  }, [selectedUserCard, allCollectionCards, cards, internalDecks, decks, locations]);
+  }, [selectedUserCard, consolidatedPool, internalDecks, decks, locations]);
 
   // Análisis de patrones del carril activo
   const lanePatternReport = useMemo(() => {
     return analyzeLanePatterns(
       activeLaneCards,
-      allCollectionCards.length > 0 ? allCollectionCards : cards,
+      consolidatedPool,
       internalDecks.length > 0 ? internalDecks : (decks || []),
       locations
     );
-  }, [activeLaneCards, allCollectionCards, cards, internalDecks, decks, locations]);
+  }, [activeLaneCards, consolidatedPool, internalDecks, decks, locations]);
 
   // Análisis global de toda la colección
   const globalCollectionReport = useMemo(() => {
     return analyzeGlobalCollectionPatterns(
-      allCollectionCards.length > 0 ? allCollectionCards : cards,
+      consolidatedPool,
       internalDecks.length > 0 ? internalDecks : (decks || []),
       locations
     );
-  }, [allCollectionCards, cards, internalDecks, decks, locations]);
+  }, [consolidatedPool, internalDecks, decks, locations]);
 
   // Detección de cartas de la colección divididas en múltiples contenedores o idiomas
   const allDispersedCards = useMemo(() => {
-    const pool = allCollectionCards.length > 0 ? allCollectionCards : cards;
-    return findDispersedCardsAcrossLocations(pool, locations);
-  }, [allCollectionCards, cards, locations]);
+    return findDispersedCardsAcrossLocations(consolidatedPool, locations);
+  }, [consolidatedPool, locations]);
 
   // Mapa de duplicados cruzados entre contenedores para badges de alerta
   const crossContainerDuplicatesMap = useMemo(() => {
-    const pool = allCollectionCards.length > 0 ? allCollectionCards : cards;
-    return computeCrossContainerDuplicateMap(pool, locations);
-  }, [allCollectionCards, cards, locations]);
+    return computeCrossContainerDuplicateMap(consolidatedPool, locations);
+  }, [consolidatedPool, locations]);
 
   // Diagnóstico de dispersión para la carta activa seleccionada
   const currentCardDispersedInfo = useMemo(() => {
@@ -366,7 +413,7 @@ export const useContainerWorkspaceState = ({
     const lines = text.split(/\r?\n/);
     const result: number[] = [];
 
-    for (let rawLine of lines) {
+    for (const rawLine of lines) {
       const trimmed = rawLine.trim();
       if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!')) continue;
 
@@ -1241,7 +1288,7 @@ export const useContainerWorkspaceState = ({
   // Abrir modal de asignación de mazo a carril
   const handleOpenAssignDeckModal = (compartmentIdx: number) => {
     setAssignCompartmentIdx(compartmentIdx);
-    const activeLoc = currentLocation || location;
+    const activeLoc = location;
     const existingDeckId = activeLoc?.compartments?.deck_ids?.[compartmentIdx] || '';
     setSelectedDeckIdToAssign(existingDeckId || (internalDecks[0]?.id || ''));
     setShouldMoveCardsOnAssign(true);
@@ -1251,7 +1298,7 @@ export const useContainerWorkspaceState = ({
 
   // Guardar asignación de mazo a carril en Supabase / API
   const handleSaveDeckAssignment = async () => {
-    const activeLoc = currentLocation || location;
+    const activeLoc = location;
     if (!activeLoc || isInbox) return;
     setIsAssigningDeck(true);
     try {
@@ -1306,7 +1353,8 @@ export const useContainerWorkspaceState = ({
         throw new Error(errJson.error || 'Error al guardar asignación de mazo');
       }
 
-      setCurrentLocation(updatedLocation);
+      onSelectLocation?.(updatedLocation);
+      onMutate?.();
 
       if (newDeckId) {
         await fetch('/api/decks', {
@@ -1376,7 +1424,7 @@ export const useContainerWorkspaceState = ({
 
   // Mover todas las cartas de un mazo a otro carril
   const handleMoveDeckCards = async (deckId: string, targetCompIdx: number) => {
-    const activeLoc = currentLocation || location;
+    const activeLoc = location;
     if (!activeLoc || isInbox) return;
     try {
       const res = await fetch('/api/collection/cards', {
@@ -1633,7 +1681,7 @@ export const useContainerWorkspaceState = ({
     isInbox,
     containerId,
     containerType,
-    currentLocation,
+    currentLocation: location,
     fetchCards,
 
     // Navigation
