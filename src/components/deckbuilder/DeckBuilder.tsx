@@ -1424,6 +1424,8 @@ export default function DeckBuilder() {
         activeReplacementCardId={state.activeReplacementCardId}
         setActiveReplacementCardId={state.setActiveReplacementCardId}
         activeReplacementsList={activeReplacementsList}
+        currentDeckCards={state.deckCards}
+        inferredArchetype={state.inferredArchetype}
         addRecommendedCard={state.addRecommendedCard}
         removeCardFromDeck={state.removeCardFromDeck}
         handleCardMouseEnter={preview.handleCardMouseEnter}

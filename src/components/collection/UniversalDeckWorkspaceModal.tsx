@@ -205,6 +205,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             onChangeCardSection={state.handleChangeCardSection}
             onUpdateCardPhysicalLocation={state.handleUpdateCardPhysicalLocation}
             onRemoveCardFromDeck={state.handleRemoveCardFromDeck}
+            currentDeckId={state.currentDeck?.id}
             allUserCards={props.allUserCards && props.allUserCards.length > 0 ? props.allUserCards : state.userCards}
             deckCards={state.deckCards}
             detectedArchetypes={state.detectedArchetypes}

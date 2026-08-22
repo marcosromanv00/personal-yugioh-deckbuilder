@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getImplicitSynergiesForArchetype } from '@/lib/constants/archetypeSynergies';
+import {
+  canSummonExtraDeckCard,
+  isSearcherUsefulInDeck,
+  inferCardValueProposition,
+  CardBasicInfo,
+} from '@/lib/engines/mechanicsValidator';
 
 interface DeckCardInput {
   id: number;
@@ -245,12 +251,47 @@ export async function POST(req: NextRequest) {
     const deckCardCounts = new Map<number, number>();
     cards.forEach(c => deckCardCounts.set(c.id, c.count));
 
+    const deckBasicCards: CardBasicInfo[] = cards.map(c => {
+      const details = cardDetailsMap.get(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        type: details?.type,
+        desc: details?.desc,
+        level: details?.level,
+        race: details?.race,
+        attribute: details?.attribute,
+        archetype: details?.archetype,
+        count: c.count,
+      };
+    });
+
     archetypeBreakdown.forEach(item => {
       const targetCard = item.yg_cards;
       if (!targetCard) return;
 
       const currentCount = deckCardCounts.get(item.card_id) || 0;
       const recCopies = Math.round(item.average_copies);
+
+      // Si es de Extra Deck, validar invocabilidad
+      const isExtra = (targetCard.type || '').match(/fusion|synchro|xyz|link/i);
+      if (isExtra) {
+        const check = canSummonExtraDeckCard(
+          { id: item.card_id, name: targetCard.name, type: targetCard.type, level: targetCard.level, race: targetCard.race, archetype: targetCard.archetype },
+          deckBasicCards
+        );
+        if (!check.canSummon) return; // No recomendar cartas de Extra Deck que no se puedan invocar
+      }
+
+      const cardBasic: CardBasicInfo = {
+        id: item.card_id,
+        name: targetCard.name,
+        type: targetCard.type,
+        level: targetCard.level,
+        race: targetCard.race,
+        archetype: targetCard.archetype || inferredArchetype,
+      };
+      const rationale = inferCardValueProposition(cardBasic, deckBasicCards, inferredArchetype ? [inferredArchetype] : []);
 
       if (currentCount === 0 && item.usage_percent >= 50) {
         recommendations.push({
@@ -260,6 +301,7 @@ export async function POST(req: NextRequest) {
           image_url: targetCard.image_url_small,
           usagePercent: item.usage_percent,
           averageCopies: item.average_copies,
+          rationale,
           message: `Carta núcleo recomendada para el arquetipo ${inferredArchetype}: "${targetCard.name}" (se juega en el ${Math.round(item.usage_percent)}% de los decks, promedio ${item.average_copies} copias).`
         });
       } else if (currentCount > 0 && currentCount < recCopies) {
@@ -270,6 +312,7 @@ export async function POST(req: NextRequest) {
           image_url: targetCard.image_url_small,
           usagePercent: item.usage_percent,
           averageCopies: item.average_copies,
+          rationale,
           message: `Considera aumentar "${targetCard.name}" de ${currentCount} a ${recCopies} copias (media competitiva: ${item.average_copies}).`
         });
       }
@@ -289,6 +332,13 @@ export async function POST(req: NextRequest) {
             image_url: null,
             usagePercent: Math.round(syn.weight * 100),
             averageCopies: syn.recommendedCopies || 1,
+            rationale: {
+              role: syn.role as any,
+              badgeLabel: `Sinergia ${syn.role.toUpperCase()}`,
+              badgeColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+              shortReason: syn.reason,
+              confidenceScore: Math.round(syn.weight * 100),
+            },
             message: `Sinergia clave (${syn.role.toUpperCase()}) para ${inferredArchetype}: "${syn.cardName}". ${syn.reason}`
           });
         }
@@ -356,6 +406,15 @@ export async function POST(req: NextRequest) {
       if (item.usage_percent >= 30 && !deckCardIds.has(item.card_id)) {
         const alreadyRec = recommendations.some(r => r.cardId === item.card_id);
         if (!alreadyRec) {
+          const cardBasic: CardBasicInfo = {
+            id: item.card_id,
+            name: targetCard.name,
+            type: targetCard.type,
+            level: targetCard.level,
+            race: targetCard.race,
+          };
+          const rationale = inferCardValueProposition(cardBasic, deckBasicCards, inferredArchetype ? [inferredArchetype] : []);
+
           recommendations.push({
             type: 'missing_staple',
             cardId: item.card_id,
@@ -363,6 +422,7 @@ export async function POST(req: NextRequest) {
             image_url: targetCard.image_url_small,
             usagePercent: item.usage_percent,
             averageCopies: item.average_copies,
+            rationale,
             message: `Staple recomendada para el formato: "${targetCard.name}" (usada en el ${Math.round(item.usage_percent)}% de decks competitivos).`
           });
         }

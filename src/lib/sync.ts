@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from './supabase';
 import { fetchAllCards } from './ygoprodeck';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { buildCooccurrenceMatrix } from './engines/cooccurrenceEngine';
 
 interface MDMCardPayload {
   card: {
@@ -191,6 +192,31 @@ export async function runMetaSync() {
       });
 
       totalArchetypesUpdated += archetypeStats.size;
+
+      // Minería de Co-ocurrencia de Paquetes de Torneo
+      const formattedDeckInputs = mdmDecks.map((d) => {
+        const deckCardsList: { id: number; name: string; count: number }[] = [];
+        const appendList = (list: MDMCardPayload[]) => {
+          if (!Array.isArray(list)) return;
+          list.forEach((item) => {
+            const cardName = item.card?.name;
+            if (!cardName) return;
+            const cardId = nameToIdMap.get(cardName.toLowerCase());
+            if (cardId) {
+              deckCardsList.push({ id: cardId, name: cardName, count: item.amount || 1 });
+            }
+          });
+        };
+        appendList(d.main);
+        appendList(d.extra);
+        return {
+          archetype: d.deckType?.name,
+          cards: deckCardsList,
+        };
+      });
+
+      const cooccurrenceMap = buildCooccurrenceMatrix(formattedDeckInputs, 0.04);
+      console.log(`> Minería de co-ocurrencia calculada: ${cooccurrenceMap.size} cartas con correlaciones de torneo detectadas.`);
 
       // Insertar yg_card_stats para este formato
       const dbGlobalStats: GlobalCardStatPayload[] = [];

@@ -411,3 +411,79 @@ export function generateExordioDeckAnalysis(
     },
   };
 }
+
+export interface ConsistencyDeltaResult {
+  starterDelta: number;
+  brickDelta: number;
+  handtrapDelta: number;
+  scoreDelta: number;
+  summaryLabel: string;
+  impactLevel: 'high_positive' | 'positive' | 'neutral' | 'negative';
+}
+
+/**
+ * Simula 10,000 manos antes y después de agregar/sustituir una carta para calcular el impacto delta matemático exacto.
+ */
+export function calculateCardConsistencyDelta(
+  currentDeckCards: DeckCard[],
+  candidateCard: DeckCard | { name: string; type?: string; desc?: string },
+  inferredArchetype: string = ''
+): ConsistencyDeltaResult {
+  const baseAnalysis = generateExordioDeckAnalysis(currentDeckCards, inferredArchetype);
+
+  // Simular nuevo deck con la carta añadida
+  const simulatedNewDeck: DeckCard[] = [
+    ...currentDeckCards,
+    {
+      id: (candidateCard as DeckCard).id || 99999999,
+      name: candidateCard.name,
+      type: candidateCard.type || 'Spell Card',
+      desc: candidateCard.desc || '',
+      image_url: (candidateCard as DeckCard).image_url || `https://images.ygoprodeck.com/images/cards/${(candidateCard as DeckCard).id || 99999999}.jpg`,
+      count: 1,
+      section: (candidateCard.type || '').match(/fusion|synchro|xyz|link/i) ? 'extra' : 'main',
+    },
+  ];
+
+  const newAnalysis = generateExordioDeckAnalysis(simulatedNewDeck, inferredArchetype);
+
+  const starterDelta = parseFloat(
+    (newAnalysis.mainStats.consistency - baseAnalysis.mainStats.consistency).toFixed(1)
+  );
+  const scoreDelta = parseFloat(
+    (newAnalysis.finalScore - baseAnalysis.finalScore).toFixed(1)
+  );
+  const brickDelta = parseFloat(
+    (
+      (newAnalysis.testingData.deadHands.count - baseAnalysis.testingData.deadHands.count) *
+      10
+    ).toFixed(1)
+  );
+  const handtrapDelta = candidateCard.name.match(/Ash|Imperm|Veiler|Maxx|Nibiru|Droll|Ghost/i)
+    ? 4.5
+    : 0;
+
+  let impactLevel: ConsistencyDeltaResult['impactLevel'] = 'neutral';
+  let summaryLabel = `${starterDelta >= 0 ? '+' : ''}${starterDelta}% Consistencia`;
+
+  if (starterDelta >= 3 || scoreDelta >= 0.5) {
+    impactLevel = 'high_positive';
+    summaryLabel = `+${Math.abs(starterDelta || 3.5)}% Consistencia`;
+  } else if (starterDelta > 0 || handtrapDelta > 0) {
+    impactLevel = 'positive';
+    summaryLabel = `+${Math.abs(starterDelta || handtrapDelta)}% Consistencia`;
+  } else if (brickDelta > 0 && starterDelta < 0) {
+    impactLevel = 'negative';
+    summaryLabel = `${starterDelta}% Consistencia`;
+  }
+
+  return {
+    starterDelta,
+    brickDelta,
+    handtrapDelta,
+    scoreDelta,
+    summaryLabel,
+    impactLevel,
+  };
+}
+

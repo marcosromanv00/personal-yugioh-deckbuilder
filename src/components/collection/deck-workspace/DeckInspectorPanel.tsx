@@ -53,6 +53,7 @@ interface DeckInspectorPanelProps {
   onRemoveCardFromDeck: (cardId: number, section: 'main' | 'extra' | 'side' | 'pool') => void;
 
   // Sinergias & Sugerencias de Colección
+  currentDeckId?: string | null;
   allUserCards?: UserCard[];
   deckCards?: DeckCardDetail[];
   detectedArchetypes?: { name: string; count: number }[];
@@ -69,6 +70,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   setRightMode,
   selectedCardDetail,
   setSelectedCardDetail,
+  currentDeckId,
 
   name,
   setName,
@@ -235,6 +237,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           inferredArchetype={inferredArchetype}
           locations={locations}
           savedDecks={savedDecks}
+          currentDeckId={currentDeckId}
           onAddCardToDeck={onAddCardToDeck}
         />
       )}
