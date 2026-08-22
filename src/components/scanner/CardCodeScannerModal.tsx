@@ -18,6 +18,7 @@ import {
   ScanLine,
   ZoomIn,
   Pencil,
+  BarChart2,
 } from 'lucide-react';
 import {
   extractAndPreprocessViewfinder,
@@ -29,6 +30,8 @@ import {
   ViewfinderCropRect,
 } from '@/lib/ocr/cardOcrEngine';
 import { OcrLearningMemory } from '@/lib/ocr/ocrLearningMemory';
+import { OcrDigitStats } from '@/lib/ocr/ocrDigitStatsStore';
+import { OcrStatsModal } from './OcrStatsModal';
 
 export interface YgoDetectedCard {
   id: number;
@@ -104,6 +107,9 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
   const [manualCodeInput, setManualCodeInput] = useState<string>('');
   const [isManualSearching, setIsManualSearching] = useState<boolean>(false);
   const [manualSearchError, setManualSearchError] = useState<string>('');
+
+  // Diagnostic / Stats Modal State
+  const [isStatsOpen, setIsStatsOpen] = useState<boolean>(false);
 
   // Refs para control estricto de concurrencia y descarte de tareas obsoletas (cero colas/buffer)
   const isScanningRef = useRef<boolean>(false);
@@ -245,12 +251,13 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
         if (scanId !== currentScanIdRef.current || abortController.signal.aborted) return;
 
         if (foundCardData && foundCardData.name) {
-          // Registrar aprendizaje continuo
+          // Registrar aprendizaje continuo y consolidación de aciertos/desaciertos por dígito (0-9)
           if (code && code !== matchedCode) {
             OcrLearningMemory.learnCorrection(code, matchedCode, foundCardData.name);
           } else if (matchedCode) {
             OcrLearningMemory.learnCorrection(matchedCode, foundCardData.id.toString(), foundCardData.name);
           }
+          OcrDigitStats.consolidateCardSession(matchedCode || foundCardData.id.toString());
 
           setScannedCode(matchedCode);
           setDetectedCard(foundCardData);
@@ -334,6 +341,8 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
           if (isNumeric && scannedCode && scannedCode !== codeToUse) {
             OcrLearningMemory.learnCorrection(scannedCode, codeToUse, cardData.name);
           }
+          OcrDigitStats.consolidateCardSession(cardData.id.toString());
+
           setScannedCode(cardData.id.toString());
           setDetectedCard(cardData);
           setScannerStage('card_found');
@@ -656,6 +665,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     currentAbortControllerRef.current?.abort();
     currentScanIdRef.current++;
     isScanningRef.current = false;
+    OcrDigitStats.clearTemporalBuffer();
     setDetectedCard(null);
     setScannedCode(null);
     setLastSnapshotUrl(null);
@@ -675,6 +685,7 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
     currentAbortControllerRef.current?.abort();
     currentScanIdRef.current++;
     isScanningRef.current = false;
+    OcrDigitStats.clearTemporalBuffer();
     setDetectedCard(null);
     setScannedCode(null);
     setCameraError('');
@@ -761,14 +772,26 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleClose}
-              className="p-2 sm:p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer touch-manipulation"
-              title="Cerrar escáner"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsStatsOpen(true)}
+                className="p-2 sm:p-1.5 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer touch-manipulation min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 flex items-center justify-center"
+                title="Diagnóstico y Aprendizaje OCR"
+                aria-label="Diagnóstico y Aprendizaje OCR"
+              >
+                <BarChart2 className="w-5 h-5 sm:w-4 sm:h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="p-2 sm:p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer touch-manipulation min-h-11 min-w-11 sm:min-h-9 sm:min-w-9 flex items-center justify-center"
+                title="Cerrar escáner"
+                aria-label="Cerrar escáner"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Camera Viewport Area */}
@@ -1216,6 +1239,12 @@ export const CardCodeScannerModal: React.FC<CardCodeScannerModalProps> = ({
           </AnimatePresence>
         </motion.div>
       </div>
+
+      {/* Modal de Diagnóstico y Métricas de Aprendizaje (0-9) */}
+      <OcrStatsModal
+        isOpen={isStatsOpen}
+        onClose={() => setIsStatsOpen(false)}
+      />
     </AnimatePresence>
   );
 };

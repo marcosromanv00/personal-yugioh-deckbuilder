@@ -1,5 +1,6 @@
 import { createWorker, Worker, PSM } from 'tesseract.js';
 import { OcrLearningMemory } from './ocrLearningMemory';
+import { OcrDigitStats } from './ocrDigitStatsStore';
 
 let workerPromise: Promise<Worker> | null = null;
 
@@ -294,7 +295,8 @@ export const OCR_DIGIT_CONFUSION_MAP: Record<string, string[]> = {
 };
 
 /**
- * Genera candidatos inteligentes de 8 dígitos de forma acotada y de alta probabilidad (máximo 6 variantes).
+ * Genera candidatos inteligentes de 8 dígitos de forma acotada y de alta probabilidad (máximo 6 variantes),
+ * priorizando dinámicamente sustituciones en posiciones con mayor tasa de error y según la matriz de confusión histórica.
  */
 export function generatePasscodeCandidates(rawCode: string): string[] {
   const digits = rawCode.replace(/\D/g, '');
@@ -307,29 +309,39 @@ export function generatePasscodeCandidates(rawCode: string): string[] {
 
     const chars = digits.split('');
 
-    // Prioridad 1: Sustituciones en los primeros 3 dígitos (donde más suelen ocurrir fallos de OCR)
-    for (let i = 0; i < 3 && results.size < 6; i++) {
-      const alts = OCR_DIGIT_CONFUSION_MAP[chars[i]];
-      if (alts) {
-        for (const alt of alts) {
-          if (results.size >= 6) break;
-          const variant = [...chars];
-          variant[i] = alt;
-          results.add(variant.join(''));
-        }
-      }
-    }
+    // 1. Ponderar cada una de las 8 posiciones según su tasa de error histórica y sesgo posicional
+    const indexedPositions = chars.map((char, index) => {
+      const errorRate = OcrDigitStats.getDigitErrorRate(char);
+      // Las primeras 2 posiciones suelen tener mayor interferencia de bordes/1st Edition
+      const positionBias = index < 2 ? 0.08 : 0;
+      return {
+        index,
+        char,
+        score: errorRate + positionBias,
+      };
+    });
 
-    // Prioridad 2: Sustituciones en dígitos restantes si aún hay espacio
-    for (let i = 3; i < 8 && results.size < 6; i++) {
-      const alts = OCR_DIGIT_CONFUSION_MAP[chars[i]];
-      if (alts) {
-        for (const alt of alts) {
-          if (results.size >= 6) break;
-          const variant = [...chars];
-          variant[i] = alt;
-          results.add(variant.join(''));
-        }
+    // Ordenar índices de mayor a menor propensión al error
+    indexedPositions.sort((a, b) => b.score - a.score);
+
+    // 2. Generar sustituciones priorizando confusiones empíricas observadas
+    for (const { index, char } of indexedPositions) {
+      if (results.size >= 6) break;
+
+      // Obtener sustitutos ordenados por frecuencia empírica real
+      const observedConfusions = OcrDigitStats.getDigitConfusionRanking(char);
+      const staticFallbacks = OCR_DIGIT_CONFUSION_MAP[char] || [];
+
+      // Combinar manteniendo prioridad empírica
+      const replacementList = Array.from(new Set([...observedConfusions, ...staticFallbacks]));
+
+      for (const replacement of replacementList) {
+        if (results.size >= 6) break;
+        if (replacement === char) continue;
+
+        const variant = [...chars];
+        variant[index] = replacement;
+        results.add(variant.join(''));
       }
     }
   } else if (digits.length === 9) {
@@ -456,6 +468,11 @@ export async function recognizeCardPasscode(
     }
 
     if (rawCandidatesSet.size === 0) return null;
+
+    // Registrar los intentos en el búfer temporal de estadísticas de la sesión activa
+    rawCandidatesSet.forEach(rawCand => {
+      OcrDigitStats.logAttempt(rawCand);
+    });
 
     // 4. Generar candidatos con matriz de confusión ponderada (máximo 6)
     const fullCandidateList: string[] = [];
