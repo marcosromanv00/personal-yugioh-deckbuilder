@@ -8,9 +8,11 @@ export interface UniversalDeckWorkspaceModalProps {
   onSelectDeck?: (deck: Deck) => void;
   locations?: StorageLocation[];
   sleeves?: SleeveInventory[];
+  allUserCards?: UserCard[];
   onSuccess?: () => void;
 }
 
 export type DeckSectionFilter = 'all' | 'main' | 'extra' | 'side' | 'pool';
-export type RightDeckMode = 'details' | 'card';
+export type RightDeckMode = 'details' | 'card' | 'collection';
 export type MobileDeckTab = 'left' | 'center' | 'right';
+

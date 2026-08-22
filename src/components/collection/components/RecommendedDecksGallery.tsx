@@ -76,6 +76,7 @@ export const RecommendedDecksGallery: React.FC<RecommendedDecksGalleryProps> = (
           section: c.section,
           type: c.type,
           image_url: c.image_url || `https://images.ygoprodeck.com/images/cards/${c.id}.jpg`,
+          image_url_small: c.image_url_small || c.image_url || `https://images.ygoprodeck.com/images/cards_small/${c.id}.jpg`,
           archetype: c.archetype,
           atk: c.atk,
           def: c.def,
@@ -91,7 +92,7 @@ export const RecommendedDecksGallery: React.FC<RecommendedDecksGalleryProps> = (
       }
 
       toast.success(`Cargando "${recipe.name}" en el Taller...`);
-      router.push('/');
+      router.push('/?loadDraft=1');
     } catch (err) {
       console.error('Error opening deck in workshop:', err);
       toast.error('No se pudo transferir el deck al taller');

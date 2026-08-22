@@ -1226,7 +1226,11 @@ export function useDeckBuilderState() {
               queueMicrotask(() => {
                 setDeckId(null);
                 setDeckCards(draft.deckCards);
-                if (draft.deckName) setDeckName(draft.deckName);
+                if (draft.deckName) {
+                  setDeckName(draft.deckName);
+                  setIsManualDeckName(true);
+                  isManualDeckNameRef.current = true;
+                }
                 if (draft.format) setFormat(draft.format);
                 if (draft.deckDescription) setDeckDescription(draft.deckDescription);
                 setHistoryStack([]);

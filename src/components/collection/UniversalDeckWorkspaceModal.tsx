@@ -168,7 +168,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             />
           )}
 
-          {/* ─── PANEL DERECHO: SWITCH ENTRE FICHA TÉCNICA Y DETALLES DE CARTA ─── */}
+          {/* ─── PANEL DERECHO: SWITCH ENTRE FICHA TÉCNICA, DETALLES DE CARTA Y COLECCIÓN ─── */}
           <DeckInspectorPanel
             rightPanelWidth={panelResize.rightPanelWidth}
             isMobile={state.isMobile}
@@ -205,6 +205,12 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             onChangeCardSection={state.handleChangeCardSection}
             onUpdateCardPhysicalLocation={state.handleUpdateCardPhysicalLocation}
             onRemoveCardFromDeck={state.handleRemoveCardFromDeck}
+            allUserCards={props.allUserCards && props.allUserCards.length > 0 ? props.allUserCards : state.userCards}
+            deckCards={state.deckCards}
+            detectedArchetypes={state.detectedArchetypes}
+            inferredArchetype={state.inferredArchetype}
+            savedDecks={decks}
+            onAddCardToDeck={(card, section) => state.handleAddCardToDeck(card, section === 'extras' ? 'pool' : section)}
           />
 
         </div>

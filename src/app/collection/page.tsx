@@ -502,6 +502,7 @@ export default function CollectionPage() {
         locations={state.locations}
         decks={state.decks}
         sleeves={state.sleeves}
+        allUserCards={state.allCollectionCards}
         onSuccess={state.fetchCollectionDataSilently}
       />
 

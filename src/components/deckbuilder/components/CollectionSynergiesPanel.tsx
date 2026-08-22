@@ -19,15 +19,35 @@ import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { DeckCard, Card, HoverCardBase } from '../types';
 import { KNOWN_STAPLES_CATALOG } from '@/lib/collectionSuggestions';
 
+export interface CollectionDeckCardItem {
+  id?: number;
+  card_id?: number;
+  count: number;
+  section?: string;
+  archetype?: string;
+  name?: string;
+  type?: string;
+  image_url?: string;
+  image_url_small?: string;
+  card_details?: {
+    name?: string;
+    archetype?: string;
+    type?: string;
+    image_url?: string;
+    image_url_small?: string;
+    [key: string]: unknown;
+  };
+}
+
 interface CollectionSynergiesPanelProps {
   allUserCards: UserCard[];
-  deckCards: DeckCard[];
+  deckCards: CollectionDeckCardItem[];
   detectedArchetypes: { name: string; count: number }[];
   inferredArchetype: string;
   locations: StorageLocation[];
   savedDecks?: Deck[];
   onAddCardToDeck?: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
-  handleDragCardStart?: (e: React.DragEvent, cardData: any) => void;
+  handleDragCardStart?: (e: React.DragEvent, cardData: unknown) => void;
   handleCardMouseEnter?: (card: HoverCardBase) => void;
   handleCardMouseLeave?: () => void;
 }
@@ -64,7 +84,8 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
     }
     detectedArchetypes.forEach((a) => set.add(a.name.toLowerCase()));
     deckCards.forEach((c) => {
-      if (c.archetype) set.add(c.archetype.toLowerCase());
+      const arch = c.archetype || c.card_details?.archetype;
+      if (arch) set.add(arch.toLowerCase());
     });
     return set;
   }, [detectedArchetypes, inferredArchetype, deckCards]);
@@ -264,7 +285,7 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
 
             const isExtra = (details.type || '').toLowerCase().match(/fusion|synchro|xyz|link/);
             const inDeckCount = deckCards
-              .filter((c) => c.id === sample.card_id)
+              .filter((c) => c.id === sample.card_id || c.card_id === sample.card_id)
               .reduce((acc, c) => acc + c.count, 0);
 
             return (

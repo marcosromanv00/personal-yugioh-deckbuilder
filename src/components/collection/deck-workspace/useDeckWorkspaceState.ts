@@ -236,6 +236,27 @@ export function useDeckWorkspaceState({
 
   const totalDeckCount = totalMainCount + totalExtraCount + totalSideCount + totalPoolCount;
 
+  // Detección de arquetipos en el mazo activo
+  const detectedArchetypes = useMemo(() => {
+    const map = new Map<string, number>();
+    deckCards.forEach((c) => {
+      const arch = c.card_details?.archetype?.trim();
+      if (arch) {
+        map.set(arch, (map.get(arch) || 0) + (c.count || 1));
+      }
+    });
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [deckCards]);
+
+  const inferredArchetype = useMemo(() => {
+    if (detectedArchetypes.length > 0) {
+      return detectedArchetypes[0].name;
+    }
+    return 'Híbrido / Staples';
+  }, [detectedArchetypes]);
+
   // Cartas Filtradas y Ordenadas del Panel Central
   const filteredCenterCards = useMemo(() => {
     let result = [...deckCards];
@@ -536,6 +557,8 @@ export function useDeckWorkspaceState({
     selectedCardDetail,
     setSelectedCardDetail,
     selectedPhysicalUserCards,
+    detectedArchetypes,
+    inferredArchetype,
 
     // Center Filters & Tabs
     searchFilter,
