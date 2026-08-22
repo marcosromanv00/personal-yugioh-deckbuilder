@@ -11,21 +11,16 @@ import {
   Copy,
   Check,
   Search,
-  Filter,
   Layers,
   Box,
   FileText,
   ShieldAlert,
   Coins,
   ChevronRight,
-  ArrowUpRight,
   RefreshCw,
-  Tag,
   ShoppingBag,
-  ExternalLink,
   Flame,
   PieChart,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import {
@@ -33,7 +28,6 @@ import {
   CardMarketPrices,
   generateCollectionValuation,
   exportValuationReportToCSV,
-  CardValuationItem,
   SellOpportunity,
 } from '@/lib/valuationEngine';
 
@@ -97,7 +91,9 @@ export const ValuationTab: React.FC<ValuationTabProps> = ({
   }, [userCards]);
 
   useEffect(() => {
-    fetchMarketPrices();
+    queueMicrotask(() => {
+      fetchMarketPrices();
+    });
   }, [fetchMarketPrices]);
 
   // 2. Generar el resumen analítico completo en tiempo real
@@ -920,7 +916,15 @@ Generado con Personal Yu-Gi-Oh! Deckbuilder Hub`;
                 {valuation.deckValuations.map((d) => (
                   <div
                     key={d.deckId}
-                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-xs flex flex-col justify-between gap-3"
+                    onClick={() => {
+                      if (onOpenDeck) {
+                        const targetDeck = decks.find((deck) => deck.id === d.deckId);
+                        if (targetDeck) onOpenDeck(targetDeck);
+                      }
+                    }}
+                    className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-xs flex flex-col justify-between gap-3 ${
+                      onOpenDeck ? 'cursor-pointer hover:border-purple-500/40 transition-all' : ''
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>

@@ -3,14 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { 
-  Box, 
-  Upload, 
-  Sparkles, 
-  Shield, 
   Plus, 
-  Layers, 
-  Heart, 
-  FileText, 
   Sun, 
   Moon,
   Menu,
@@ -24,7 +17,6 @@ import { useAIChat } from '@/context/AIChatContext';
 import { useCollectionState } from '@/components/collection/hooks/useCollectionState';
 
 // Modular UI Subcomponents
-import { UnsortedInboxBanner } from '@/components/collection/components/UnsortedInboxBanner';
 import { ContainersTab } from '@/components/collection/components/ContainersTab';
 import { CollectionCardsTab } from '@/components/collection/components/CollectionCardsTab';
 import { SleevesTab } from '@/components/collection/components/SleevesTab';

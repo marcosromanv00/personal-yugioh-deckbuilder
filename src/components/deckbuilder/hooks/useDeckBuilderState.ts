@@ -243,7 +243,7 @@ export function useDeckBuilderState() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, []);
+  }, [setDetectedArchetypes, setInferredArchetype, setActiveArchetypeTab, setBanlistAlerts, setReplacements, setDeckName]);
 
   const triggerSync = useCallback(async (silent = false) => {
     setIsSyncing(true);
@@ -309,7 +309,7 @@ export function useDeckBuilderState() {
     } finally {
       setIsFetchingArchetypes(false);
     }
-  }, [format]);
+  }, [format, setIsFetchingArchetypes, setArchetypesList]);
 
   const fetchDecksAndLocations = useCallback(async () => {
     setLoadingDecks(true);
@@ -574,7 +574,7 @@ export function useDeckBuilderState() {
     } finally {
       setIsSearching(false);
     }
-  }, [favoriteCardIds]);
+  }, [favoriteCardIds, setIsSearching, setSearchResults]);
 
     const pushHistory = (currentCards: DeckCard[]) => {
       setHistoryStack(prev => [...prev.slice(-14), currentCards]);

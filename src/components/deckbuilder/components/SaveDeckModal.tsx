@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Shield, Zap, Settings2, X, Loader2 } from 'lucide-react';
 import { StorageLocation, SleeveInventory } from '@/types/collection';
@@ -423,9 +424,12 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                                   className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer shrink-0"
                                 />
                                 {c.image_url && (
-                                  <img
+                                  <Image
                                     src={c.image_url}
                                     alt={c.name}
+                                    width={24}
+                                    height={32}
+                                    unoptimized
                                     className="w-6 h-8 object-cover rounded shadow-xs shrink-0"
                                   />
                                 )}

@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
-import { computeCrossContainerDuplicateMap, DuplicateMatchInfo } from '@/lib/collectionSuggestions';
+import { computeCrossContainerDuplicateMap } from '@/lib/collectionSuggestions';
 
 /**
  * Hook personalizado useCollectionState
@@ -11,7 +10,6 @@ import { computeCrossContainerDuplicateMap, DuplicateMatchInfo } from '@/lib/col
  * de cartas, fundas, decks y contenedores, realizando peticiones a la base de datos a través de la API.
  */
 export function useCollectionState() {
-  const router = useRouter();
   const { isIdealMode, syncData } = useIdealEnvironment();
 
   const [locations, setLocations] = useState<StorageLocation[]>([]);
@@ -199,24 +197,28 @@ export function useCollectionState() {
       return () => clearTimeout(timer);
     }
     if (activeTab === 'sleeves') {
-      fetchSleeves();
+      queueMicrotask(() => {
+        fetchSleeves();
+      });
     }
   }, [activeTab, allSearchQuery, allCollectionFilters, locationFilter, deckFilter, fetchAllCards, fetchSleeves]);
 
   // Carga silenciosa inicial de todas las cartas para alimentar el mapa de duplicados y sugerencias
   useEffect(() => {
-    fetchAllCards('', {
-      type: '',
-      attribute: '',
-      race: '',
-      level: '',
-      atkMin: '',
-      atkMax: '',
-      defMin: '',
-      defMax: '',
-      archetype: '',
-      rarity: '',
-      status: ''
+    queueMicrotask(() => {
+      fetchAllCards('', {
+        type: '',
+        attribute: '',
+        race: '',
+        level: '',
+        atkMin: '',
+        atkMax: '',
+        defMin: '',
+        defMax: '',
+        archetype: '',
+        rarity: '',
+        status: ''
+      });
     });
   }, [fetchAllCards]);
 
@@ -602,7 +604,9 @@ export function useCollectionState() {
 
   // Carga inicial
   useEffect(() => {
-    fetchCollectionData();
+    queueMicrotask(() => {
+      fetchCollectionData();
+    });
   }, [fetchCollectionData]);
 
   const effectiveLocations = isIdealMode && syncData?.idealContainers ? (syncData.idealContainers as StorageLocation[]) : locations;

@@ -13,10 +13,6 @@ import {
   Bot,
   User,
   Loader2,
-  Trash2,
-  Layers,
-  ChevronDown,
-  Info,
 } from 'lucide-react';
 import { useAIChat } from '@/context/AIChatContext';
 import { AI_MODELS } from '@/lib/constants/models';

@@ -1,29 +1,19 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Sparkles, 
   Flame, 
-  ShieldAlert, 
   Layers, 
   Swords, 
-  Box, 
   ArrowRight, 
   Search, 
   AlertTriangle, 
-  Plus, 
-  MapPin, 
-  Check, 
-  Filter
 } from 'lucide-react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { 
   analyzeCollectionSuggestions, 
-  ArchetypeSuggestionGroup, 
-  StapleCardInfo, 
-  DuplicateMatchInfo,
-  StapleCategory
 } from '@/lib/collectionSuggestions';
 import { MultiLevelMovementDropdown } from '@/components/collection/MultiLevelMovementDropdown';
 
@@ -460,7 +450,16 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
                       {staple.isDispersed && (
                         <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
                       )}
-                      <span className="truncate">
+                      <span
+                        onClick={() => {
+                          if (onOpenContainer && staple.locations.length === 1 && staple.locations[0].location_id) {
+                            onOpenContainer(staple.locations[0].location_id);
+                          }
+                        }}
+                        className={`truncate ${
+                          onOpenContainer && staple.locations.length === 1 && staple.locations[0].location_id ? 'cursor-pointer hover:underline text-zinc-600 dark:text-zinc-300' : ''
+                        }`}
+                      >
                         {staple.locations.length === 1
                           ? staple.locations[0].location_name
                           : `${staple.locations.length} ubicaciones`}
