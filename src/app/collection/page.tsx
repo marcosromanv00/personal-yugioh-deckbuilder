@@ -30,6 +30,7 @@ import { UniversalContainerWorkspaceModal } from '@/components/collection/Univer
 import { CollectionValuationModal } from '@/components/collection/CollectionValuationModal';
 import { BulkActionsFloatingBar } from '@/components/collection/BulkActionsFloatingBar';
 import { CardCopySplitModal } from '@/components/collection/CardCopySplitModal';
+import { PickListConsolidationModal } from '@/components/collection/PickListConsolidationModal';
 import { StorageFormModal } from '@/components/collection/StorageFormModal';
 import { SmartOrganizeModal } from '@/components/collection/SmartOrganizeModal';
 import { SleevingAdvisorModal } from '@/components/collection/SleevingAdvisorModal';
@@ -325,7 +326,7 @@ export default function CollectionPage() {
                 />
               ) : state.activeTab === 'valuation' ? (
                 <ValuationTab
-                  userCards={state.allCollectionCards}
+                  userCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
                   locations={state.locations}
                   decks={state.decks}
                   onOpenContainer={(containerId) => {
@@ -339,15 +340,11 @@ export default function CollectionPage() {
                 />
               ) : state.activeTab === 'suggestions' ? (
                 <SuggestionsTab
-                  allUserCards={state.allCollectionCards}
+                  allUserCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
                   locations={state.locations}
                   decks={state.decks}
                   onCreateDeckFromArchetype={handleCreateDeckFromArchetype}
-                  onOpenConsolidateCard={(cardId) => {
-                    state.setLocationFilter('');
-                    state.setAllSearchQuery(`card_id:${cardId}`);
-                    state.setActiveTab('complete');
-                  }}
+                  onOpenConsolidateCard={state.handleOpenConsolidateForCard}
                   onOrganizeInbox={() => state.setIsOrganizeOpen(true)}
                   onOpenContainer={(containerId) => {
                     const loc = state.locations.find(l => l.id === containerId);
@@ -367,7 +364,7 @@ export default function CollectionPage() {
                   decks={state.decks}
                   locations={state.locations}
                   sleeves={state.sleeves}
-                  allUserCards={state.allCollectionCards}
+                  allUserCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
                   setDecks={state.setDecks}
                   onDeckClick={(deck) => {
                     setSelectedDeck(deck);
@@ -512,6 +509,21 @@ export default function CollectionPage() {
         onClose={state.handleCloseSplitModal}
         userCard={state.cardToSplit}
         onConfirmSplit={state.handleSplitCopies}
+      />
+
+      {/* Modal de Consolidación Directa de Copias Dispersas */}
+      <PickListConsolidationModal
+        isOpen={state.isConsolidateOpen}
+        onClose={state.handleCloseConsolidate}
+        selectedCards={state.consolidationCards}
+        title={state.consolidationTitle || 'Consolidar Copias'}
+        subtitle="Unifica todas las copias dispersas de esta carta en un solo contenedor físico o carpeta."
+        allCollectionCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
+        locations={state.locations}
+        onSuccess={() => {
+          state.fetchCollectionDataSilently();
+          state.handleCloseConsolidate();
+        }}
       />
 
       {/* Barra Flotante de Acciones en Bloque en Vista Principal de Colección */}

@@ -90,15 +90,25 @@ export async function GET(req: NextRequest) {
     let filteredCards = cards || [];
 
 
-    if (query) {
-      const qLower = query.toLowerCase();
-      filteredCards = filteredCards.filter((uc: UserCard) => 
-        uc.card_details?.name?.toLowerCase().includes(qLower) ||
-        uc.rarity?.toLowerCase().includes(qLower) ||
-        uc.notes?.toLowerCase().includes(qLower) ||
-        String(uc.card_id).includes(qLower)
-      );
+    if (query && query.trim()) {
+      const trimmedQuery = query.trim();
+      const cardIdPrefixMatch = trimmedQuery.match(/^(?:card_id|id):\s*(\d+)$/i);
+      
+      if (cardIdPrefixMatch) {
+        const targetId = parseInt(cardIdPrefixMatch[1], 10);
+        filteredCards = filteredCards.filter((uc: UserCard) => uc.card_id === targetId);
+      } else {
+        const qLower = trimmedQuery.toLowerCase();
+        filteredCards = filteredCards.filter((uc: UserCard) => 
+          uc.card_details?.name?.toLowerCase().includes(qLower) ||
+          uc.rarity?.toLowerCase().includes(qLower) ||
+          uc.notes?.toLowerCase().includes(qLower) ||
+          String(uc.card_id) === trimmedQuery ||
+          String(uc.card_id).includes(qLower)
+        );
+      }
     }
+
 
     if (type) {
       filteredCards = filteredCards.filter((uc: UserCard) => {

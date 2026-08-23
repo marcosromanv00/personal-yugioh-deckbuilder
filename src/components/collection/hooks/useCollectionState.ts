@@ -19,6 +19,7 @@ export function useCollectionState() {
 
   // Tab activo y listado de cartas de la colección completa
   const [activeTab, setActiveTab] = useState<'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation'>('containers');
+  const [masterCollectionCards, setMasterCollectionCards] = useState<UserCard[]>([]);
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
   const [allCollectionFilters, setAllCollectionFilters] = useState<FilterState>({
@@ -51,6 +52,11 @@ export function useCollectionState() {
   const [isSleevesOpen, setIsSleevesOpen] = useState(false);
   const [isValuationModalOpen, setIsValuationModalOpen] = useState(false);
 
+  // Modal de Consolidación de Copias Dispersas / Duplicados
+  const [isConsolidateOpen, setIsConsolidateOpen] = useState(false);
+  const [consolidationCards, setConsolidationCards] = useState<UserCard[]>([]);
+  const [consolidationTitle, setConsolidationTitle] = useState<string>('');
+
   // Estados anteriores conservados por compatibilidad
   const [isBinderBuilderOpen, setIsBinderBuilderOpen] = useState(false);
   const [selectedBinderId, setSelectedBinderId] = useState<string | null>(null);
@@ -68,7 +74,7 @@ export function useCollectionState() {
   const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
   const [cardToSplit, setCardToSplit] = useState<UserCard | null>(null);
 
-  // 1. Obtener contenedores, inbox y decks en segundo plano (silencioso)
+  // 1. Obtener contenedores, inbox, decks e inventario maestro en segundo plano (silencioso)
   const fetchCollectionDataSilently = useCallback(async () => {
     try {
       const locRes = await fetch('/api/collection/storage');
@@ -88,6 +94,14 @@ export function useCollectionState() {
         const decksJson = await decksRes.json();
         setDecks(decksJson.data || []);
       }
+
+      // Sincronizar siempre el inventario maestro completo para KPIs, Duplicados, Arquetipos y Valoración
+      const cardsRes = await fetch('/api/collection/cards');
+      if (cardsRes.ok) {
+        const cardsJson = await cardsRes.json();
+        const allMaster: UserCard[] = cardsJson.data || [];
+        setMasterCollectionCards(allMaster);
+      }
     } catch (err) {
       console.error('Error al sincronizar datos de colección silenciosamente:', err);
     }
@@ -102,6 +116,7 @@ export function useCollectionState() {
       setLoading(false);
     }
   }, [fetchCollectionDataSilently]);
+
 
   // 2. Cargar cartas filtradas (Colección Completa / Favoritas)
   const fetchAllCards = useCallback(async (query: string, filters: FilterState, favoritesOnly = false, locFilter = '', deckId = '') => {
@@ -190,7 +205,7 @@ export function useCollectionState() {
 
   // Carga reactiva de cartas y fundas
   useEffect(() => {
-    if (activeTab === 'complete' || activeTab === 'favorites' || activeTab === 'suggestions') {
+    if (activeTab === 'complete' || activeTab === 'favorites') {
       const timer = setTimeout(() => {
         fetchAllCards(allSearchQuery, allCollectionFilters, activeTab === 'favorites', locationFilter, deckFilter);
       }, 400);
@@ -203,9 +218,10 @@ export function useCollectionState() {
     }
   }, [activeTab, allSearchQuery, allCollectionFilters, locationFilter, deckFilter, fetchAllCards, fetchSleeves]);
 
-  // Carga silenciosa inicial de todas las cartas para alimentar el mapa de duplicados y sugerencias
+  // Carga silenciosa inicial de todas las cartas y datos maestros
   useEffect(() => {
     queueMicrotask(() => {
+      fetchCollectionDataSilently();
       fetchAllCards('', {
         type: '',
         attribute: '',
@@ -220,12 +236,29 @@ export function useCollectionState() {
         status: ''
       });
     });
-  }, [fetchAllCards]);
+  }, [fetchCollectionDataSilently, fetchAllCards]);
 
-  // Mapa de duplicados cruzados entre contenedores
+  // Handler para abrir modal de consolidación directa de una carta
+  const handleOpenConsolidateForCard = useCallback((cardId: number) => {
+    const pool = masterCollectionCards.length > 0 ? masterCollectionCards : allCollectionCards;
+    const matching = pool.filter(c => c.card_id === cardId);
+    const cardName = matching[0]?.card_details?.name || `Carta #${cardId}`;
+    setConsolidationCards(matching);
+    setConsolidationTitle(`Consolidar Copias: ${cardName}`);
+    setIsConsolidateOpen(true);
+  }, [masterCollectionCards, allCollectionCards]);
+
+  const handleCloseConsolidate = useCallback(() => {
+    setIsConsolidateOpen(false);
+    setConsolidationCards([]);
+    setConsolidationTitle('');
+  }, []);
+
+  // Mapa de duplicados cruzados entre contenedores basado en el inventario maestro
   const crossContainerDuplicatesMap = useMemo(() => {
-    return computeCrossContainerDuplicateMap(allCollectionCards, locations);
-  }, [allCollectionCards, locations]);
+    const pool = masterCollectionCards.length > 0 ? masterCollectionCards : allCollectionCards;
+    return computeCrossContainerDuplicateMap(pool, locations);
+  }, [masterCollectionCards, allCollectionCards, locations]);
 
   // Borrar carta
   const handleDeleteCard = async (userCardId: string) => {
@@ -704,7 +737,18 @@ export function useCollectionState() {
     handleCloseSplitModal,
     handleSplitCopies,
 
+    // Master Collection Cards (siempre completo, no alterado por búsquedas locales)
+    masterCollectionCards,
+
+    // Consolidation Modal Directo
+    isConsolidateOpen,
+    consolidationCards,
+    consolidationTitle,
+    handleOpenConsolidateForCard,
+    handleCloseConsolidate,
+
     // Cross-container duplicates map
     crossContainerDuplicatesMap,
   };
 }
+
