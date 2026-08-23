@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
             cardId = dbCards[0].id;
           }
         } else {
-          // Buscar coincidencia exacta o cercana en base de datos local
+          // 1. Buscar coincidencia exacta en base de datos local
           const { data: dbCards } = await supabase
             .from('yg_cards')
             .select('*')
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
             cardDetails = dbCards[0];
             cardId = dbCards[0].id;
           } else {
-            // Intentar coincidencia parcial
+            // 2. Intentar coincidencia parcial
             const { data: partialCards } = await supabase
               .from('yg_cards')
               .select('*')
@@ -175,6 +175,32 @@ export async function POST(req: NextRequest) {
             if (partialCards && partialCards.length > 0) {
               cardDetails = partialCards[0];
               cardId = partialCards[0].id;
+            } else if (item.name.includes(' ')) {
+              // 3. Fallback: si el usuario escribió con espacios en lugar de guiones (ej. "Blue Eyes" -> "Blue-Eyes")
+              const hyphenated = item.name.replace(/\s+/g, '-');
+              const { data: hyphenCards } = await supabase
+                .from('yg_cards')
+                .select('*')
+                .ilike('name', `%${hyphenated}%`)
+                .limit(1);
+
+              if (hyphenCards && hyphenCards.length > 0) {
+                cardDetails = hyphenCards[0];
+                cardId = hyphenCards[0].id;
+              }
+            } else if (item.name.includes('-')) {
+              // 4. Fallback: si el usuario escribió con guiones y en DB está con espacios
+              const spaced = item.name.replace(/-/g, ' ');
+              const { data: spacedCards } = await supabase
+                .from('yg_cards')
+                .select('*')
+                .ilike('name', `%${spaced}%`)
+                .limit(1);
+
+              if (spacedCards && spacedCards.length > 0) {
+                cardDetails = spacedCards[0];
+                cardId = spacedCards[0].id;
+              }
             }
           }
         }
@@ -183,11 +209,17 @@ export async function POST(req: NextRequest) {
       // Si no se encuentra en DB local, intentar buscar en API de YGOPRODeck
       if (!cardId) {
         try {
-          const url = isNumericId
+          let ygoproUrl = isNumericId
             ? `https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${encodeURIComponent(item.name)}`
             : `https://db.ygoprodeck.com/api/v7/cardinfo.php?fname=${encodeURIComponent(item.name)}`;
 
-          const ygoproRes = await fetch(url);
+          let ygoproRes = await fetch(ygoproUrl);
+          if (!ygoproRes.ok && !isNumericId) {
+            // Reintentar con parámetro exacto name=
+            ygoproUrl = `https://db.ygoprodeck.com/api/v7/cardinfo.php?name=${encodeURIComponent(item.name)}`;
+            ygoproRes = await fetch(ygoproUrl);
+          }
+
           if (ygoproRes.ok) {
             const ygoproJson = await ygoproRes.json();
             const c = ygoproJson.data?.[0];

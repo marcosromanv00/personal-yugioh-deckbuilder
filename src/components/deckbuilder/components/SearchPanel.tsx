@@ -488,15 +488,15 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   return (
     <section
       style={(!isMobile && leftPanelOpen) ? { width: `${leftPanelWidth}px` } : {}}
-      className={`flex flex-col gap-4 ${
+      className={`flex flex-col h-full min-h-0 gap-3 ${
         isMobile
           ? 'w-full'
-          : `bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm transition-all overflow-hidden ${leftPanelOpen ? 'p-4' : 'w-10 min-w-10 p-2 items-center'}`
+          : `bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm transition-all overflow-hidden ${leftPanelOpen ? 'p-3.5' : 'w-10 min-w-10 p-2 items-center'}`
       }`}
     >
       {/* Panel header — hidden on mobile (title is in MobileBottomSheet) */}
       {!isMobile && (
-        <div className={`border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
+        <div className={`border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center shrink-0 ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
           {leftPanelOpen && (
             <h2 className="font-black text-xs uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
               <span>🔍</span>
@@ -543,7 +543,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
       {/* Mobile: inline view/sort controls */}
       {isMobile && (
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-1 shrink-0">
           <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
             <button
               onClick={() => setSearchViewMode('grid')}
@@ -574,7 +574,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       {leftPanelOpen ? (
         <>
           {/* Main Search Panel Mode Switcher: Single Card Search vs Bulk Import */}
-          <div className="grid grid-cols-2 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl">
+          <div className="grid grid-cols-2 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('search')}
@@ -602,218 +602,223 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           </div>
 
           {activeTab === 'bulk' ? (
-            <div className="space-y-3 p-1">
-
-              {/* Sub-switch: .ydk/Nombre vs IDs */}
-              <div className="grid grid-cols-2 gap-0.5 p-0.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => { setBulkMode('ydk'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
-                  className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                    bulkMode === 'ydk'
-                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                  }`}
-                >
-                  <FileText className="w-3 h-3" />
-                  <span>.YDK / Nombre</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setBulkMode('ids'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
-                  className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                    bulkMode === 'ids'
-                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                  }`}
-                >
-                  <span>#</span>
-                  <span>IDs Numéricos</span>
-                </button>
-              </div>
-
-              {bulkMode === 'ydk' && (
-                <div className="border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 rounded-xl p-3 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors">
-                  <input
-                    type="file"
-                    accept=".ydk,.txt"
-                    onChange={handleFileUpload}
-                    id="search-bulk-file-input"
-                    className="hidden"
-                  />
-                  <label htmlFor="search-bulk-file-input" className="cursor-pointer flex flex-col items-center justify-center">
-                    <Upload className="w-5 h-5 text-red-600 dark:text-red-500 mb-1" />
-                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                      {fileName ? fileName : 'Subir archivo .ydk o .txt'}
-                    </span>
-                    <span className="text-[10px] text-zinc-400">Archivos YDK o texto con IDs/nombres</span>
-                  </label>
-                </div>
-              )}
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono">
-                    {bulkMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega lista de nombres, IDs o formato YDK:'}
-                  </label>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col justify-between space-y-3 scrollbar-thin">
+              <div className="space-y-3 flex-1">
+                {/* Sub-switch: .ydk/Nombre vs IDs */}
+                <div className="grid grid-cols-2 gap-0.5 p-0.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shrink-0">
                   <button
                     type="button"
-                    onClick={() => setIsScannerOpen(true)}
-                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer"
-                    title="Escanear código de 8 dígitos con cámara"
+                    onClick={() => { setBulkMode('ydk'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
+                    className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                      bulkMode === 'ydk'
+                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                    }`}
                   >
-                    <Camera className="w-3 h-3" />
-                    <span>Cámara</span>
+                    <FileText className="w-3 h-3" />
+                    <span>.YDK / Nombre</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBulkMode('ids'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
+                    className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                      bulkMode === 'ids'
+                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <span>#</span>
+                    <span>IDs Numéricos</span>
                   </button>
                 </div>
-                <textarea
-                  rows={5}
-                  inputMode={bulkMode === 'ids' ? 'numeric' : 'text'}
-                  placeholder={
-                    bulkMode === 'ids'
-                      ? '89631139\n46986414\n24094653\n14558127'
-                      : 'Ejemplos:\n3x Ash Blossom & Joyous Spring\n2x Infinite Impermanence\n#main\n46986414'
-                  }
-                  value={bulkText}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    const sanitized = bulkMode === 'ids' ? sanitizeBulkInput(raw, true, true) : raw;
-                    setBulkText(sanitized);
-                  }}
-                  className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
-                />
-              </div>
 
-              {bulkErrorMsg && (
-                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                  <span>{bulkErrorMsg}</span>
-                </div>
-              )}
-
-              {bulkSuccessMsg && (
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
-                  <Check className="w-4 h-4 shrink-0 text-emerald-500" />
-                  <span>{bulkSuccessMsg}</span>
-                </div>
-              )}
-
-              {unmatchedBulkCards.length > 0 && (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-medium">
-                  <strong className="block font-bold">No reconocidas ({unmatchedBulkCards.length}):</strong>
-                  <span className="text-[11px] font-mono">{unmatchedBulkCards.slice(0, 5).join(', ')}{unmatchedBulkCards.length > 5 ? '...' : ''}</span>
-                </div>
-              )}
-
-              {parsedBulkItems.length > 0 ? (
-                <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
-                  <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-950 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                    <span className="text-[11px] font-black uppercase text-zinc-800 dark:text-zinc-200">
-                      Total a agregar: <b className="text-red-600 dark:text-red-400 font-mono text-xs">{parsedBulkItems.filter(i => i.selected).reduce((acc, i) => acc + i.quantity, 0)} cartas</b>
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => selectAllBulkItems(true)}
-                        className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-                      >
-                        Todas
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => selectAllBulkItems(false)}
-                        className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-                      >
-                        Ninguna
-                      </button>
-                    </div>
+                {bulkMode === 'ydk' && (
+                  <div className="border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 rounded-xl p-3 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors shrink-0">
+                    <input
+                      type="file"
+                      accept=".ydk,.txt"
+                      onChange={handleFileUpload}
+                      id="search-bulk-file-input"
+                      className="hidden"
+                    />
+                    <label htmlFor="search-bulk-file-input" className="cursor-pointer flex flex-col items-center justify-center">
+                      <Upload className="w-5 h-5 text-red-600 dark:text-red-500 mb-1" />
+                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                        {fileName ? fileName : 'Subir archivo .ydk o .txt'}
+                      </span>
+                      <span className="text-[10px] text-zinc-400">Archivos YDK o texto con IDs/nombres</span>
+                    </label>
                   </div>
+                )}
 
-                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
-                    {parsedBulkItems.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => toggleBulkItem(item.id)}
-                        className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer select-none ${
-                          item.selected
-                            ? 'bg-zinc-50 dark:bg-zinc-950/80 border-red-500/50 dark:border-red-500/40 shadow-xs'
-                            : 'bg-zinc-100/50 dark:bg-zinc-950/30 border-zinc-200 dark:border-zinc-800 opacity-60'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={item.selected}
-                          onChange={() => toggleBulkItem(item.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer shrink-0"
-                        />
-                        <img
-                          src={item.image_url_small || item.image_url}
-                          alt={item.name}
-                          className="w-7 h-10 object-cover rounded shadow-xs shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                            {item.name}
-                          </p>
-                          <span className={`inline-block px-1.5 py-0.2 text-[8.5px] font-black uppercase rounded tracking-wider mt-0.5 ${
-                            item.section === 'extra' 
-                              ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800' 
-                              : item.section === 'side'
-                              ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                              : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                          }`}>
-                            {item.section}
-                          </span>
-                        </div>
+                <div className="shrink-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono">
+                      {bulkMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega lista de nombres, IDs o formato YDK:'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsScannerOpen(true)}
+                      className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                      title="Escanear código de 8 dígitos con cámara"
+                    >
+                      <Camera className="w-3 h-3" />
+                      <span>Cámara</span>
+                    </button>
+                  </div>
+                  <textarea
+                    rows={4}
+                    inputMode={bulkMode === 'ids' ? 'numeric' : 'text'}
+                    placeholder={
+                      bulkMode === 'ids'
+                        ? '89631139\n46986414\n24094653\n14558127'
+                        : 'Ejemplos:\n3x Ash Blossom & Joyous Spring\n1x Blue-Eyes Twin Burst Dragon\n#main\n46986414'
+                    }
+                    value={bulkText}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const sanitized = bulkMode === 'ids' ? sanitizeBulkInput(raw, true, true) : raw;
+                      setBulkText(sanitized);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
+                  />
+                </div>
 
-                        {/* Columna de comparación directa En Colección vs A Agregar */}
-                        <div className="flex items-center gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex flex-col items-end text-right">
-                            <span className="text-[8px] font-black uppercase text-zinc-400 font-mono tracking-wider">
-                              En Colección
-                            </span>
-                            <span className={`text-[10.5px] font-mono font-black px-1.5 py-0.5 rounded-md border ${
-                              (userInventoryCounts[item.card_id] || 0) > 0
-                                ? 'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/80'
-                                : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-400 border-zinc-200 dark:border-zinc-800'
+                {bulkErrorMsg && (
+                  <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-2 shrink-0">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                    <span>{bulkErrorMsg}</span>
+                  </div>
+                )}
+
+                {bulkSuccessMsg && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 shrink-0">
+                    <Check className="w-4 h-4 shrink-0 text-emerald-500" />
+                    <span>{bulkSuccessMsg}</span>
+                  </div>
+                )}
+
+                {unmatchedBulkCards.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-medium shrink-0">
+                    <strong className="block font-bold">No reconocidas ({unmatchedBulkCards.length}):</strong>
+                    <span className="text-[11px] font-mono">{unmatchedBulkCards.slice(0, 5).join(', ')}{unmatchedBulkCards.length > 5 ? '...' : ''}</span>
+                  </div>
+                )}
+
+                {parsedBulkItems.length > 0 && (
+                  <div className="space-y-2.5 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                    <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-950 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0">
+                      <span className="text-[11px] font-black uppercase text-zinc-800 dark:text-zinc-200">
+                        Total a agregar: <b className="text-red-600 dark:text-red-400 font-mono text-xs">{parsedBulkItems.filter(i => i.selected).reduce((acc, i) => acc + i.quantity, 0)} cartas</b>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => selectAllBulkItems(true)}
+                          className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                        >
+                          Todas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => selectAllBulkItems(false)}
+                          className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                        >
+                          Ninguna
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                      {parsedBulkItems.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => toggleBulkItem(item.id)}
+                          className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                            item.selected
+                              ? 'bg-zinc-50 dark:bg-zinc-950/80 border-red-500/50 dark:border-red-500/40 shadow-xs'
+                              : 'bg-zinc-100/50 dark:bg-zinc-950/30 border-zinc-200 dark:border-zinc-800 opacity-60'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={() => toggleBulkItem(item.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer shrink-0"
+                          />
+                          <img
+                            src={item.image_url_small || item.image_url}
+                            alt={item.name}
+                            className="w-7 h-10 object-cover rounded shadow-xs shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                              {item.name}
+                            </p>
+                            <span className={`inline-block px-1.5 py-0.2 text-[8.5px] font-black uppercase rounded tracking-wider mt-0.5 ${
+                              item.section === 'extra' 
+                                ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800' 
+                                : item.section === 'side'
+                                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                                : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
                             }`}>
-                              📦 {userInventoryCounts[item.card_id] || 0}
+                              {item.section}
                             </span>
                           </div>
 
-                          <div className="flex flex-col items-end">
-                            <span className="text-[8px] font-black uppercase text-zinc-400 font-mono tracking-wider">
-                              A Agregar
-                            </span>
-                            <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-300 dark:border-zinc-800">
-                              <button
-                                type="button"
-                                onClick={() => updateBulkItemQty(item.id, -1)}
-                                disabled={item.quantity <= 1}
-                                className="w-4 h-4 rounded flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer"
-                              >
-                                -
-                              </button>
-                              <span className="text-xs font-mono font-black text-zinc-900 dark:text-zinc-100 px-1">
-                                {item.quantity}
+                          {/* Columna de comparación directa En Colección vs A Agregar */}
+                          <div className="flex items-center gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex flex-col items-end text-right">
+                              <span className="text-[8px] font-black uppercase text-zinc-400 font-mono tracking-wider">
+                                En Colección
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => updateBulkItemQty(item.id, 1)}
-                                disabled={item.quantity >= 3}
-                                className="w-4 h-4 rounded flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer"
-                              >
-                                +
-                              </button>
+                              <span className={`text-[10.5px] font-mono font-black px-1.5 py-0.5 rounded-md border ${
+                                (userInventoryCounts[item.card_id] || 0) > 0
+                                  ? 'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/80'
+                                  : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-400 border-zinc-200 dark:border-zinc-800'
+                              }`}>
+                                📦 {userInventoryCounts[item.card_id] || 0}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col items-end">
+                              <span className="text-[8px] font-black uppercase text-zinc-400 font-mono tracking-wider">
+                                A Agregar
+                              </span>
+                              <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-300 dark:border-zinc-800">
+                                <button
+                                  type="button"
+                                  onClick={() => updateBulkItemQty(item.id, -1)}
+                                  disabled={item.quantity <= 1}
+                                  className="w-4 h-4 rounded flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <span className="text-xs font-mono font-black text-zinc-900 dark:text-zinc-100 px-1">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateBulkItemQty(item.id, 1)}
+                                  disabled={item.quantity >= 3}
+                                  className="w-4 h-4 rounded flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-
+                      ))}
+                    </div>
                   </div>
+                )}
+              </div>
 
+              {/* Botón de acción Sticky al fondo del panel */}
+              <div className="sticky bottom-0 pt-2 pb-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xs z-10 border-t border-zinc-200/60 dark:border-zinc-800/60 -mx-1 px-1 shrink-0">
+                {parsedBulkItems.length > 0 ? (
                   <button
                     type="button"
                     onClick={confirmAddParsedBulkToDeck}
@@ -823,27 +828,27 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                     <Check className="w-4 h-4" />
                     <span>Confirmar y Agregar ({parsedBulkItems.filter(i => i.selected).reduce((acc, i) => acc + i.quantity, 0)} Cartas)</span>
                   </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleProcessBulkText}
-                  disabled={analyzingBulk || !bulkText.trim()}
-                  className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 flex items-center justify-center gap-2 cursor-pointer font-display"
-                >
-                  {analyzingBulk ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Analizando Lote...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Analizar Lote de Cartas</span>
-                    </>
-                  )}
-                </button>
-              )}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleProcessBulkText}
+                    disabled={analyzingBulk || !bulkText.trim()}
+                    className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 flex items-center justify-center gap-2 cursor-pointer font-display"
+                  >
+                    {analyzingBulk ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Analizando Lote...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Analizar Lote de Cartas</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
           ) : (

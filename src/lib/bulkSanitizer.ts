@@ -27,17 +27,13 @@ export function sanitizeBulkInput(
     }
 
     if (isNumericOnly) {
-      // Reemplazar todo lo que no sea dígito 0-9 por espacio
+      // Reemplazar todo lo que no sea dígito 0-9 por espacio (para teclados numéricos móviles)
       const cleaned = rawLine.replace(/[^\d]/g, ' ').replace(/ {2,}/g, ' ');
       return liveTyping ? cleaned : cleaned.trim();
     }
 
-    // Modo general / nombres: reemplazar símbolos de puntuación comunes que separan cantidades o IDs
-    const cleaned = rawLine
-      .replace(/[,.;:\-_/\\|~*+=?()[\]{}"'«»“”<>]/g, ' ')
-      .replace(/ {2,}/g, ' ');
-
-    return liveTyping ? cleaned : cleaned.trim();
+    // Modo general / nombres: el importador por nombre debe aceptar todos los símbolos (guiones '-', '&', "'", ':', '/', etc.)
+    return liveTyping ? rawLine : rawLine.trim();
   });
 
   if (!liveTyping) {
