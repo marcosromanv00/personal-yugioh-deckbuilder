@@ -8,6 +8,7 @@ import { getSleeveColorHex } from '@/lib/sleeves';
 import { getCategoryBadgeStyle, getLanguageDisplay } from '@/lib/collectionUtils';
 import { DuplicateCardAlertPopover } from '../DuplicateCardAlertPopover';
 import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
+import { CardImage } from '@/components/ui/CardImage';
 import { GridCardGroup, MobileTab } from './types';
 
 interface ContainerGridViewProps {
@@ -102,12 +103,10 @@ export const ContainerGridView: React.FC<ContainerGridViewProps> = ({
             >
               <div className="aspect-3/4 rounded-lg overflow-hidden relative bg-zinc-950">
                 {uc.card_details && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
+                  <CardImage
                     src={uc.card_details.image_url_small || uc.card_details.image_url}
                     alt={uc.card_details.name}
                     className="w-full h-full object-cover"
-                    loading="lazy"
                   />
                 )}
 

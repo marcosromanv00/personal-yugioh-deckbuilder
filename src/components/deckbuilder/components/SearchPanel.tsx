@@ -4,6 +4,7 @@ import { CardFilters, FilterState } from '../CardFilters';
 import { Card, HoverCardBase } from '../types';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 import { CardCodeScannerModal, YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
+import { CardImage } from '@/components/ui/CardImage';
 
 export interface ParsedBulkItem {
   id: string;
@@ -121,11 +122,10 @@ const SearchResultsList = React.memo(({
             className="relative aspect-[3/4.4] bg-white dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow-xs"
           >
             <div className="relative flex-1 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-900">
-              <img 
+              <CardImage 
                 src={card.image_url_small || card.image_url} 
                 alt={card.name} 
                 className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
-                onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
               />
               {getBanlistBadge(card)}
               {card.userCardsGroup && card.userCardsGroup.length > 0 && (
@@ -161,12 +161,13 @@ const SearchResultsList = React.memo(({
           onMouseLeave={handleCardMouseLeave}
           className="flex gap-3 p-3 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group cursor-pointer shadow-xs touch-manipulation"
         >
-          <img 
-            src={card.image_url_small || card.image_url} 
-            alt={card.name} 
-            className="w-14 h-20 object-contain rounded-lg shadow-xs group-hover:scale-105 transition-transform shrink-0" 
-            onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
-          />
+          <div className="w-14 h-20 rounded-lg overflow-hidden shadow-xs group-hover:scale-105 transition-transform shrink-0">
+            <CardImage 
+              src={card.image_url_small || card.image_url} 
+              alt={card.name} 
+              className="w-full h-full object-contain" 
+            />
+          </div>
           <div className="flex-1 flex flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center justify-between gap-1">
@@ -747,11 +748,13 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                             onClick={(e) => e.stopPropagation()}
                             className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer shrink-0"
                           />
-                          <img
-                            src={item.image_url_small || item.image_url}
-                            alt={item.name}
-                            className="w-7 h-10 object-cover rounded shadow-xs shrink-0"
-                          />
+                          <div className="w-7 h-10 rounded overflow-hidden shadow-xs shrink-0">
+                            <CardImage
+                              src={item.image_url_small || item.image_url}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
                               {item.name}

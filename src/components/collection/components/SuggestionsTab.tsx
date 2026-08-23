@@ -16,6 +16,7 @@ import {
   analyzeCollectionSuggestions, 
 } from '@/lib/collectionSuggestions';
 import { MultiLevelMovementDropdown } from '@/components/collection/MultiLevelMovementDropdown';
+import { CardImage } from '@/components/ui/CardImage';
 
 interface SuggestionsTabProps {
   allUserCards: UserCard[];
@@ -302,12 +303,10 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
                     {/* Imagen de Referencia */}
                     <div className="w-14 h-20 rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 shrink-0 relative shadow-sm">
                       {arch.sampleImage ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
+                        <CardImage
                           src={arch.sampleImage}
                           alt={arch.archetype}
                           className="w-full h-full object-cover"
-                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-zinc-600">
@@ -410,12 +409,10 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
                     {/* Miniatura */}
                     <div className="w-10 h-14 rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800 shrink-0">
                       {staple.cards[0]?.card_details?.image_url_small && (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
+                        <CardImage
                           src={staple.cards[0].card_details.image_url_small}
                           alt={staple.card_name}
                           className="w-full h-full object-cover"
-                          loading="lazy"
                         />
                       )}
                     </div>
@@ -513,12 +510,10 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-14 rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800 shrink-0">
                       {dup.image_url && (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
+                        <CardImage
                           src={dup.image_url}
                           alt={dup.card_name}
                           className="w-full h-full object-cover"
-                          loading="lazy"
                         />
                       )}
                     </div>
