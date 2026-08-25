@@ -16,6 +16,29 @@ export interface CardBasicInfo {
 }
 
 /**
+ * Normaliza y extrae de forma unificada CardBasicInfo desde cualquier estructura de carta
+ * (DeckCard, UserCard, CollectionDeckCardItem o filas directas de Supabase).
+ */
+export function extractCardBasicInfo(c: Record<string, unknown>): CardBasicInfo {
+  const details = (c.card_details && typeof c.card_details === 'object' ? c.card_details : undefined) as Record<string, unknown> | undefined;
+  const id = Number(c.card_id || c.id || details?.id || 0);
+
+  return {
+    id,
+    name: String(c.name || details?.name || `Carta #${id}`),
+    type: (c.type || details?.type || 'Monster') as string,
+    desc: (c.desc || details?.desc || '') as string,
+    atk: (c.atk !== undefined && c.atk !== null ? Number(c.atk) : (details?.atk !== undefined && details?.atk !== null ? Number(details.atk) : null)),
+    def: (c.def !== undefined && c.def !== null ? Number(c.def) : (details?.def !== undefined && details?.def !== null ? Number(details.def) : null)),
+    level: (c.level !== undefined && c.level !== null ? Number(c.level) : (details?.level !== undefined && details?.level !== null ? Number(details.level) : null)),
+    race: (c.race || details?.race || null) as string | null,
+    attribute: (c.attribute || details?.attribute || null) as string | null,
+    archetype: (c.archetype || details?.archetype || null) as string | null,
+    count: Number(c.count || c.quantity || 1),
+  };
+}
+
+/**
  * Catálogo de buscadores conocidos y requisitos de objetivos en el mazo.
  */
 const SEARCHER_REQUIREMENTS: Record<string, { requiredRace?: string; requiredArchetype?: string; maxLevel?: number; minTargets: number; desc: string }> = {

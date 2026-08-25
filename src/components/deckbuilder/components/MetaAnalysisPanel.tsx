@@ -1,9 +1,31 @@
-import React from 'react';
-import { TrendingUp, AlertTriangle, Loader2, X, Sparkles, Layers, Info, PackageCheck } from 'lucide-react';
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import {
+  TrendingUp,
+  AlertTriangle,
+  Loader2,
+  X,
+  Sparkles,
+  Layers,
+  Info,
+  PackageCheck,
+  Activity,
+} from 'lucide-react';
 import { BreakdownCardItem, BanlistAlert, HistoryItem, HoverCardBase, Card, DeckCard } from '../types';
 import { CardDetailPanel } from './CardDetailPanel';
 import { CollectionSynergiesPanel } from './CollectionSynergiesPanel';
 import { StorageLocation, SleeveInventory, UserCard, Deck } from '@/types/collection';
+import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
+import { generateExordioDeckAnalysis, ExordioAnalysisResult } from '@/lib/engines/exordioAnalytics';
+import { ExordioDeckStats } from '../exordio/ExordioDeckStats';
+import { ExordioKeyCards } from '../exordio/ExordioKeyCards';
+import { ExordioThreatCards } from '../exordio/ExordioThreatCards';
+import { ExordioTestingData } from '../exordio/ExordioTestingData';
+import { ExordioDecklistBroadcast } from '../exordio/ExordioDecklistBroadcast';
+
+export type RightSidebarTab = 'detail' | 'meta' | 'collection' | 'analysis';
+export type ExordioSubSection = 'stats' | 'key_cards' | 'threats' | 'testing' | 'decklist';
 
 export interface MetaAnalysisPanelProps {
   rightPanelOpen: boolean;
@@ -11,11 +33,12 @@ export interface MetaAnalysisPanelProps {
   rightPanelWidth: number;
   /** When true, renders inside a MobileBottomSheet — hides collapse controls */
   isMobile?: boolean;
-  activeRightTab?: 'detail' | 'meta' | 'collection';
-  setActiveRightTab?: (tab: 'detail' | 'meta' | 'collection') => void;
+  activeRightTab?: RightSidebarTab;
+  setActiveRightTab?: (tab: RightSidebarTab) => void;
   allUserCards?: UserCard[];
   locations?: StorageLocation[];
   savedDecks?: Deck[];
+  currentDeckId?: string | null;
   deckCards?: DeckCard[];
   selectedDetailCard?: (Card | DeckCard | HoverCardBase) | null;
   selectedDeckCard?: DeckCard | null;
@@ -37,18 +60,27 @@ export interface MetaAnalysisPanelProps {
   isFetchingSidebarBreakdown: boolean;
   fetchSidebarBreakdown: (archetype: string) => void;
   cardHistory: HistoryItem[];
-  handleDragCardStart: (e: React.DragEvent, cardData: any) => void;
+  handleDragCardStart: (
+    e: React.DragEvent,
+    cardData: {
+      id: number;
+      name: string;
+      type?: string;
+      image_url?: string;
+      archetype?: string;
+      fromSection?: 'main' | 'extra' | 'side' | 'extras';
+    }
+  ) => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
-  addRecommendedCard: (cardId: number, cardName: string, targetSection?: any, cardObj?: any) => void;
+  addRecommendedCard: (
+    cardId: number,
+    cardName: string,
+    targetSection?: 'main' | 'extra' | 'side' | 'extras',
+    cardObj?: Partial<Card & BreakdownCardItem & HistoryItem>
+  ) => void | Promise<void>;
 }
 
-/**
- * MetaAnalysisPanel Component
- * Renders the right sidebar containing:
- * 1. "Detalle de Carta" tab: editing proxy counts, rarities, physical condition, sleeves, and notes.
- * 2. "Análisis Meta" tab: real-time meta analytics, archetype ratios, banlist check results, and recent history.
- */
 export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
   rightPanelOpen,
   setRightPanelOpen,
@@ -59,6 +91,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
   allUserCards = [],
   locations = [],
   savedDecks = [],
+  currentDeckId,
   deckCards = [],
   selectedDetailCard = null,
   selectedDeckCard = null,
@@ -78,22 +111,26 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
   sidebarBreakdownCards,
   isFetchingSidebarBreakdown,
   fetchSidebarBreakdown,
-  cardHistory,
   handleDragCardStart,
   handleCardMouseEnter,
   handleCardMouseLeave,
   addRecommendedCard,
 }) => {
   const currentTab = activeRightTab || 'detail';
+  const [exordioSubSection, setExordioSubSection] = useState<ExordioSubSection>('stats');
 
-  const handleDragStartLocal = (e: React.DragEvent, card: any) => {
-    handleDragCardStart(e, {
-      id: card.id,
-      name: card.name,
-      type: card.type || 'Monster',
-      image_url: card.image_url || card.image_url_small || '',
-    });
-  };
+  // Análisis Exordio generado para el mazo actual
+  const exordioAnalysis = useMemo<ExordioAnalysisResult>(() => {
+    return generateExordioDeckAnalysis(deckCards, inferredArchetype);
+  }, [deckCards, inferredArchetype]);
+
+  const exordioDropdownOptions: DropdownOption<ExordioSubSection>[] = [
+    { value: 'stats', label: '📊 Métricas y Ratios', badge: `${exordioAnalysis.finalScore}/100` },
+    { value: 'key_cards', label: '⭐ Cartas Clave y Bosses' },
+    { value: 'threats', label: '⚠️ Amenazas y Handtraps', badge: `${exordioAnalysis.threatCards.length}` },
+    { value: 'testing', label: '🧪 Pruebas de Consistencia', badge: `${exordioAnalysis.testingData.winRatio}%` },
+    { value: 'decklist', label: '📜 Ficha de Transmisión' },
+  ];
 
   return (
     <section
@@ -106,7 +143,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
             }`
       }`}
     >
-      {/* Panel Header */}
+      {/* ─── PANEL HEADER & TABS DE NAVEGACIÓN ─── */}
       {!isMobile && (
         <div
           className={`border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center shrink-0 ${
@@ -131,10 +168,24 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
 
               <button
                 type="button"
+                onClick={() => setActiveRightTab?.('analysis')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  currentTab === 'analysis'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+                title="Ver analíticas Exordio del mazo (Métricas, radar, consistencia)"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Análisis</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveRightTab?.('meta')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
                   currentTab === 'meta'
-                    ? 'bg-red-600 text-white shadow-xs'
+                    ? 'bg-amber-600 text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                 }`}
                 title="Ver análisis del meta y arquetipos"
@@ -173,7 +224,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
         </div>
       )}
 
-      {/* Mobile Tab switcher */}
+      {/* ─── MOBILE TAB SWITCHER ─── */}
       {isMobile && (
         <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-3 shadow-xs">
           <button
@@ -191,16 +242,28 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
 
           <button
             type="button"
+            onClick={() => setActiveRightTab?.('analysis')}
+            className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation min-h-11 ${
+              currentTab === 'analysis'
+                ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
+                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Análisis</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveRightTab?.('meta')}
             className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation min-h-11 ${
               currentTab === 'meta'
-                ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
+                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
             <span>Meta</span>
-            {isAnalyzing && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
           </button>
 
           <button
@@ -219,17 +282,23 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
       )}
 
       {!rightPanelOpen && !isMobile ? (
-        // Collapsed vertical text
+        // Colapsado vertical
         <div className="flex-1 flex items-center justify-center cursor-pointer" onClick={() => setRightPanelOpen(true)}>
           <span
             className="text-[10px] font-black text-zinc-400 uppercase tracking-widest"
             style={{ writingMode: 'vertical-rl' }}
           >
-            {currentTab === 'detail' ? 'Detalle' : currentTab === 'collection' ? 'Colección' : 'Análisis'}
+            {currentTab === 'detail'
+              ? 'Detalle'
+              : currentTab === 'collection'
+              ? 'Colección'
+              : currentTab === 'analysis'
+              ? 'Análisis'
+              : 'Meta'}
           </span>
         </div>
       ) : (
-        // Expanded Panel Content
+        // Contenido Expandido del Panel
         <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
           {currentTab === 'detail' ? (
             /* TAB 1: CARD DETAIL & ATTRIBUTE EDITOR */
@@ -245,6 +314,63 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
               availableSleeves={availableSleeves}
               format={format}
             />
+          ) : currentTab === 'analysis' ? (
+            /* TAB 2: ANÁLISIS EXORDIO COMPLETO */
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black uppercase text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 font-display">
+                    <Activity className="w-4 h-4 text-red-500" />
+                    <span>Análisis de Mazo Exordio</span>
+                  </h4>
+                  <p className="text-[11px] text-zinc-500">Métricas avanzadas, consistencia y amenazas</p>
+                </div>
+              </div>
+
+              {/* Subswitch / Dropdown para navegar módulos analíticos */}
+              <PremiumDropdown<ExordioSubSection>
+                options={exordioDropdownOptions}
+                value={exordioSubSection}
+                onChange={(val) => setExordioSubSection(val)}
+                className="w-full"
+                triggerClassName="w-full bg-zinc-100 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
+                size="sm"
+                menuWidth="w-full"
+              />
+
+              {/* Renderizado de la sección de análisis seleccionada */}
+              <div className="pt-1">
+                {exordioSubSection === 'stats' && (
+                  <ExordioDeckStats analysis={exordioAnalysis} format={format} />
+                )}
+                {exordioSubSection === 'key_cards' && (
+                  <ExordioKeyCards
+                    keyCards={exordioAnalysis.keyCards}
+                    format={format}
+                    onCardClick={(c) => {
+                      if (onAddCardToDeck) {
+                        onAddCardToDeck({
+                          id: c.id,
+                          name: c.name,
+                          type: c.type || 'Monster',
+                          image_url: c.image_url || '',
+                          image_url_small: c.image_url_small || '',
+                        });
+                      }
+                    }}
+                  />
+                )}
+                {exordioSubSection === 'threats' && (
+                  <ExordioThreatCards threats={exordioAnalysis.threatCards} format={format} />
+                )}
+                {exordioSubSection === 'testing' && (
+                  <ExordioTestingData testingData={exordioAnalysis.testingData} />
+                )}
+                {exordioSubSection === 'decklist' && (
+                  <ExordioDecklistBroadcast analysis={exordioAnalysis} deckCards={deckCards} format={format} />
+                )}
+              </div>
+            </div>
           ) : currentTab === 'collection' ? (
             /* TAB 3: PHYSICAL COLLECTION SYNERGIES & RECOMMENDATIONS */
             <CollectionSynergiesPanel
@@ -254,13 +380,14 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
               inferredArchetype={inferredArchetype}
               locations={locations || []}
               savedDecks={savedDecks}
+              currentDeckId={currentDeckId}
               onAddCardToDeck={onAddCardToDeck}
               handleDragCardStart={handleDragCardStart}
               handleCardMouseEnter={handleCardMouseEnter}
               handleCardMouseLeave={handleCardMouseLeave}
             />
           ) : (
-            /* TAB 2: META ANALYSIS & BREAKDOWNS */
+            /* TAB 4: META ANALYSIS & BREAKDOWNS */
             <div className="space-y-4">
               {/* Live Meta Header */}
               <div className="flex items-center justify-between">
@@ -278,177 +405,116 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
               </div>
 
               {/* Detected Archetypes Section */}
-              <div>
-                <span className="text-[10px] text-zinc-500 font-mono font-bold block mb-1.5">
-                  Arquetipos Principales Detectados:
-                </span>
-                {detectedArchetypes.length === 0 ? (
-                  <p className="text-xs text-zinc-400 italic">No se han detectado arquetipos aún</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {detectedArchetypes.map((arch) => {
-                      const isActive = (activeArchetypeTab || inferredArchetype) === arch.name;
-                      return (
-                        <button
-                          key={arch.name}
-                          onClick={() => {
-                            setActiveArchetypeTab(arch.name);
-                            fetchSidebarBreakdown(arch.name);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-                            isActive
-                              ? 'bg-red-600 text-white shadow-xs'
-                              : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-white'
-                          }`}
-                        >
-                          <span>{arch.name}</span>
-                          <span className="text-[10px] font-mono opacity-80">{arch.count}x</span>
-                        </button>
-                      );
-                    })}
+              {detectedArchetypes.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-black text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Motores Detectados</span>
                   </div>
-                )}
-              </div>
-
-              {/* Banlist Alerts Section */}
-              {banlistAlerts.length > 0 && (
-                <div className="p-3 rounded-xl bg-red-950/20 border border-red-900/30">
-                  <h4 className="text-xs font-bold text-red-400 flex items-center gap-1 mb-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" /> Banlist Alert ({banlistAlerts.length})
-                  </h4>
-                  <div className="space-y-1 text-xs">
-                    {banlistAlerts.map((alert, i) => (
-                      <div key={i} className="flex justify-between border-b border-red-900/10 pb-1">
-                        <span className="text-zinc-200 truncate pr-2">{alert.cardName}</span>
-                        <span className="text-red-400 font-bold font-mono">{alert.status}</span>
-                      </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {detectedArchetypes.map((arch) => (
+                      <button
+                        key={arch.name}
+                        type="button"
+                        onClick={() => {
+                          setActiveArchetypeTab(arch.name);
+                          fetchSidebarBreakdown(arch.name);
+                        }}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                          activeArchetypeTab === arch.name
+                            ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                            : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-red-400'
+                        }`}
+                      >
+                        <span>{arch.name}</span>
+                        <span className="text-[10px] opacity-75 font-mono">({arch.count})</span>
+                      </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Archetype Card Breakdown & Popularity */}
-              {(activeArchetypeTab || inferredArchetype) &&
-                (activeArchetypeTab || inferredArchetype) !== 'Híbrido / Staples' && (
-                  <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 mb-2 flex items-center justify-between">
-                      <span>📊 Desglose de {activeArchetypeTab || inferredArchetype}</span>
-                      {isFetchingSidebarBreakdown && <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />}
-                    </h4>
-                    {sidebarBreakdownCards.length === 0 ? (
-                      <p className="text-xs text-zinc-500 text-center py-4">
-                        Sin datos de desglose para este arquetipo.
-                      </p>
-                    ) : (
-                      <div
-                        className={`grid gap-x-0.5 gap-y-1 max-h-56 overflow-y-auto pr-1 scrollbar-thin ${
-                          isMobile ? 'grid-cols-4' : 'grid-cols-5'
-                        }`}
-                      >
-                        {sidebarBreakdownCards.map((card) => {
-                          const U = card.usage_percent;
-                          const A = card.average_copies;
-                          let x3 = 0,
-                            x2 = 0,
-                            x1 = 0;
-                          if (A >= 2) {
-                            x3 = U * (A - 2);
-                            x2 = U * (3 - A);
-                          } else {
-                            x2 = U * (A - 1);
-                            x1 = U * (2 - A);
-                          }
-                          const rx3 = Math.round(x3);
-                          const rx2 = Math.round(x2);
-                          const rx1 = Math.round(x1);
-                          const rx0 = 100 - (rx3 + rx2 + rx1);
-
-                          const hoverText = `${card.name}\nSugerencia del Meta:\n- x3 en ${rx3}%\n- x2 en ${rx2}%\n- x1 en ${rx1}%\n- x0 en ${rx0}%`;
-                          const suggestedCopies = Math.round(card.average_copies);
-
-                          return (
-                            <div
-                              key={card.id}
-                              draggable
-                              onDragStart={(e) => handleDragStartLocal(e, card)}
-                              onClick={() => addRecommendedCard(card.id, card.name, undefined, card)}
-                              onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
-                              onMouseLeave={handleCardMouseLeave}
-                              className="relative aspect-[3/4.2] rounded-md overflow-hidden border border-zinc-200 dark:border-zinc-800 hover:border-red-500 hover:scale-105 transition-all duration-200 bg-white dark:bg-zinc-950 cursor-grab active:cursor-grabbing group shadow-xs"
-                              title={hoverText}
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={card.image_url_small || card.image_url}
-                                alt={card.name}
-                                className="w-full h-full object-contain"
-                                onError={(e) => {
-                                  e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg';
-                                }}
-                              />
-                              <div className="absolute bottom-0 inset-x-0 bg-black/85 py-0.5 text-center text-[10px] font-extrabold text-red-400 font-mono">
-                                {Math.round(card.usage_percent)}%
-                              </div>
-                              <div className="absolute top-0.5 left-0.5 bg-black/75 px-1 rounded text-[7px] font-mono text-zinc-200">
-                                {suggestedCopies}x
+              {/* Breakdown Cards Section */}
+              {activeArchetypeTab && (
+                <div>
+                  <div className="text-[10px] font-black text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Layers className="w-3 h-3 text-purple-500" />
+                    <span>Ratios Populares de {activeArchetypeTab}</span>
+                  </div>
+                  {isFetchingSidebarBreakdown ? (
+                    <div className="p-8 text-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-red-500 mx-auto mb-2" />
+                      <p className="text-xs text-zinc-500">Cargando ratios del metagame...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                      {sidebarBreakdownCards.map((card) => (
+                        <div
+                          key={card.id}
+                          className="p-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-10 rounded-sm bg-zinc-800 shrink-0 overflow-hidden">
+                              {card.image_url_small && (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={card.image_url_small}
+                                  alt={card.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
+                                {card.name}
+                              </h5>
+                              <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                                <span>{card.usage_percent}% uso</span>
+                                <span>•</span>
+                                <span>~{card.average_copies} copias</span>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              {/* User History / Recent actions log */}
-              <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-500 mb-2">
-                  🕒 Acciones Recientes
-                </h4>
-                {cardHistory.length === 0 ? (
-                  <p className="text-xs text-zinc-500 text-center py-4">Sin acciones recientes.</p>
-                ) : (
-                  <div
-                    className={`grid gap-x-0.5 gap-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin ${
-                      isMobile ? 'grid-cols-4' : 'grid-cols-5'
-                    }`}
-                  >
-                    {cardHistory.map((item, idx) => (
-                      <div
-                        key={`${item.id}-${idx}`}
-                        draggable
-                        onDragStart={(e) => handleDragStartLocal(e, item)}
-                        onMouseEnter={() => handleCardMouseEnter(item as HoverCardBase)}
-                        onMouseLeave={handleCardMouseLeave}
-                        className={`relative aspect-[3/4.2] rounded-md overflow-hidden border bg-zinc-950 cursor-grab active:cursor-grabbing hover:scale-105 transition-all duration-200 group ${
-                          item.action === 'added'
-                            ? 'border-green-500/40 hover:border-green-400'
-                            : 'border-red-500/40 hover:border-red-400'
-                        }`}
-                        title={`${item.name} (${item.action === 'added' ? 'Añadida' : 'Quitada'}) - Haz clic o arrastra para agregar`}
-                        onClick={() => addRecommendedCard(item.id, item.name, undefined, item)}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-full h-full object-contain bg-zinc-900"
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg';
-                          }}
-                        />
-                        <div
-                          className={`absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow ${
-                            item.action === 'added' ? 'bg-green-600' : 'bg-red-500'
-                          }`}
-                        >
-                          {item.action === 'added' ? '+' : '-'}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addRecommendedCard(
+                                card.id,
+                                card.name,
+                                card.is_main_deck ? 'main' : 'extra',
+                                card
+                              )
+                            }
+                            className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-wider shrink-0 transition-colors cursor-pointer"
+                          >
+                            + Añadir
+                          </button>
                         </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Banlist Alerts */}
+              {banlistAlerts.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-black text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3 h-3 text-amber-500" />
+                    <span>Alertas de Banlist</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {banlistAlerts.map((alert, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-300 text-xs"
+                      >
+                        {alert.message}
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

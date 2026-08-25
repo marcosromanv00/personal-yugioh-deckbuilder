@@ -13,6 +13,6 @@ export interface UniversalDeckWorkspaceModalProps {
 }
 
 export type DeckSectionFilter = 'all' | 'main' | 'extra' | 'side' | 'pool';
-export type RightDeckMode = 'details' | 'card' | 'collection';
+export type RightDeckMode = 'details' | 'card' | 'analysis' | 'collection';
 export type MobileDeckTab = 'left' | 'center' | 'right';
 

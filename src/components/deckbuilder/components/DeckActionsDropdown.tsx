@@ -10,11 +10,14 @@ import {
   RefreshCw,
   ChevronDown,
   FileText,
+  Wand2,
+  Sparkles,
 } from 'lucide-react';
 
 interface DeckActionsDropdownProps {
   onSave: () => void;
   onLoad: () => void;
+  onCreateWithAI?: () => void;
   onImportYdk: () => void;
   onExportYdk: () => void;
   onClear: () => void;
@@ -26,6 +29,7 @@ interface DeckActionsDropdownProps {
 export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
   onSave,
   onLoad,
+  onCreateWithAI,
   onImportYdk,
   onExportYdk,
   onClear,
@@ -50,7 +54,7 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-700 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+        className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-700 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer min-h-11 touch-manipulation"
       >
         <FileText className="w-3.5 h-3.5 text-zinc-500" />
         <span>Deck</span>
@@ -58,7 +62,31 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xl p-1.5 z-50 text-xs text-zinc-700 dark:text-zinc-200 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xl p-1.5 z-50 text-xs text-zinc-700 dark:text-zinc-200 animate-in fade-in zoom-in-95 duration-100">
+          {/* CREAR DECK CON IA */}
+          {onCreateWithAI && (
+            <button
+              onClick={() => {
+                onCreateWithAI();
+                setIsOpen(false);
+              }}
+              className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl font-bold bg-linear-to-r from-purple-500/10 to-red-500/10 hover:from-purple-500/20 hover:to-red-500/20 text-purple-700 dark:text-purple-300 transition-all text-left cursor-pointer border border-purple-500/20 mb-1"
+            >
+              <Wand2 className="w-4 h-4 text-purple-500 shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span>Crear Deck con IA</span>
+                  <span className="px-1.5 py-0.2 rounded-md bg-purple-500 text-[9px] text-white font-mono font-bold">
+                    PRO
+                  </span>
+                </div>
+                <p className="text-[10px] text-purple-600/80 dark:text-purple-400/80 font-normal">
+                  Sintetizador & Generador
+                </p>
+              </div>
+            </button>
+          )}
+
           <button
             onClick={() => {
               onSave();

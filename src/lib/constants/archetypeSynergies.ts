@@ -625,6 +625,160 @@ export const ARCHETYPE_IMPLICIT_SYNERGIES: ArchetypeSynergyDefinition[] = [
         recommendedCopies: 1
       }
     ]
+  },
+  {
+    archetype: 'Cyber Dragon',
+    description: 'Estrategia agresiva de Invocaciones de Fusión de Máquinas de LUZ, jugadas de Rango 5 y OTK en Turno 2.',
+    relatedTypesOrAttributes: ['Machine', 'LIGHT', 'DARK', 'Fusion', 'XYZ'],
+    implicitCards: [
+      {
+        cardName: 'Machine Duplication',
+        role: 'starter',
+        weight: 0.99,
+        reason: 'Invoca hasta 2 "Cyber Dragon" originales del Deck al seleccionar a Core, Herz o Nachster (500 ATK en campo).',
+        recommendedCopies: 3
+      },
+      {
+        cardName: 'Galaxy Soldier',
+        role: 'extender',
+        weight: 0.98,
+        reason: 'Descarta un monstruo de LUZ (como Herz) para invocarse de modo especial y buscar otra copia hacia Cyber Dragon Nova/Infinity.',
+        recommendedCopies: 2
+      },
+      {
+        cardName: 'Clockwork Night',
+        role: 'tech',
+        weight: 0.96,
+        reason: 'Convierte todos los monstruos del rival en Tipo Máquina para tributarlos e invocar Chimeratech Fortress Dragon gratis.',
+        recommendedCopies: 2
+      },
+      {
+        cardName: 'Jizukiru, the Star Destroying Kaiju',
+        role: 'tech',
+        weight: 0.95,
+        reason: 'Kaiju de LUZ Máquina buscable con Cyber Repair Plant que remueve amenazas y puede fusionarse en Chimeratech Fortress.',
+        recommendedCopies: 1
+      },
+      {
+        cardName: 'Therion "King" Regulus',
+        role: 'boss',
+        weight: 0.97,
+        reason: 'Se invoca equipando un Cyber Dragon del cementerio y aporta una omni-negación de 2800 ATK.',
+        recommendedCopies: 1
+      },
+      {
+        cardName: 'Overload Fusion',
+        role: 'extender',
+        weight: 0.94,
+        reason: 'Destierra materiales de oscuridad/máquina del campo y GY para invocar a Chimeratech Rampage Dragon.',
+        recommendedCopies: 2
+      },
+      {
+        cardName: 'Power Bond',
+        role: 'starter',
+        weight: 0.92,
+        reason: 'Duplica el ATK original de los monstruos Fusión de Máquina asegurando victorias por OTK en un solo ataque.',
+        recommendedCopies: 1
+      },
+      {
+        cardName: 'Cyberdark Chimera',
+        role: 'searcher',
+        weight: 0.95,
+        reason: 'Descarta 1 magia/trampa para buscar Power Bond y habilita el uso de materiales del cementerio.',
+        recommendedCopies: 2
+      },
+      {
+        cardName: 'Cyberdark Realm',
+        role: 'searcher',
+        weight: 0.95,
+        reason: 'Busca a Cyberdark Chimera al activarse y permite una Invocación Normal adicional de Cyberdark.',
+        recommendedCopies: 2
+      },
+      {
+        cardName: 'Honest',
+        role: 'tech',
+        weight: 0.85,
+        reason: 'Handtrap que incrementa el ATK de tus monstruos de LUZ por el ATK del monstruo oponente durante el cálculo de daño.',
+        recommendedCopies: 1
+      }
+    ]
+  },
+  {
+    archetype: 'Voiceless Voice',
+    description: 'Invocaciones de Ritual continuas de Guerreros y Dragones de LUZ protegidos por Lo, the Prayers of the Voiceless Voice.',
+    relatedTypesOrAttributes: ['LIGHT', 'Warrior', 'Dragon', 'Spellcaster', 'Ritual'],
+    implicitCards: [
+      {
+        cardName: 'Preparation of Rites',
+        role: 'searcher',
+        weight: 0.99,
+        reason: 'Busca cualquier monstruo de Ritual de Nivel 7 o menor y recupera una magia de ritual del GY.',
+        recommendedCopies: 3
+      },
+      {
+        cardName: 'Diviner of the Herald',
+        role: 'starter',
+        weight: 0.98,
+        reason: 'Envía a Herald of the Arc Light del Extra Deck al GY para buscar cualquier monstruo o magia de ritual.',
+        recommendedCopies: 3
+      },
+      {
+        cardName: 'Herald of the Arc Light',
+        role: 'searcher',
+        weight: 0.99,
+        reason: 'Al ser enviado al cementerio busca cualquier carta de Ritual inmediatamente.',
+        recommendedCopies: 2
+      },
+      {
+        cardName: 'Sauravis, the Ancient and Ascended',
+        role: 'tech',
+        weight: 0.92,
+        reason: 'Handtrap de protección contra efectos que hacen objetivo y blanco de ritual buscable.',
+        recommendedCopies: 2
+      }
+    ]
+  },
+  {
+    archetype: 'Yubel',
+    description: 'Estrategia de destrucción de monstruos propios para reflejar el daño de batalla al oponente y fusiones con Super Poly.',
+    relatedTypesOrAttributes: ['Fiend', 'DARK', 'Fusion'],
+    implicitCards: [
+      {
+        cardName: 'Super Polymerization',
+        role: 'staple_synergy',
+        weight: 0.99,
+        reason: 'Utiliza cualquier monstruo de efecto del rival junto con Yubel para invocar a Phantom of Yubel o Loving Defender.',
+        recommendedCopies: 3
+      },
+      {
+        cardName: 'Opening of the Spirit Gates',
+        role: 'starter',
+        weight: 0.98,
+        reason: 'Busca a Dark Beckoning Beast y revive monstruos Demonio con 0 ATK/DEF del cementerio.',
+        recommendedCopies: 3
+      },
+      {
+        cardName: 'Dark Beckoning Beast',
+        role: 'starter',
+        weight: 0.97,
+        reason: 'Busca Opening of the Spirit Gates y otorga una Invocación Normal adicional de Demonio.',
+        recommendedCopies: 3
+      },
+      {
+        cardName: 'Unchained Soul of Sharvara',
+        role: 'extender',
+        weight: 0.92,
+        reason: 'Destruye una carta propia para invocarse de modo especial y colocar una trampa Unchained.',
+        recommendedCopies: 1
+      },
+      {
+        cardName: 'Unchained Soul of Yama',
+        role: 'extender',
+        weight: 0.94,
+        reason: 'Monstruo Link 2 que busca monstruos Unchained y revive Demonios cuando se destruye una carta.',
+        recommendedCopies: 1
+      }
+    ]
   }
 ];
 

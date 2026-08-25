@@ -13,16 +13,32 @@ import {
   Bot,
   User,
   Loader2,
+  Scale,
+  Swords,
+  Package,
 } from 'lucide-react';
 import { useAIChat } from '@/context/AIChatContext';
 import { AI_MODELS } from '@/lib/constants/models';
 
-const QUICK_PROMPTS = [
-  '¿Cuántas copias de Cartesia y Aluber tengo libres?',
-  '¿Cómo funciona la regla de timing con cartas "When... you can"?',
-  '¿Qué baraja competitiva o fun puedo armar con mis cartas sueltas?',
-  '¿Qué staples me recomiendas para el meta de Agosto 2026?',
-];
+type AIModeType = 'judge' | 'duel' | 'collection';
+
+const MODE_PROMPTS: Record<AIModeType, string[]> = {
+  judge: [
+    '¿Cómo funciona la resolución de cadenas simultáneas (SEGOC)?',
+    '¿Qué diferencia hay entre "If... you can" y "When... you can" para perder timing?',
+    '¿Puede activarse Super Polymerization en Damage Step?',
+  ],
+  duel: [
+    '¿Cuál es la línea de combo óptima de Cyber Dragon para asegurar OTK?',
+    '¿Cómo jugar alrededor de Nibiru y Droll & Lock Bird?',
+    '¿Qué staples son más efectivas contra el meta de Agosto 2026?',
+  ],
+  collection: [
+    '¿Cuántas copias de Cartesia y Aluber tengo libres en mi inventario?',
+    '¿Qué baraja competitiva puedo armar con mis cartas sueltas?',
+    '¿Qué piezas me faltan para completar el motor Branded o Therion?',
+  ],
+};
 
 export const GlobalAIChatDrawer: React.FC = () => {
   const {
@@ -38,6 +54,7 @@ export const GlobalAIChatDrawer: React.FC = () => {
   } = useAIChat();
 
   const [input, setInput] = useState('');
+  const [selectedAIMode, setSelectedAIMode] = useState<AIModeType>('judge');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -100,14 +117,14 @@ export const GlobalAIChatDrawer: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-sm font-black tracking-tight text-zinc-900 dark:text-zinc-100 uppercase font-display">
-                      Cerebro Virtual Exordio
+                      Cerebro Virtual IA
                     </h2>
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                       LIVE
                     </span>
                   </div>
                   <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-semibold truncate max-w-60">
-                    {activeSession?.title || 'Nueva Consulta Táctica'}
+                    {activeSession?.title || 'Juez Oficial, Combos & Estrategia'}
                   </p>
                 </div>
               </div>
@@ -118,7 +135,7 @@ export const GlobalAIChatDrawer: React.FC = () => {
                   type="button"
                   onClick={() => createNewSession()}
                   className="p-2 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                  title="Iniciar nueva conversación limpia"
+                  title="Nueva conversación"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -126,7 +143,7 @@ export const GlobalAIChatDrawer: React.FC = () => {
                   href="/chat"
                   onClick={closeChatDrawer}
                   className="p-2 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                  title="Abrir en pantalla completa (/chat)"
+                  title="Pantalla completa"
                 >
                   <Maximize2 className="w-4 h-4" />
                 </Link>
@@ -141,16 +158,53 @@ export const GlobalAIChatDrawer: React.FC = () => {
               </div>
             </div>
 
-            {/* SUB-HEADER: SELECTOR DE MODELO */}
-            <div className="px-5 py-2.5 bg-zinc-100 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-xs">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Motor IA:
-              </span>
+            {/* SUB-HEADER: SELECTOR DE MODO IA + SELECTOR DE MODELO */}
+            <div className="px-4 py-2 bg-zinc-100 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2 text-xs flex-wrap">
+              {/* Selector de modo */}
+              <div className="flex items-center gap-1 p-0.5 bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAIMode('judge')}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                    selectedAIMode === 'judge'
+                      ? 'bg-red-600 text-white shadow-2xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Scale className="w-3 h-3" />
+                  <span>Juez</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAIMode('duel')}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                    selectedAIMode === 'duel'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Swords className="w-3 h-3" />
+                  <span>Duelo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAIMode('collection')}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                    selectedAIMode === 'collection'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Package className="w-3 h-3" />
+                  <span>Cartas</span>
+                </button>
+              </div>
+
+              {/* Selector de Modelo */}
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value as typeof selectedModel)}
-                className="bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-hidden focus:border-red-500 cursor-pointer"
+                className="bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg px-2 py-1 text-[11px] font-semibold focus:outline-hidden focus:border-red-500 cursor-pointer"
               >
                 {AI_MODELS.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -169,29 +223,37 @@ export const GlobalAIChatDrawer: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-sm font-black uppercase text-zinc-900 dark:text-zinc-100 font-display">
-                      ¿En qué te puedo asesorar hoy?
+                      {selectedAIMode === 'judge'
+                        ? '⚖️ Juez Oficial de Yu-Gi-Oh!'
+                        : selectedAIMode === 'duel'
+                        ? '⚔️ Asesor de Duelo & Combos'
+                        : '📦 Consultas de Colección & Decks'}
                     </h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs leading-relaxed">
-                      Pregúntame sobre cartas de tu inventario, combos, rulings oficiales de cadenas o ideas para armar barajas con tus cartas sueltas.
+                      {selectedAIMode === 'judge'
+                        ? 'Resuelvo dudas de rulings oficiales, timing, resolución de cadenas y efectos continuos.'
+                        : selectedAIMode === 'duel'
+                        ? 'Te ayudo a planear turnos óptimos, mitigar handtraps y optimizar tus líneas de juego.'
+                        : 'Pregúntame sobre disponibilidad de cartas en tu inventario, combos y recetas.'}
                     </p>
                   </div>
 
-                  {/* QUICK PROMPT PILLS */}
+                  {/* QUICK PROMPT PILLS DEL MODO SELECCIONADO */}
                   <div className="w-full space-y-2 pt-3">
                     <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400 text-left">
                       Consultas Frecuentes
                     </p>
                     <div className="flex flex-col gap-1.5">
-                      {QUICK_PROMPTS.map((prompt, idx) => (
+                      {MODE_PROMPTS[selectedAIMode].map((promptText, idx) => (
                         <button
                           key={idx}
                           onClick={() => {
-                            setInput(prompt);
-                            sendMessage(prompt);
+                            setInput(promptText);
+                            sendMessage(promptText);
                           }}
                           className="text-left text-xs p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-red-50 dark:hover:bg-red-950/30 border border-zinc-200 dark:border-zinc-800 hover:border-red-300 dark:hover:border-red-800 text-zinc-700 dark:text-zinc-300 transition-all flex items-center justify-between group cursor-pointer"
                         >
-                          <span className="line-clamp-1">{prompt}</span>
+                          <span className="line-clamp-1">{promptText}</span>
                           <Sparkles className="w-3.5 h-3.5 text-zinc-400 group-hover:text-red-500 shrink-0 ml-2" />
                         </button>
                       ))}
@@ -199,77 +261,64 @@ export const GlobalAIChatDrawer: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                messages.map((msg) => {
-                  const isUser = msg.role === 'user';
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {!isUser && (
-                        <div className="w-7 h-7 rounded-xl bg-red-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-xs">
-                          <Bot className="w-4 h-4" />
-                        </div>
-                      )}
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
-                          isUser
-                            ? 'bg-linear-to-r from-red-600 to-red-500 text-white shadow-md shadow-red-600/20'
-                            : 'bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap'
-                        }`}
-                      >
-                        {msg.content}
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {msg.role === 'assistant' && (
+                      <div className="w-8 h-8 rounded-xl bg-linear-to-br from-red-600 to-amber-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-2xs">
+                        <Bot className="w-4 h-4" />
                       </div>
-                      {isUser && (
-                        <div className="w-7 h-7 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300 shrink-0 mt-0.5">
-                          <User className="w-4 h-4" />
-                        </div>
-                      )}
+                    )}
+                    <div
+                      className={`max-w-[82%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-2xs ${
+                        msg.role === 'user'
+                          ? 'bg-red-600 text-white rounded-tr-none'
+                          : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 rounded-tl-none prose dark:prose-invert prose-xs max-w-none'
+                      }`}
+                    >
+                      {msg.content}
                     </div>
-                  );
-                })
+                    {msg.role === 'user' && (
+                      <div className="w-8 h-8 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300 shrink-0 mt-0.5 shadow-2xs">
+                        <User className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
-
               {isLoading && (
-                <div className="flex gap-3 items-center text-xs text-zinc-500 dark:text-zinc-400">
-                  <div className="w-7 h-7 rounded-xl bg-red-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-                    <Bot className="w-4 h-4" />
-                  </div>
-                  <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-2.5 flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
-                    <span>Analizando conocimiento táctico y colección...</span>
-                  </div>
+                <div className="flex items-center gap-2 text-zinc-400 text-xs py-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                  <span>Analizando estrategia...</span>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* INPUT FORM */}
-            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 shrink-0">
-              <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Escribe tu duda sobre cartas, decks o reglas..."
-                  rows={2}
-                  className="w-full resize-none bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 pr-12 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden focus:border-red-500 transition-colors"
-                />
-                <button
-                  type="submit"
-                  disabled={!input.trim() || isLoading}
-                  className="absolute right-2.5 bottom-2.5 p-2 rounded-xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 disabled:opacity-40 text-white shadow-md shadow-red-600/30 transition-all cursor-pointer disabled:cursor-not-allowed"
-                  title="Enviar consulta"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-              <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-2 px-1">
-                <span>Enter para enviar • Shift+Enter para salto de línea</span>
-                <span className="font-mono">Agosto 2026</span>
-              </div>
-            </div>
+            {/* FORMULARIO DE ENTRADA */}
+            <form
+              onSubmit={handleSubmit}
+              className="p-3 sm:p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex items-end gap-2 shrink-0"
+            >
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Escribe tu duda sobre rulings, jugadas o colecciones..."
+                rows={1}
+                className="flex-1 max-h-32 min-h-10 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-hidden focus:border-red-500 resize-none transition-colors"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="p-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0 cursor-pointer shadow-sm shadow-red-600/30"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
           </motion.div>
         </>
       )}
