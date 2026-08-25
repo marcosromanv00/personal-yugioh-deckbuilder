@@ -66,8 +66,8 @@ export const ExordioKeyCards: React.FC<ExordioKeyCardsProps> = ({
   return (
     <div className="w-full max-w-6xl mx-auto tech-cut-tr overflow-hidden border-2 border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/90 shadow-2xl backdrop-blur-xl transition-colors relative">
       {/* Header Banner Estilo Exordio */}
-      <div className="flex items-center justify-between px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="bg-white text-red-600 px-2.5 py-0.5 font-black text-xs uppercase shadow-sm tech-cut-tr">
             [ 02 ] KEY CARDS
           </span>
@@ -81,7 +81,7 @@ export const ExordioKeyCards: React.FC<ExordioKeyCardsProps> = ({
       </div>
 
       {/* Grid de 6 Bloques Tácticos */}
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* 1. MAIN BEATERS */}
         <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/40 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-200 dark:border-zinc-800">
@@ -125,7 +125,7 @@ export const ExordioKeyCards: React.FC<ExordioKeyCardsProps> = ({
         </div>
 
         {/* 3. BEST CARD (Showcase holográfico destacado) */}
-        <div className="row-span-1 md:row-span-2 p-5 rounded-xl border-2 border-amber-500/50 bg-linear-to-b from-amber-500/10 via-zinc-900/40 to-black/60 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+        <div className="row-span-1 md:row-span-2 p-4 sm:p-5 rounded-xl border-2 border-amber-500/50 bg-linear-to-b from-amber-500/10 via-zinc-900/40 to-black/60 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-[0_0_20px_rgba(245,158,11,0.15)]">
           <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-amber-500/30">
             <div className="flex items-center gap-1.5 mx-auto">
               <Crown className="w-4 h-4 text-amber-400 animate-bounce" />
@@ -145,12 +145,12 @@ export const ExordioKeyCards: React.FC<ExordioKeyCardsProps> = ({
               className="relative cursor-pointer my-auto rounded-lg overflow-hidden border-2 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.4)]"
               onClick={() => onCardClick?.(bestCard)}
             >
-              <div className="w-44 h-64 relative">
+              <div className="w-36 h-52 sm:w-44 sm:h-64 relative">
                 <Image
                   src={bestCard.image_url}
                   alt={bestCard.name}
                   fill
-                  sizes="180px"
+                  sizes="(max-width: 640px) 150px, 180px"
                   className="object-cover"
                   unoptimized
                 />

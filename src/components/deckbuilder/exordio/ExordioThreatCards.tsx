@@ -37,8 +37,8 @@ export const ExordioThreatCards: React.FC<ExordioThreatCardsProps> = ({
   return (
     <div className="w-full max-w-6xl mx-auto tech-cut-tr overflow-hidden border-2 border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/90 shadow-2xl backdrop-blur-xl transition-colors relative">
       {/* Header Banner Estilo Exordio */}
-      <div className="flex items-center justify-between px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="bg-white text-red-600 px-2.5 py-0.5 font-black text-xs uppercase shadow-sm tech-cut-tr">
             [ 03 ] THREAT CARDS
           </span>
@@ -52,8 +52,8 @@ export const ExordioThreatCards: React.FC<ExordioThreatCardsProps> = ({
       </div>
 
       {/* Titular Central */}
-      <div className="text-center pt-6 pb-2">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+      <div className="text-center pt-5 sm:pt-6 pb-2 px-4">
+        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
           THREAT CARDS
         </h2>
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mt-0.5">
@@ -62,8 +62,8 @@ export const ExordioThreatCards: React.FC<ExordioThreatCardsProps> = ({
       </div>
 
       {/* Galería Horizontal de Amenazas */}
-      <div className="p-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+      <div className="p-4 sm:p-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
           {threats.map((threat) => (
             <motion.div
               key={threat.id}

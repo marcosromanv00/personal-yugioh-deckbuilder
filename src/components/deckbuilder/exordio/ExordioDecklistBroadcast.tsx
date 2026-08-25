@@ -82,8 +82,8 @@ export const ExordioDecklistBroadcast: React.FC<ExordioDecklistBroadcastProps> =
   return (
     <div className="w-full max-w-6xl mx-auto tech-cut-tr overflow-hidden border-2 border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/90 shadow-2xl backdrop-blur-xl transition-colors relative">
       {/* Header Banner Estilo Exordio */}
-      <div className="flex items-center justify-between px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="bg-white text-red-600 px-2.5 py-0.5 font-black text-xs uppercase shadow-sm tech-cut-tr">
             [ 05 ] FULL DECKLIST
           </span>
@@ -97,8 +97,8 @@ export const ExordioDecklistBroadcast: React.FC<ExordioDecklistBroadcastProps> =
       </div>
 
       {/* Barra de Título del Deck */}
-      <div className="px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3 bg-zinc-50/50 dark:bg-zinc-900/40">
-        <div className="flex items-center gap-3">
+      <div className="px-4 sm:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3 bg-zinc-50/50 dark:bg-zinc-900/40">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="w-1.5 h-6 bg-red-600 rounded-full" />
           <h2 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">
             DECKLIST ({totalMainCount})
@@ -117,7 +117,7 @@ export const ExordioDecklistBroadcast: React.FC<ExordioDecklistBroadcastProps> =
       </div>
 
       {/* Grid: Decklist a la Izquierda, Panel Resumen a la Derecha */}
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
         {/* Columna Izquierda: Cartas de Main & Extra Deck */}
         <div className="lg:col-span-8 space-y-4">
           <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30">

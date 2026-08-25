@@ -415,11 +415,11 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
       )}
 
       {/* ─── PESTAÑAS DE CATEGORIZACIÓN TÁCTICA ─── */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+      <div className="flex flex-wrap items-center gap-1.5 pb-1">
         <button
           type="button"
           onClick={() => setActiveCategory('all')}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
+          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
             activeCategory === 'all'
               ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-zinc-900 dark:border-white shadow-xs'
               : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -432,7 +432,7 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
         <button
           type="button"
           onClick={() => setActiveCategory('archetype_and_techs')}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
+          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
             activeCategory === 'archetype_and_techs'
               ? 'bg-red-600 text-white border-red-600 shadow-xs'
               : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-red-500'
@@ -446,7 +446,7 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
         <button
           type="button"
           onClick={() => setActiveCategory('handtraps')}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
+          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
             activeCategory === 'handtraps'
               ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
               : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-amber-500'
@@ -460,7 +460,7 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
         <button
           type="button"
           onClick={() => setActiveCategory('board_breakers')}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
+          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
             activeCategory === 'board_breakers'
               ? 'bg-orange-600 text-white border-orange-600 shadow-xs'
               : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-orange-500'
@@ -474,7 +474,7 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
         <button
           type="button"
           onClick={() => setActiveCategory('consistency_spells')}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
+          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
             activeCategory === 'consistency_spells'
               ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
               : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-blue-500'
@@ -488,7 +488,7 @@ export const CollectionSynergiesPanel: React.FC<CollectionSynergiesPanelProps> =
         <button
           type="button"
           onClick={() => setActiveCategory('extra_deck')}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
+          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border min-h-8 touch-manipulation ${
             activeCategory === 'extra_deck'
               ? 'bg-fuchsia-600 text-white border-fuchsia-600 shadow-xs'
               : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-fuchsia-500'

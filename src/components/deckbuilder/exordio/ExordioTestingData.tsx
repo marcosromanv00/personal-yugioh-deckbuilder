@@ -106,8 +106,8 @@ export const ExordioTestingData: React.FC<ExordioTestingDataProps> = ({
   return (
     <div className="w-full max-w-6xl mx-auto tech-cut-tr overflow-hidden border-2 border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/90 shadow-2xl backdrop-blur-xl transition-colors relative">
       {/* Header Banner Estilo Exordio */}
-      <div className="flex items-center justify-between px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="bg-white text-red-600 px-2.5 py-0.5 font-black text-xs uppercase shadow-sm tech-cut-tr">
             [ 04 ] TESTING DATA
           </span>
@@ -120,10 +120,10 @@ export const ExordioTestingData: React.FC<ExordioTestingDataProps> = ({
         </div>
       </div>
 
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
         {/* Columna Izquierda: 3 ANILLOS KPI + NOTA DE PRUEBAS */}
         <div className="lg:col-span-6 flex flex-col justify-between space-y-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {renderCircularGauge('WIN RATIO', `${winRatio}%`, winRatio, 'text-emerald-500', '#10b981')}
             {renderCircularGauge(
               'DEAD HANDS',

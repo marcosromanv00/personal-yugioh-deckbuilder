@@ -24,9 +24,9 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
     { key: 'recovery', label: 'Recovery', value: mainStats.recovery },
   ];
 
-  const size = 260;
+  const size = 280;
   const center = size / 2;
-  const radius = 95;
+  const radius = 88;
   const angleStep = (Math.PI * 2) / axes.length;
 
   // Calcular puntos del polígono de datos
@@ -61,8 +61,8 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
   return (
     <div className="w-full max-w-6xl mx-auto tech-cut-tr overflow-hidden border-2 border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/90 shadow-2xl backdrop-blur-xl transition-colors relative">
       {/* Header Banner Estilo Exordio */}
-      <div className="flex items-center justify-between px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-3.5 bg-red-600 text-white font-black tracking-wider text-sm md:text-base border-b border-red-700 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="bg-white text-red-600 px-2.5 py-0.5 font-black text-xs uppercase shadow-sm tech-cut-tr">
             [ 01 ] DECK STATS
           </span>
@@ -76,9 +76,9 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
       </div>
 
       {/* Grid Principal estilo transmisión de análisis */}
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
         {/* Columna Izquierda: DECK'S MAIN STATS (Barras de 1 a 10) */}
-        <div className="lg:col-span-5 flex flex-col justify-between p-5 rounded-xl border border-zinc-200 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/40">
+        <div className="lg:col-span-5 flex flex-col justify-between p-4 sm:p-5 rounded-xl border border-zinc-200 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/40">
           <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <Swords className="w-4 h-4 text-red-500" />
@@ -89,7 +89,7 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
             <span className="text-xs font-mono font-semibold text-zinc-600 dark:text-zinc-300">0 - 10 SCALE</span>
           </div>
 
-          <div className="space-y-3.5 my-4">
+          <div className="space-y-3 my-3 sm:my-4">
             {axes.map((axis) => (
               <div key={axis.key} className="space-y-1">
                 <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
@@ -114,7 +114,7 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
         </div>
 
         {/* Columna Derecha: RADAR CHART (Graphic Stats) + FINAL SCORE */}
-        <div className="lg:col-span-7 flex flex-col justify-between p-5 rounded-xl border border-zinc-200 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/40">
+        <div className="lg:col-span-7 flex flex-col justify-between p-4 sm:p-5 rounded-xl border border-zinc-200 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/40">
           <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <Compass className="w-4 h-4 text-red-500" />
@@ -130,9 +130,12 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
             </div>
           </div>
 
-          {/* SVG Radar Chart Heptagonal */}
-          <div className="flex justify-center items-center py-2 relative">
-            <svg width={size} height={size} className="overflow-visible">
+          {/* SVG Radar Chart Heptagonal Responsivo */}
+          <div className="flex justify-center items-center py-2 relative w-full overflow-hidden">
+            <svg
+              viewBox={`0 0 ${size} ${size}`}
+              className="w-full max-w-[280px] h-auto overflow-visible"
+            >
               {/* Círculos concéntricos guía */}
               {[0.25, 0.5, 0.75, 1].map((level) => {
                 const guidePoints = axes
@@ -214,7 +217,7 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
           </div>
 
           {/* Banner de Final Score & Rank (Estilo Tarjeta de Transmisión) */}
-          <div className="mt-4 p-4 rounded-xl border border-red-500/30 bg-red-950/20 flex items-center justify-between">
+          <div className="mt-4 p-4 rounded-xl border border-red-500/30 bg-red-950/20 flex flex-wrap items-center justify-between gap-3">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300 block">
                 RECOMMENDED FOR

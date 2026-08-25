@@ -7,7 +7,6 @@ import {
   X,
   PackageCheck,
   Activity,
-  BarChart3,
 } from 'lucide-react';
 import { StorageLocation, UserCard, SleeveInventory, DeckCardDetail, Deck } from '@/types/collection';
 import { Card, DeckCard } from '@/components/deckbuilder/types';
@@ -15,15 +14,9 @@ import { DeckMetadataForm } from './DeckMetadataForm';
 import { DeckCardDetailInspector } from './DeckCardDetailInspector';
 import { CollectionSynergiesPanel } from '@/components/deckbuilder/components/CollectionSynergiesPanel';
 import { RightDeckMode, MobileDeckTab } from './types';
-import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
 import { generateExordioDeckAnalysis, ExordioAnalysisResult } from '@/lib/engines/exordioAnalytics';
-import { ExordioDeckStats } from '@/components/deckbuilder/exordio/ExordioDeckStats';
-import { ExordioKeyCards } from '@/components/deckbuilder/exordio/ExordioKeyCards';
-import { ExordioThreatCards } from '@/components/deckbuilder/exordio/ExordioThreatCards';
-import { ExordioTestingData } from '@/components/deckbuilder/exordio/ExordioTestingData';
-import { ExordioDecklistBroadcast } from '@/components/deckbuilder/exordio/ExordioDecklistBroadcast';
-
-export type ExordioInspectorSection = 'stats' | 'key_cards' | 'threats' | 'testing' | 'decklist';
+import { ExordioSidePanelSummary } from '@/components/deckbuilder/exordio/ExordioSidePanelSummary';
+import { ExordioAnalyticsModal, ExordioModalTab } from '@/components/deckbuilder/exordio/ExordioAnalyticsModal';
 
 interface DeckInspectorPanelProps {
   rightPanelWidth: number;
@@ -128,7 +121,13 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   onAddCardToDeck,
 }) => {
   const currentBaseLocation = locations.find(l => l.id === storageLocationId);
-  const [analysisSubSection, setAnalysisSubSection] = useState<ExordioInspectorSection>('stats');
+  const [isExordioModalOpen, setIsExordioModalOpen] = useState(false);
+  const [modalInitialTab, setModalInitialTab] = useState<ExordioModalTab>('stats');
+
+  const handleOpenExordioModal = (tab: ExordioModalTab = 'stats') => {
+    setModalInitialTab(tab);
+    setIsExordioModalOpen(true);
+  };
 
   // Mapear cartas de DeckCardDetail a DeckCard para el motor Exordio
   const mappedDeckCards = useMemo<DeckCard[]>(() => {
@@ -158,14 +157,6 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
     return generateExordioDeckAnalysis(mappedDeckCards, inferredArchetype);
   }, [mappedDeckCards, inferredArchetype]);
 
-  const analysisDropdownOptions: DropdownOption<ExordioInspectorSection>[] = [
-    { value: 'stats', label: '📊 Métricas y Ratios', badge: `${exordioAnalysis.finalScore}/100` },
-    { value: 'key_cards', label: '⭐ Cartas Clave y Bosses' },
-    { value: 'threats', label: '⚠️ Amenazas Meta y Handtraps', badge: `${exordioAnalysis.threatCards.length}` },
-    { value: 'testing', label: '🧪 Pruebas de Consistencia', badge: `${exordioAnalysis.testingData.winRatio}%` },
-    { value: 'decklist', label: '📜 Ficha de Transmisión' },
-  ];
-
   return (
     <div 
       style={!isMobile ? { width: `${rightPanelWidth}px` } : {}}
@@ -177,7 +168,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('details')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
+            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
               rightMode === 'details'
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -191,7 +182,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('card')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer relative ${
+            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
               rightMode === 'card'
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -205,7 +196,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('analysis')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer relative ${
+            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
               rightMode === 'analysis'
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -219,7 +210,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('collection')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer relative ${
+            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
               rightMode === 'collection'
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -298,60 +289,12 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           </div>
         )
       ) : rightMode === 'analysis' ? (
-        /* Modo 3: Análisis Exordio Completo con Subswitch */
-        <div className="space-y-3.5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="text-xs font-black uppercase text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 font-display">
-                <Activity className="w-4 h-4 text-red-500" />
-                <span>Análisis Exordio del Mazo</span>
-              </h4>
-              <p className="text-[11px] text-zinc-500">Métricas avanzadas, consistencia y amenazas</p>
-            </div>
-          </div>
-
-          <PremiumDropdown<ExordioInspectorSection>
-            options={analysisDropdownOptions}
-            value={analysisSubSection}
-            onChange={(val) => setAnalysisSubSection(val)}
-            className="w-full"
-            triggerClassName="w-full bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
-            size="sm"
-            menuWidth="w-full"
-          />
-
-          <div className="pt-1">
-            {analysisSubSection === 'stats' && (
-              <ExordioDeckStats analysis={exordioAnalysis} format={format} />
-            )}
-            {analysisSubSection === 'key_cards' && (
-              <ExordioKeyCards
-                keyCards={exordioAnalysis.keyCards}
-                format={format}
-                onCardClick={(c) => {
-                  if (onAddCardToDeck) {
-                    onAddCardToDeck({
-                      id: c.id,
-                      name: c.name,
-                      type: c.type || 'Monster',
-                      image_url: c.image_url || '',
-                      image_url_small: c.image_url_small || '',
-                    });
-                  }
-                }}
-              />
-            )}
-            {analysisSubSection === 'threats' && (
-              <ExordioThreatCards threats={exordioAnalysis.threatCards} format={format} />
-            )}
-            {analysisSubSection === 'testing' && (
-              <ExordioTestingData testingData={exordioAnalysis.testingData} />
-            )}
-            {analysisSubSection === 'decklist' && (
-              <ExordioDecklistBroadcast analysis={exordioAnalysis} deckCards={mappedDeckCards} format={format} />
-            )}
-          </div>
-        </div>
+        /* Modo 3: Hub Táctico Exordio con Modal Flotante */
+        <ExordioSidePanelSummary
+          analysis={exordioAnalysis}
+          format={format}
+          onOpenModal={handleOpenExordioModal}
+        />
       ) : (
         /* Modo 4: Sugerencias y Sinergias de Colección */
         <CollectionSynergiesPanel
@@ -365,6 +308,28 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           onAddCardToDeck={onAddCardToDeck}
         />
       )}
+
+      {/* ─── MODAL FLOTANTE DE ANÁLISIS EXORDIO COMPLETO ─── */}
+      <ExordioAnalyticsModal
+        isOpen={isExordioModalOpen}
+        onClose={() => setIsExordioModalOpen(false)}
+        deckCards={mappedDeckCards}
+        inferredArchetype={inferredArchetype}
+        format={format}
+        initialTab={modalInitialTab}
+        onCardClick={(c) => {
+          if (onAddCardToDeck) {
+            onAddCardToDeck({
+              id: c.id,
+              name: c.name,
+              type: c.type || 'Monster',
+              image_url: c.image_url || '',
+              image_url_small: c.image_url_small || '',
+            });
+          }
+        }}
+      />
     </div>
   );
 };
+

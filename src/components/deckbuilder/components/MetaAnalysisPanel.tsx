@@ -16,16 +16,11 @@ import { BreakdownCardItem, BanlistAlert, HistoryItem, HoverCardBase, Card, Deck
 import { CardDetailPanel } from './CardDetailPanel';
 import { CollectionSynergiesPanel } from './CollectionSynergiesPanel';
 import { StorageLocation, SleeveInventory, UserCard, Deck } from '@/types/collection';
-import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
 import { generateExordioDeckAnalysis, ExordioAnalysisResult } from '@/lib/engines/exordioAnalytics';
-import { ExordioDeckStats } from '../exordio/ExordioDeckStats';
-import { ExordioKeyCards } from '../exordio/ExordioKeyCards';
-import { ExordioThreatCards } from '../exordio/ExordioThreatCards';
-import { ExordioTestingData } from '../exordio/ExordioTestingData';
-import { ExordioDecklistBroadcast } from '../exordio/ExordioDecklistBroadcast';
+import { ExordioSidePanelSummary } from '../exordio/ExordioSidePanelSummary';
+import { ExordioAnalyticsModal, ExordioModalTab } from '../exordio/ExordioAnalyticsModal';
 
 export type RightSidebarTab = 'detail' | 'meta' | 'collection' | 'analysis';
-export type ExordioSubSection = 'stats' | 'key_cards' | 'threats' | 'testing' | 'decklist';
 
 export interface MetaAnalysisPanelProps {
   rightPanelOpen: boolean;
@@ -117,20 +112,18 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
   addRecommendedCard,
 }) => {
   const currentTab = activeRightTab || 'detail';
-  const [exordioSubSection, setExordioSubSection] = useState<ExordioSubSection>('stats');
+  const [isExordioModalOpen, setIsExordioModalOpen] = useState(false);
+  const [modalInitialTab, setModalInitialTab] = useState<ExordioModalTab>('stats');
+
+  const handleOpenExordioModal = (tab: ExordioModalTab = 'stats') => {
+    setModalInitialTab(tab);
+    setIsExordioModalOpen(true);
+  };
 
   // Análisis Exordio generado para el mazo actual
   const exordioAnalysis = useMemo<ExordioAnalysisResult>(() => {
     return generateExordioDeckAnalysis(deckCards, inferredArchetype);
   }, [deckCards, inferredArchetype]);
-
-  const exordioDropdownOptions: DropdownOption<ExordioSubSection>[] = [
-    { value: 'stats', label: '📊 Métricas y Ratios', badge: `${exordioAnalysis.finalScore}/100` },
-    { value: 'key_cards', label: '⭐ Cartas Clave y Bosses' },
-    { value: 'threats', label: '⚠️ Amenazas y Handtraps', badge: `${exordioAnalysis.threatCards.length}` },
-    { value: 'testing', label: '🧪 Pruebas de Consistencia', badge: `${exordioAnalysis.testingData.winRatio}%` },
-    { value: 'decklist', label: '📜 Ficha de Transmisión' },
-  ];
 
   return (
     <section
@@ -143,7 +136,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
             }`
       }`}
     >
-      {/* ─── PANEL HEADER & TABS DE NAVEGACIÓN ─── */}
+      {/* ─── PANEL HEADER & TABS DE NAVEGACIÓN (DESKTOP) ─── */}
       {!isMobile && (
         <div
           className={`border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center shrink-0 ${
@@ -151,62 +144,62 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
           }`}
         >
           {rightPanelOpen && (
-            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0">
+            <div className="flex-1 grid grid-cols-4 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-1">
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('detail')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
                   currentTab === 'detail'
                     ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                 }`}
                 title="Ver y editar detalles de la carta seleccionada"
               >
-                <Info className="w-3.5 h-3.5 text-red-500" />
-                <span>Detalle</span>
+                <Info className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <span className="truncate">Detalle</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('analysis')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
                   currentTab === 'analysis'
                     ? 'bg-red-600 text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                 }`}
-                title="Ver analíticas Exordio del mazo (Métricas, radar, consistencia)"
+                title="Ver analíticas Exordio del mazo"
               >
-                <Activity className="w-3.5 h-3.5" />
-                <span>Análisis</span>
+                <Activity className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Análisis</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('meta')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
                   currentTab === 'meta'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                 }`}
                 title="Ver análisis del meta y arquetipos"
               >
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Meta</span>
-                {isAnalyzing && <Loader2 className="w-3 h-3 animate-spin text-white" />}
+                <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Meta</span>
+                {isAnalyzing && <Loader2 className="w-3 h-3 animate-spin text-white shrink-0" />}
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('collection')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
                   currentTab === 'collection'
                     ? 'bg-purple-600 text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
                 }`}
                 title="Ver recomendaciones de cartas libres y motores en tu colección física"
               >
-                <PackageCheck className="w-3.5 h-3.5 text-purple-300" />
-                <span>Colección</span>
+                <PackageCheck className="w-3.5 h-3.5 text-purple-300 shrink-0" />
+                <span className="truncate">Colección</span>
               </button>
             </div>
           )}
@@ -226,57 +219,57 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
 
       {/* ─── MOBILE TAB SWITCHER ─── */}
       {isMobile && (
-        <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-3 shadow-xs">
+        <div className="grid grid-cols-4 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-3 shadow-xs gap-1">
           <button
             type="button"
             onClick={() => setActiveRightTab?.('detail')}
-            className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation min-h-11 ${
+            className={`py-2.5 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-tight transition-all cursor-pointer flex items-center justify-center gap-1 touch-manipulation min-h-11 ${
               currentTab === 'detail'
                 ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Info className="w-3.5 h-3.5 text-red-500" />
-            <span>Detalle</span>
+            <Info className="w-3.5 h-3.5 text-red-500 shrink-0" />
+            <span className="truncate">Detalle</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveRightTab?.('analysis')}
-            className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation min-h-11 ${
+            className={`py-2.5 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-tight transition-all cursor-pointer flex items-center justify-center gap-1 touch-manipulation min-h-11 ${
               currentTab === 'analysis'
                 ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Análisis</span>
+            <Activity className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Análisis</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveRightTab?.('meta')}
-            className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation min-h-11 ${
+            className={`py-2.5 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-tight transition-all cursor-pointer flex items-center justify-center gap-1 touch-manipulation min-h-11 ${
               currentTab === 'meta'
                 ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Meta</span>
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Meta</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveRightTab?.('collection')}
-            className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 touch-manipulation min-h-11 ${
+            className={`py-2.5 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-tight transition-all cursor-pointer flex items-center justify-center gap-1 touch-manipulation min-h-11 ${
               currentTab === 'collection'
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <PackageCheck className="w-3.5 h-3.5 text-purple-300" />
-            <span>Colección</span>
+            <PackageCheck className="w-3.5 h-3.5 text-purple-300 shrink-0" />
+            <span className="truncate">Colección</span>
           </button>
         </div>
       )}
@@ -315,62 +308,12 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
               format={format}
             />
           ) : currentTab === 'analysis' ? (
-            /* TAB 2: ANÁLISIS EXORDIO COMPLETO */
-            <div className="space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-black uppercase text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 font-display">
-                    <Activity className="w-4 h-4 text-red-500" />
-                    <span>Análisis de Mazo Exordio</span>
-                  </h4>
-                  <p className="text-[11px] text-zinc-500">Métricas avanzadas, consistencia y amenazas</p>
-                </div>
-              </div>
-
-              {/* Subswitch / Dropdown para navegar módulos analíticos */}
-              <PremiumDropdown<ExordioSubSection>
-                options={exordioDropdownOptions}
-                value={exordioSubSection}
-                onChange={(val) => setExordioSubSection(val)}
-                className="w-full"
-                triggerClassName="w-full bg-zinc-100 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
-                size="sm"
-                menuWidth="w-full"
-              />
-
-              {/* Renderizado de la sección de análisis seleccionada */}
-              <div className="pt-1">
-                {exordioSubSection === 'stats' && (
-                  <ExordioDeckStats analysis={exordioAnalysis} format={format} />
-                )}
-                {exordioSubSection === 'key_cards' && (
-                  <ExordioKeyCards
-                    keyCards={exordioAnalysis.keyCards}
-                    format={format}
-                    onCardClick={(c) => {
-                      if (onAddCardToDeck) {
-                        onAddCardToDeck({
-                          id: c.id,
-                          name: c.name,
-                          type: c.type || 'Monster',
-                          image_url: c.image_url || '',
-                          image_url_small: c.image_url_small || '',
-                        });
-                      }
-                    }}
-                  />
-                )}
-                {exordioSubSection === 'threats' && (
-                  <ExordioThreatCards threats={exordioAnalysis.threatCards} format={format} />
-                )}
-                {exordioSubSection === 'testing' && (
-                  <ExordioTestingData testingData={exordioAnalysis.testingData} />
-                )}
-                {exordioSubSection === 'decklist' && (
-                  <ExordioDecklistBroadcast analysis={exordioAnalysis} deckCards={deckCards} format={format} />
-                )}
-              </div>
-            </div>
+            /* TAB 2: ANÁLISIS EXORDIO - HUB TÁCTICO COMPACTO */
+            <ExordioSidePanelSummary
+              analysis={exordioAnalysis}
+              format={format}
+              onOpenModal={handleOpenExordioModal}
+            />
           ) : currentTab === 'collection' ? (
             /* TAB 3: PHYSICAL COLLECTION SYNERGIES & RECOMMENDATIONS */
             <CollectionSynergiesPanel
@@ -519,6 +462,28 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
           )}
         </div>
       )}
+
+      {/* ─── MODAL FLOTANTE DE ANÁLISIS EXORDIO COMPLETO ─── */}
+      <ExordioAnalyticsModal
+        isOpen={isExordioModalOpen}
+        onClose={() => setIsExordioModalOpen(false)}
+        deckCards={deckCards}
+        inferredArchetype={inferredArchetype}
+        format={format}
+        initialTab={modalInitialTab}
+        onCardClick={(c) => {
+          if (onAddCardToDeck) {
+            onAddCardToDeck({
+              id: c.id,
+              name: c.name,
+              type: c.type || 'Monster',
+              image_url: c.image_url || '',
+              image_url_small: c.image_url_small || '',
+            });
+          }
+        }}
+      />
     </section>
   );
 };
+
