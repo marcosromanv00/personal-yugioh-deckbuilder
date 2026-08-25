@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { ensureCardsExistInDb } from '@/lib/ygoprodeck';
 
 const isSupabaseConfigured = () => {
   return (
@@ -37,6 +38,15 @@ export async function POST(
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ success: true });
     }
+
+    // Garantizar que la carta exista en yg_cards antes de asociarla al deck
+    await ensureCardsExistInDb([{
+      id: Number(card_id),
+      name: body.name,
+      type: body.type,
+      image_url: body.image_url,
+      image_url_small: body.image_url_small || body.image_url
+    }]);
 
     const targetSection = normalizeSection(section);
 

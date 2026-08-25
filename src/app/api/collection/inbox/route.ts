@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { parseYdkContent } from '@/lib/ydkParser';
+import { ensureCardsExistInDb } from '@/lib/ygoprodeck';
 
 // GET: Obtener todas las cartas en la bandeja "Sin Clasificar" (storage_location_id IS NULL)
 export async function GET() {
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (targetCardIds.length === 0) {
-      return NextResponse.json({ error: 'No se encontraron IDs de cartas válidos' }, { status: 400 });
+      return NextResponse.json({ error: 'No se enviaron cartas para procesar' }, { status: 400 });
     }
 
     const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -59,72 +60,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Garantizar que las cartas existan en yg_cards (fetch de YGOPRODeck si falta alguna)
-    const uniqueIds = Array.from(new Set(targetCardIds));
-    const { data: existingCards } = await supabase
-      .from('yg_cards')
-      .select('id')
-      .in('id', uniqueIds);
-
-    const existingIdSet = new Set((existingCards || []).map((c: { id: number }) => c.id));
-    const missingIds = uniqueIds.filter(id => !existingIdSet.has(id));
-
-    if (missingIds.length > 0) {
-      try {
-        // Consultar YGOPRODeck API para las cartas faltantes
-        const response = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${missingIds.join(',')}`);
-        if (response.ok) {
-          const result = await response.json();
-          const apiCards = result.data || [];
-          
-          const cardsToInsert = apiCards.map((c: {
-            id: number;
-            name: string;
-            type: string;
-            desc?: string;
-            atk?: number;
-            def?: number;
-            level?: number;
-            race?: string;
-            attribute?: string;
-            archetype?: string;
-            card_images?: Array<{ image_url?: string; image_url_small?: string }>;
-            banlist_info?: { ban_md?: string; ban_tcg?: string; ban_ocg?: string; ban_goat?: string };
-          }) => ({
-            id: c.id,
-            name: c.name,
-            type: c.type,
-            desc: c.desc || '',
-            atk: c.atk !== undefined ? c.atk : null,
-            def: c.def !== undefined ? c.def : null,
-            level: c.level !== undefined ? c.level : null,
-            race: c.race || null,
-            attribute: c.attribute || null,
-            archetype: c.archetype || null,
-            image_url: c.card_images?.[0]?.image_url || null,
-            image_url_small: c.card_images?.[0]?.image_url_small || null,
-            ban_master_duel: c.banlist_info?.ban_md || 'Unlimited',
-            ban_tcg: c.banlist_info?.ban_tcg || 'Unlimited',
-            ban_ocg: c.banlist_info?.ban_ocg || 'Unlimited',
-            ban_duel_links: c.banlist_info?.ban_goat || 'Unlimited',
-          }));
-
-          if (cardsToInsert.length > 0) {
-            await supabase.from('yg_cards').upsert(cardsToInsert, { onConflict: 'id' });
-          }
-        }
-      } catch (apiErr) {
-        console.warn('Advertencia al consultar cartas faltantes en YGOPRODeck:', apiErr);
-      }
-    }
-
-    // 2. Verificar cuales IDs realmente existen en yg_cards para evitar violaciones de clave foranea
-    const { data: finalValidCards } = await supabase
-      .from('yg_cards')
-      .select('id')
-      .in('id', uniqueIds);
-
-    const validIdSet = new Set((finalValidCards || []).map((c: { id: number }) => c.id));
+    const validIdSet = await ensureCardsExistInDb(targetCardIds);
     const validTargetCardIds = targetCardIds.filter(id => validIdSet.has(id));
+    const uniqueIds = Array.from(new Set(targetCardIds));
     const invalidIds = uniqueIds.filter(id => !validIdSet.has(id));
 
     if (validTargetCardIds.length === 0) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { ensureCardsExistInDb, CardInputSeed } from '@/lib/ygoprodeck';
 import { Deck } from '@/types/collection';
 
 export interface InputDeckCard {
@@ -10,6 +11,7 @@ export interface InputDeckCard {
   name?: string;
   type?: string;
   image_url?: string;
+  image_url_small?: string;
 }
 
 // Global mocks for demo mode persistence
@@ -200,7 +202,16 @@ export async function POST(req: NextRequest) {
 
     if (deckErr) throw deckErr;
 
-    // 2. Insertar cartas del Deck
+    // 2. Garantizar que todas las cartas existan en yg_cards para evitar violaciones de clave foránea
+    const allInputCards: CardInputSeed[] = [
+      ...(cards || []),
+      ...(inventory_cards_to_add || [])
+    ];
+    if (allInputCards.length > 0) {
+      await ensureCardsExistInDb(allInputCards);
+    }
+
+    // 3. Insertar cartas del Deck
     if (cards && cards.length > 0) {
       const deckCardsPayload = cards.map((c: InputDeckCard) => ({
         deck_id: deck.id,
@@ -217,7 +228,7 @@ export async function POST(req: NextRequest) {
       if (cardsErr) throw cardsErr;
     }
 
-    // 3. Registrar cartas al inventario general (yg_user_cards) si fue solicitado
+    // 4. Registrar cartas al inventario general (yg_user_cards) si fue solicitado
     if (register_to_inventory && inventory_cards_to_add && inventory_cards_to_add.length > 0) {
       const inventoryPayload = inventory_cards_to_add.map((c: InputDeckCard) => {
         const matchingDeckCard = (cards || []).find((dc: InputDeckCard) => dc.id === c.id);
@@ -442,6 +453,15 @@ export async function PUT(req: NextRequest) {
           console.warn('Advertencia al actualizar carril del contenedor:', locErr);
         }
       }
+    }
+
+    // Garantizar que todas las cartas existan en yg_cards para evitar violaciones de clave foránea
+    const allInputCards: CardInputSeed[] = [
+      ...(Array.isArray(cards) ? cards : []),
+      ...(Array.isArray(inventory_cards_to_add) ? inventory_cards_to_add : [])
+    ];
+    if (allInputCards.length > 0) {
+      await ensureCardsExistInDb(allInputCards);
     }
 
     if (cards !== undefined) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
+import { ensureCardsExistInDb } from '@/lib/ygoprodeck';
 
 const isSupabaseConfigured = () => {
   return process.env.NEXT_PUBLIC_SUPABASE_URL && 
@@ -271,6 +272,14 @@ export async function POST(req: NextRequest) {
     // Si la acción es "save", procedemos a insertar todas las cartas encontradas
     if (action === 'save') {
       if (hasSupabase) {
+        await ensureCardsExistInDb(matchedList.map(item => ({
+          id: item.card_id,
+          name: item.name,
+          type: item.type,
+          image_url: item.image_url,
+          image_url_small: item.image_url_small
+        })));
+
         const insertPayload = matchedList.map(item => ({
           card_id: item.card_id,
           storage_location_id: storage_location_id === 'inbox' ? null : storage_location_id,

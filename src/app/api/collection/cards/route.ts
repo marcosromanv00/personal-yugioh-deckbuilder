@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { ensureCardsExistInDb } from '@/lib/ygoprodeck';
 import { UserCard } from '@/types/collection';
 
 // GET: Obtener cartas de la colección con filtros
@@ -480,47 +481,16 @@ export async function POST(req: NextRequest) {
       }
 
       // Asegurar que las cartas existan en yg_cards
-      for (const c of cardsList) {
-        if (!c.card_id) continue;
-        const { data: existingCard } = await supabase
-          .from('yg_cards')
-          .select('id')
-          .eq('id', c.card_id)
-          .maybeSingle();
-
-        if (!existingCard) {
-          try {
-            const response = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${c.card_id}`);
-            if (response.ok) {
-              const result = await response.json();
-              const cardData = result.data?.[0];
-              if (cardData) {
-                const img = cardData.card_images?.[0];
-                await supabase.from('yg_cards').upsert({
-                  id: cardData.id,
-                  name: cardData.name,
-                  type: cardData.type,
-                  desc: cardData.desc || '',
-                  atk: cardData.atk !== undefined ? cardData.atk : null,
-                  def: cardData.def !== undefined ? cardData.def : null,
-                  level: cardData.level !== undefined ? cardData.level : null,
-                  race: cardData.race || null,
-                  attribute: cardData.attribute || null,
-                  archetype: cardData.archetype || null,
-                  image_url: img ? img.image_url : null,
-                  image_url_small: img ? img.image_url_small : null,
-                  ban_master_duel: cardData.banlist_info?.ban_md || 'Unlimited',
-                  ban_tcg: cardData.banlist_info?.ban_tcg || 'Unlimited',
-                  ban_ocg: cardData.banlist_info?.ban_ocg || 'Unlimited',
-                  ban_duel_links: cardData.banlist_info?.ban_goat || 'Unlimited',
-                });
-              }
-            }
-          } catch (err) {
-            console.warn('Error al precargar carta faltante en lote:', err);
-          }
-        }
-      }
+      const cardSeedList = cardsList
+        .filter(c => !!c.card_id)
+        .map(c => ({
+          id: c.card_id as number,
+          name: c.card_details?.name,
+          type: c.card_details?.type,
+          image_url: c.card_details?.image_url,
+          image_url_small: c.card_details?.image_url_small
+        }));
+      await ensureCardsExistInDb(cardSeedList);
 
       const insertPayload = cardsList.map((c: Partial<UserCard>) => ({
         card_id: c.card_id,
@@ -534,7 +504,6 @@ export async function POST(req: NextRequest) {
         is_proxy: !!c.is_proxy,
         notes: c.notes || '',
       }));
-
 
       const { data, error } = await supabase
         .from('yg_user_cards')
@@ -587,44 +556,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Asegurarse de que la carta de Yu-Gi-Oh! exista en la tabla yg_cards de la BD
-    const { data: existingCard } = await supabase
-      .from('yg_cards')
-      .select('id')
-      .eq('id', card_id)
-      .maybeSingle();
-
-    if (!existingCard) {
-      try {
-        const response = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${card_id}`);
-        if (response.ok) {
-          const result = await response.json();
-          const c = result.data?.[0];
-          if (c) {
-            const img = c.card_images?.[0];
-            await supabase.from('yg_cards').upsert({
-              id: c.id,
-              name: c.name,
-              type: c.type,
-              desc: c.desc || '',
-              atk: c.atk !== undefined ? c.atk : null,
-              def: c.def !== undefined ? c.def : null,
-              level: c.level !== undefined ? c.level : null,
-              race: c.race || null,
-              attribute: c.attribute || null,
-              archetype: c.archetype || null,
-              image_url: img ? img.image_url : null,
-              image_url_small: img ? img.image_url_small : null,
-              ban_master_duel: c.banlist_info?.ban_md || 'Unlimited',
-              ban_tcg: c.banlist_info?.ban_tcg || 'Unlimited',
-              ban_ocg: c.banlist_info?.ban_ocg || 'Unlimited',
-              ban_duel_links: c.banlist_info?.ban_goat || 'Unlimited',
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Error al buscar carta faltante al registrar manualmente:', err);
-      }
-    }
+    await ensureCardsExistInDb([{
+      id: Number(card_id),
+      name: body.name,
+      type: body.type,
+      image_url: body.image_url,
+      image_url_small: body.image_url_small || body.image_url
+    }]);
 
     const { data, error } = await supabase
       .from('yg_user_cards')
