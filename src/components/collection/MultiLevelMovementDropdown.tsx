@@ -92,6 +92,21 @@ export const MultiLevelMovementDropdown: React.FC<MultiLevelMovementDropdownProp
     }
   };
 
+  const [dropDirection, setDropDirection] = useState<'down' | 'up'>('down');
+
+  useEffect(() => {
+    if (isOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < 320 && spaceAbove > spaceBelow) {
+        setDropDirection('up');
+      } else {
+        setDropDirection('down');
+      }
+    }
+  }, [isOpen]);
+
   const getLevelBadgeStyles = (level: number) => {
     switch (level) {
       case 1:
@@ -107,7 +122,7 @@ export const MultiLevelMovementDropdown: React.FC<MultiLevelMovementDropdownProp
   };
 
   return (
-    <div ref={dropdownRef} className="relative inline-block text-left">
+    <div ref={dropdownRef} className={`relative inline-block text-left ${isOpen ? 'z-40' : 'z-10'}`}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
@@ -126,11 +141,11 @@ export const MultiLevelMovementDropdown: React.FC<MultiLevelMovementDropdownProp
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            initial={{ opacity: 0, y: dropDirection === 'up' ? -6 : 6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            exit={{ opacity: 0, y: dropDirection === 'up' ? -6 : 6, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl z-50 overflow-hidden font-sans"
+            className={`absolute left-0 sm:right-0 sm:left-auto ${dropDirection === 'up' ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'} w-80 sm:w-96 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl z-50 font-sans`}
           >
             {/* DROPDOWN HEADER */}
             <div className="p-3.5 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">

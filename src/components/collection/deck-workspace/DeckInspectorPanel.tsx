@@ -121,7 +121,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   return (
     <div 
       style={!isMobile ? { width: `${rightPanelWidth}px` } : {}}
-      className={`${mobileTab === 'right' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 flex-col h-full overflow-y-auto p-4 sm:p-5 z-20 space-y-4`}
+      className={`${mobileTab === 'right' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 flex-col h-full overflow-y-auto p-4 sm:p-5 z-20 space-y-4 pb-32`}
     >
       {/* Switch Segmentado: FICHA TÉCNICA / DETALLES DE CARTA / COLECCIÓN */}
       <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 gap-2 shrink-0">

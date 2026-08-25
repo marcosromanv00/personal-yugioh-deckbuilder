@@ -28,6 +28,7 @@ export interface PremiumDropdownProps<T = string> {
   align?: 'left' | 'right' | 'full';
   disabled?: boolean;
   maxMenuHeight?: string;
+  direction?: 'auto' | 'down' | 'up';
 }
 
 export const PremiumDropdown = <T extends string | number>({
@@ -44,10 +45,34 @@ export const PremiumDropdown = <T extends string | number>({
   size = 'sm',
   align = 'left',
   disabled = false,
-  maxMenuHeight = 'max-h-64',
+  maxMenuHeight = 'max-h-60',
+  direction = 'auto',
 }: PremiumDropdownProps<T>) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [computedDirection, setComputedDirection] = useState<'down' | 'up'>('down');
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Calcular la dirección óptima de apertura (arriba o abajo) según el espacio disponible en pantalla
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      if (direction === 'up' || direction === 'down') {
+        setComputedDirection(direction);
+        return;
+      }
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      // Si abajo hay menos de 220px y arriba hay más espacio, abrir hacia arriba
+      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+        setComputedDirection('up');
+      } else {
+        setComputedDirection('down');
+      }
+    }
+  }, [isOpen, direction]);
 
   // Cerrar al hacer clic fuera o presionar Escape
   useEffect(() => {
@@ -89,8 +114,13 @@ export const PremiumDropdown = <T extends string | number>({
       ? `right-0 ${menuWidth}`
       : `left-0 ${menuWidth}`;
 
+  const positionClass =
+    computedDirection === 'up'
+      ? 'bottom-full mb-1.5 origin-bottom'
+      : 'top-full mt-1.5 origin-top';
+
   return (
-    <div className={`relative inline-block text-left ${align === 'full' ? 'w-full' : ''} ${className}`} ref={containerRef}>
+    <div className={`relative inline-block text-left ${isOpen ? 'z-40' : 'z-10'} ${align === 'full' ? 'w-full' : ''} ${className}`} ref={containerRef}>
       {/* Botón Trigger del Dropdown */}
       <button
         type="button"
@@ -130,11 +160,11 @@ export const PremiumDropdown = <T extends string | number>({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: computedDirection === 'up' ? 4 : -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: computedDirection === 'up' ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.12, ease: 'easeOut' }}
-            className={`absolute z-100 mt-1 ${alignClass} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl shadow-black/40 p-1.5 space-y-0.5 ${maxMenuHeight} overflow-y-auto scrollbar-thin font-sans ${menuClassName}`}
+            className={`absolute z-50 ${positionClass} ${alignClass} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl shadow-black/50 p-1.5 space-y-0.5 ${maxMenuHeight} overflow-y-auto scrollbar-thin font-sans ${menuClassName}`}
           >
             {options.map((option) => {
               const isSelected = option.value === value;

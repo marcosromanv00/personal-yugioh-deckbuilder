@@ -198,7 +198,7 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
       </div>
 
       {/* ── Sección de Copias y Variantes Físicas en Colección ── */}
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-zinc-50/50 dark:bg-zinc-900/30 shadow-2xs">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-visible bg-zinc-50/50 dark:bg-zinc-900/30 shadow-2xs">
         <div className="p-3 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800/80 bg-zinc-100/60 dark:bg-zinc-900/60">
           <span className="flex items-center gap-1.5 text-xs font-mono font-black text-zinc-800 dark:text-zinc-200">
             <Layers className="w-3.5 h-3.5 text-red-500" />
