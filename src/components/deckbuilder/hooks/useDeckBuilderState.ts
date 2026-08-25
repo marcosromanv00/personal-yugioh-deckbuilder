@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, DeckCard, ArchetypeItem, BreakdownCardItem, BanlistAlert, Replacement, HistoryItem } from '../types';
 import { FilterState } from '../CardFilters';
 import { StorageLocation, SleeveInventory, DeckSleeve, Deck, UserCard } from '@/types/collection';
@@ -32,6 +32,7 @@ export function useDeckBuilderState() {
   const [deckDescription, setDeckDescription] = useState('');
   const [deckId, setDeckId] = useState<string | null>(null);
   const [searchLimit, setSearchLimit] = useState(45);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>('');
 
   const handleUpdateDeckName = (name: string, isManual = true) => {
     if (!name.trim()) {
@@ -931,9 +932,43 @@ export function useDeckBuilderState() {
         const extraSleeve = assigned.find(a => a.section_type === 'extra');
         setSelectedMainSleeveId(mainSleeve?.sleeve_id || '');
         setSelectedExtraSleeveId(extraSleeve?.sleeve_id || '');
+        setLastSavedSnapshot(JSON.stringify({
+          deckName: selected.name,
+          deckDescription: selected.description || '',
+          format: fmt,
+          saveFormat: fmt,
+          deckId: selected.id,
+          selectedMainSleeveId: mainSleeve?.sleeve_id || '',
+          selectedExtraSleeveId: extraSleeve?.sleeve_id || '',
+          cards: initialMappedCards.map(c => ({
+            id: c.id,
+            count: c.count,
+            section: c.section,
+            proxy_count: c.proxy_count || 0,
+            rarity: c.rarity,
+            condition: c.condition,
+          })),
+        }));
       } else {
         setSelectedMainSleeveId('');
         setSelectedExtraSleeveId('');
+        setLastSavedSnapshot(JSON.stringify({
+          deckName: selected.name,
+          deckDescription: selected.description || '',
+          format: fmt,
+          saveFormat: fmt,
+          deckId: selected.id,
+          selectedMainSleeveId: '',
+          selectedExtraSleeveId: '',
+          cards: initialMappedCards.map(c => ({
+            id: c.id,
+            count: c.count,
+            section: c.section,
+            proxy_count: c.proxy_count || 0,
+            rarity: c.rarity,
+            condition: c.condition,
+          })),
+        }));
       }
     } catch (e) {
       console.error('Error al cargar fundas al seleccionar deck:', e);
@@ -941,6 +976,33 @@ export function useDeckBuilderState() {
       setSelectedExtraSleeveId('');
     }
   }, []);
+
+  const currentSnapshot = useMemo(() => {
+    return JSON.stringify({
+      deckName,
+      deckDescription,
+      format,
+      saveFormat,
+      deckId,
+      selectedMainSleeveId,
+      selectedExtraSleeveId,
+      cards: deckCards.map(c => ({
+        id: c.id,
+        count: c.count,
+        section: c.section,
+        proxy_count: c.proxy_count || 0,
+        rarity: c.rarity,
+        condition: c.condition,
+      })),
+    });
+  }, [deckName, deckDescription, format, saveFormat, deckId, selectedMainSleeveId, selectedExtraSleeveId, deckCards]);
+
+  const isDirty = useMemo(() => {
+    if (lastSavedSnapshot) {
+      return currentSnapshot !== lastSavedSnapshot;
+    }
+    return deckCards.length > 0 || isManualDeckName;
+  }, [lastSavedSnapshot, currentSnapshot, deckCards.length, isManualDeckName]);
 
 
   const handleSaveDeck = async () => {
@@ -1039,6 +1101,24 @@ export function useDeckBuilderState() {
           }
         }
 
+        setLastSavedSnapshot(JSON.stringify({
+          deckName,
+          deckDescription,
+          format: saveFormat,
+          saveFormat,
+          deckId: savedDeckId,
+          selectedMainSleeveId,
+          selectedExtraSleeveId,
+          cards: deckCards.map(c => ({
+            id: c.id,
+            count: c.count,
+            section: c.section,
+            proxy_count: c.proxy_count || 0,
+            rarity: c.rarity,
+            condition: c.condition,
+          })),
+        }));
+
         alert(method === 'PUT' ? '¡Deck sobrescrito exitosamente!' : '¡Copia nueva guardada exitosamente!');
         setIsSaveModalOpen(false);
       } else {
@@ -1064,6 +1144,7 @@ export function useDeckBuilderState() {
         if (deckId === id) {
           setDeckId(null);
           setDeckCards([]);
+          setLastSavedSnapshot('');
         }
       }
     } catch (e) {
@@ -1072,10 +1153,14 @@ export function useDeckBuilderState() {
   };
 
   const handleClearDeck = () => {
-    if (confirm('¿Estás seguro de que deseas limpiar todo el deck actual? Esta acción no se puede deshacer.')) {
-      setDeckCards([]);
-      setDeckId(null);
-    }
+    setDeckCards([]);
+    setDeckId(null);
+    setDeckName('Nuevo Deck TCG');
+    setIsManualDeckName(false);
+    isManualDeckNameRef.current = false;
+    setSelectedMainSleeveId('');
+    setSelectedExtraSleeveId('');
+    setLastSavedSnapshot('');
   };
 
   const handleExcludeExisting = () => {
@@ -1368,6 +1453,10 @@ export function useDeckBuilderState() {
     handleRedo,
     canUndo: historyStack.length > 0,
     canRedo: redoStack.length > 0,
-    exportYdkFile
+    exportYdkFile,
+    isDirty,
+    currentSnapshot,
+    lastSavedSnapshot,
+    setLastSavedSnapshot,
   };
 }

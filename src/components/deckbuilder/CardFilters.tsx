@@ -45,7 +45,8 @@ const ATTRIBUTES = ['DARK', 'LIGHT', 'FIRE', 'WATER', 'EARTH', 'WIND', 'DIVINE']
 
 const RARITIES = [
   'Common', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare', 
-  'Ultimate Rare', 'Ghost Rare', 'Gold Rare', 'Collector\'s Rare', 'Starlight Rare'
+  'Ultimate Rare', 'Ghost Rare', 'Gold Rare', 'Collector\'s Rare', 'Starlight Rare',
+  'Quarter Century Secret Rare', 'Proxy'
 ];
 
 const STATUS_FLAGS = [

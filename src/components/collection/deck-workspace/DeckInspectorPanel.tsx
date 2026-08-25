@@ -52,6 +52,9 @@ interface DeckInspectorPanelProps {
   selectedPhysicalUserCards: UserCard[];
   onChangeCardSection: (cardId: number, currentSection: string, targetSection: string) => void;
   onUpdateCardPhysicalLocation: (userCardId: string, locationId: string | null, compartmentIdx: number) => void;
+  onUpdateUserCard?: (userCardId: string, fields: Partial<UserCard>) => void;
+  onAddPhysicalCopyForCard?: (cardId: number, isProxy?: boolean) => void;
+  onDeleteUserCard?: (userCardId: string) => void;
   onRemoveCardFromDeck: (cardId: number, section: 'main' | 'extra' | 'side' | 'pool') => void;
 
   // Sinergias & Sugerencias de Colección
@@ -101,6 +104,9 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   selectedPhysicalUserCards,
   onChangeCardSection,
   onUpdateCardPhysicalLocation,
+  onUpdateUserCard,
+  onAddPhysicalCopyForCard,
+  onDeleteUserCard,
   onRemoveCardFromDeck,
 
   allUserCards = [],
@@ -210,6 +216,9 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
             currentBaseLocation={currentBaseLocation}
             onChangeCardSection={onChangeCardSection}
             onUpdateCardPhysicalLocation={onUpdateCardPhysicalLocation}
+            onUpdateUserCard={onUpdateUserCard}
+            onAddPhysicalCopyForCard={onAddPhysicalCopyForCard}
+            onDeleteUserCard={onDeleteUserCard}
             onRemoveCardFromDeck={onRemoveCardFromDeck}
           />
         ) : (

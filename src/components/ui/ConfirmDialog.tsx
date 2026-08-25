@@ -10,9 +10,11 @@ interface ConfirmDialogProps {
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  saveLabel?: string;
   variant?: 'danger' | 'warning' | 'primary';
   isLoading?: boolean;
   onConfirm: () => void | Promise<void>;
+  onSave?: () => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -22,9 +24,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   description,
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
+  saveLabel,
   variant = 'danger',
   isLoading = false,
   onConfirm,
+  onSave,
   onClose,
 }) => {
   if (!isOpen) return null;
@@ -57,7 +61,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -80,33 +84,45 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
             <div className="flex-1 min-w-0">
               <h3 className="font-black text-sm uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-1">{title}</h3>
-              <p className="text-xs text-zinc-500 leading-relaxed">{description}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{description}</p>
             </div>
 
             <button
               onClick={onClose}
               disabled={isLoading}
-              className="p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer min-h-11 min-w-11 flex items-center justify-center touch-manipulation shrink-0"
+              title="Cerrar"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer min-h-11 touch-manipulation flex items-center justify-center"
             >
               {cancelLabel}
             </button>
+
+            {saveLabel && onSave && (
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={isLoading}
+                className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 min-h-11 touch-manipulation flex items-center justify-center"
+              >
+                {saveLabel}
+              </button>
+            )}
 
             <button
               type="button"
               onClick={onConfirm}
               disabled={isLoading}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 ${styles.confirmBtn}`}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 min-h-11 touch-manipulation flex items-center justify-center ${styles.confirmBtn}`}
             >
               {isLoading ? 'Procesando...' : confirmLabel}
             </button>

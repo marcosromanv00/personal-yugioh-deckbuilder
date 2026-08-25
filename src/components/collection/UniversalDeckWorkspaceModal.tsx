@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { usePanelResize } from '@/components/deckbuilder/hooks/usePanelResize';
 import { SearchPanel } from '@/components/deckbuilder/components/SearchPanel';
@@ -11,6 +11,7 @@ import { DeckWorkspaceHeader } from './deck-workspace/DeckWorkspaceHeader';
 import { DeckCenterPanel } from './deck-workspace/DeckCenterPanel';
 import { DeckInspectorPanel } from './deck-workspace/DeckInspectorPanel';
 import { Card } from '@/components/deckbuilder/types';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalProps> = (props) => {
   const {
@@ -37,12 +38,36 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
     onSuccess,
   });
 
+  const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
+
+  // Advertencia de recarga del navegador si hay cambios sin guardar
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (state.isMetadataDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isOpen, state.isMetadataDirty]);
+
+  const handleRequestClose = (hasMutated?: boolean) => {
+    if (state.isMetadataDirty) {
+      setIsConfirmCloseOpen(true);
+    } else {
+      onClose(hasMutated ?? state.hasMutated);
+    }
+  };
+
   if (!isOpen || !state.currentDeck) return null;
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:py-2 sm:px-4 bg-black/80 backdrop-blur-md overflow-hidden font-sans select-none"
-      onClick={() => onClose(state.hasMutated)}
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:py-2 sm:px-4 bg-black/80 overflow-hidden font-sans select-none"
+      onClick={() => handleRequestClose(state.hasMutated)}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
@@ -65,7 +90,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           totalSideCount={state.totalSideCount}
           totalPoolCount={state.totalPoolCount}
           hasMutated={state.hasMutated}
-          onClose={onClose}
+          onClose={() => handleRequestClose(state.hasMutated)}
           onNavigatePrev={state.handleNavigatePrev}
           onNavigateNext={state.handleNavigateNext}
           mobileTab={state.mobileTab}
@@ -206,6 +231,9 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             selectedPhysicalUserCards={state.selectedPhysicalUserCards}
             onChangeCardSection={state.handleChangeCardSection}
             onUpdateCardPhysicalLocation={state.handleUpdateCardPhysicalLocation}
+            onUpdateUserCard={state.handleUpdateUserCard}
+            onAddPhysicalCopyForCard={state.handleAddPhysicalCopyForCard}
+            onDeleteUserCard={state.handleDeleteUserCard}
             onRemoveCardFromDeck={state.handleRemoveCardFromDeck}
             currentDeckId={state.currentDeck?.id}
             allUserCards={props.allUserCards && props.allUserCards.length > 0 ? props.allUserCards : state.userCards}
@@ -232,6 +260,27 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
               state.setAvailableSleeves(json.data || []);
             }
           }}
+        />
+
+        {/* Diálogo de Confirmación para Cambios No Guardados en Ficha Técnica */}
+        <ConfirmDialog
+          isOpen={isConfirmCloseOpen}
+          title="¿Cerrar sin guardar la ficha técnica?"
+          description={`Has realizado modificaciones en el nombre, formato, ubicación o fundas del mazo "${state.name || state.currentDeck.name}". ¿Deseas salir y descartar los cambios no guardados?`}
+          confirmLabel="Descartar y Salir"
+          cancelLabel="Continuar Editando"
+          saveLabel="Guardar y Salir"
+          variant="warning"
+          onConfirm={() => {
+            setIsConfirmCloseOpen(false);
+            onClose(state.hasMutated);
+          }}
+          onSave={async () => {
+            await state.handleSaveDeck();
+            setIsConfirmCloseOpen(false);
+            onClose(true);
+          }}
+          onClose={() => setIsConfirmCloseOpen(false)}
         />
 
       </motion.div>

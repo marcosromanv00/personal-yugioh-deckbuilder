@@ -654,8 +654,14 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
                     Rareza
                   </label>
                   <PremiumDropdown
-                    value={activeCardDetails.rarity}
-                    onChange={(val) => updateCardInSlot(activeCardDetails.id, { rarity: val })}
+                    value={activeCardDetails.is_proxy ? 'Proxy' : (activeCardDetails.rarity || 'Common')}
+                    onChange={(val) => {
+                      if (val === 'Proxy') {
+                        updateCardInSlot(activeCardDetails.id, { is_proxy: true, rarity: 'Proxy' });
+                      } else {
+                        updateCardInSlot(activeCardDetails.id, { is_proxy: false, rarity: val });
+                      }
+                    }}
                     align="full"
                     size="md"
                     options={[
@@ -667,6 +673,9 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
                       { value: 'Ultimate Rare', label: 'Ultimate Rare' },
                       { value: 'Ghost Rare', label: 'Ghost Rare' },
                       { value: 'Starlight Rare', label: 'Starlight Rare' },
+                      { value: "Collector's Rare", label: "Collector's Rare" },
+                      { value: 'Quarter Century Secret Rare', label: '25th Quarter Century' },
+                      { value: 'Proxy', label: '🖨️ Proxy (Copia Impresa)' },
                     ]}
                   />
                 </div>

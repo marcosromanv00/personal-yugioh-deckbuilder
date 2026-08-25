@@ -43,6 +43,7 @@ const RARITIES = [
   'Ghost Rare',
   'Gold Rare',
   'Quarter Century Secret Rare',
+  'Proxy',
 ];
 
 const CONDITIONS = [

@@ -196,9 +196,16 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                 {activeVariants.map((v, idx) => (
                   <div key={v.id} className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 shadow-2xs">
                     <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-1.5">
-                      <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
-                        Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
+                          Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
+                        </span>
+                        {(v.is_proxy || v.rarity === 'Proxy') && (
+                          <span className="text-[9px] font-mono font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40">
+                            🖨️ PROXY
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2.5">
                         {(v.quantity || 1) > 1 && (
                           <button
@@ -243,8 +250,14 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                           Rareza:
                         </label>
                         <PremiumDropdown
-                          value={v.rarity || 'Common'}
-                          onChange={(val) => onUpdateVariantById(v.id, { rarity: val })}
+                          value={v.is_proxy ? 'Proxy' : (v.rarity || 'Common')}
+                          onChange={(val) => {
+                            if (val === 'Proxy') {
+                              onUpdateVariantById(v.id, { is_proxy: true, rarity: 'Proxy' });
+                            } else {
+                              onUpdateVariantById(v.id, { is_proxy: false, rarity: val });
+                            }
+                          }}
                           align="full"
                           size="sm"
                           options={[
@@ -258,6 +271,7 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                             { value: 'Starlight Rare', label: 'Starlight Rare' },
                             { value: "Collector's Rare", label: "Collector's Rare" },
                             { value: 'Quarter Century Secret Rare', label: '25th Quarter Century' },
+                            { value: 'Proxy', label: '🖨️ Proxy (Copia Impresa)' },
                           ]}
                         />
                       </div>
@@ -322,9 +336,16 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
               {activeVariants.map((v, idx) => (
                 <div key={v.id} className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 shadow-2xs">
                   <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-1.5">
-                    <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
-                      Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-mono font-black text-purple-600 dark:text-purple-400 uppercase">
+                        Variante #{idx + 1} ({v.quantity || 1} {v.quantity === 1 ? 'copia' : 'copias'})
+                      </span>
+                      {(v.is_proxy || v.rarity === 'Proxy') && (
+                        <span className="text-[9px] font-mono font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40">
+                          🖨️ PROXY
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2.5">
                       {(v.quantity || 1) > 1 && (
                         <button
@@ -369,8 +390,14 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                         Rareza:
                       </label>
                       <PremiumDropdown
-                        value={v.rarity || 'Common'}
-                        onChange={(val) => onUpdateVariantById(v.id, { rarity: val })}
+                        value={v.is_proxy ? 'Proxy' : (v.rarity || 'Common')}
+                        onChange={(val) => {
+                          if (val === 'Proxy') {
+                            onUpdateVariantById(v.id, { is_proxy: true, rarity: 'Proxy' });
+                          } else {
+                            onUpdateVariantById(v.id, { is_proxy: false, rarity: val });
+                          }
+                        }}
                         align="full"
                         size="sm"
                         options={[
@@ -384,6 +411,7 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                           { value: 'Starlight Rare', label: 'Starlight Rare' },
                           { value: "Collector's Rare", label: "Collector's Rare" },
                           { value: 'Quarter Century Secret Rare', label: '25th Quarter Century' },
+                          { value: 'Proxy', label: '🖨️ Proxy (Copia Impresa)' },
                         ]}
                       />
                     </div>

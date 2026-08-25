@@ -156,6 +156,48 @@ export default function DeckBuilder() {
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isYdkUploadOpen, setIsYdkUploadOpen] = useState(false);
   const [isAICopilotOpen, setIsAICopilotOpen] = useState(false);
+  const [isUnsavedConfirmOpen, setIsUnsavedConfirmOpen] = useState(false);
+  const [pendingGuardedAction, setPendingGuardedAction] = useState<(() => void) | null>(null);
+
+  // Advertencia de recarga/cierre de pestaña si hay progreso no guardado
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (state.isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [state.isDirty]);
+
+  // Interceptar botón atrás del navegador si hay progreso no guardado
+  useEffect(() => {
+    if (!state.isDirty) return;
+
+    window.history.pushState({ deckbuilderGuard: true }, '');
+
+    const handlePopState = () => {
+      setIsUnsavedConfirmOpen(true);
+      setPendingGuardedAction(() => () => {
+        window.history.back();
+      });
+      window.history.pushState({ deckbuilderGuard: true }, '');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [state.isDirty]);
+
+  const executeGuardedAction = useCallback((action: () => void) => {
+    if (state.isDirty) {
+      setPendingGuardedAction(() => action);
+      setIsUnsavedConfirmOpen(true);
+    } else {
+      action();
+    }
+  }, [state.isDirty]);
 
   // 5. Right panel tabs & card detail selection
   const [activeRightTab, setActiveRightTab] = useState<'detail' | 'meta' | 'collection'>('detail');
@@ -698,13 +740,13 @@ export default function DeckBuilder() {
             {/* Menú Desplegable de Operaciones de Deck */}
             <DeckActionsDropdown
               onSave={state.handleOpenSaveModal}
-              onLoad={state.handleOpenLoadModal}
-              onImportYdk={() => setIsYdkUploadOpen(true)}
+              onLoad={() => executeGuardedAction(state.handleOpenLoadModal)}
+              onImportYdk={() => executeGuardedAction(() => setIsYdkUploadOpen(true))}
               onExportYdk={() => {
                 state.exportYdkFile();
                 toast.success('Archivo .YDK descargado');
               }}
-              onClear={() => setIsClearConfirmOpen(true)}
+              onClear={() => executeGuardedAction(() => setIsClearConfirmOpen(true))}
               onSyncMeta={() => state.triggerSync()}
               hasCards={state.deckCards.length > 0}
               isSyncing={state.isSyncing}
@@ -1473,6 +1515,33 @@ export default function DeckBuilder() {
           toast.info('Deck limpiado');
         }}
         onClose={() => setIsClearConfirmOpen(false)}
+      />
+
+      {/* CONFIRM UNSAVED PROGRESS SAFETY DIALOG */}
+      <ConfirmDialog
+        isOpen={isUnsavedConfirmOpen}
+        title="¿Descartar cambios no guardados?"
+        description={`Tienes modificaciones no guardadas en el mazo "${state.deckName}". Si continúas con esta acción, perderás tu avance no guardado.`}
+        confirmLabel="Descartar y Continuar"
+        cancelLabel="Continuar Editando"
+        saveLabel="Guardar Mazo"
+        variant="warning"
+        onConfirm={() => {
+          setIsUnsavedConfirmOpen(false);
+          if (pendingGuardedAction) {
+            const action = pendingGuardedAction;
+            setPendingGuardedAction(null);
+            action();
+          }
+        }}
+        onSave={() => {
+          setIsUnsavedConfirmOpen(false);
+          state.handleOpenSaveModal();
+        }}
+        onClose={() => {
+          setIsUnsavedConfirmOpen(false);
+          setPendingGuardedAction(null);
+        }}
       />
 
       {/* YDK / BULK IDS UPLOAD MODAL IN DECKBUILDER */}

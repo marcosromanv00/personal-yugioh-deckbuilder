@@ -83,6 +83,17 @@ export function useDeckWorkspaceState({
   const [searchViewMode, setSearchViewMode] = useState<'grid' | 'list'>('grid');
   const [searchLimit, setSearchLimit] = useState(50);
 
+  // Estado inicial del formulario para detectar cambios sin guardar
+  const [initialFormState, setInitialFormState] = useState<{
+    name: string;
+    format: string;
+    isActive: boolean;
+    storageLocationId: string;
+    compartmentIndex: number;
+    mainSleeveId: string;
+    extraSleeveId: string;
+  } | null>(null);
+
   // Mobile Tabs
   const [mobileTab, setMobileTab] = useState<MobileDeckTab>('center');
   const [isMobile, setIsMobile] = useState(false);
@@ -133,15 +144,26 @@ export function useDeckWorkspaceState({
     }
 
     // Cargar fundas asignadas al deck si existen
+    let initMainSleeve = '';
+    let initExtraSleeve = '';
     if (deck.sleeves && Array.isArray(deck.sleeves)) {
       const mainSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'main' || ('section' in s ? s.section : s.section_type) === 'main_side');
       const extraSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'extra');
-      setMainSleeveId(mainSl?.sleeve_id || '');
-      setExtraSleeveId(extraSl?.sleeve_id || '');
-    } else {
-      setMainSleeveId('');
-      setExtraSleeveId('');
+      initMainSleeve = mainSl?.sleeve_id || '';
+      initExtraSleeve = extraSl?.sleeve_id || '';
     }
+    setMainSleeveId(initMainSleeve);
+    setExtraSleeveId(initExtraSleeve);
+
+    setInitialFormState({
+      name: deck.name || '',
+      format: deck.format || 'TCG',
+      isActive: deck.is_active ?? true,
+      storageLocationId: deck.storage_location_id || '',
+      compartmentIndex: initialComp,
+      mainSleeveId: initMainSleeve,
+      extraSleeveId: initExtraSleeve,
+    });
 
     const fetchDeckDetails = async () => {
       setLoading(true);
@@ -500,12 +522,115 @@ export function useDeckWorkspaceState({
 
       toast.success('Ficha técnica del mazo guardada correctamente');
       setHasMutated(true);
+      setInitialFormState({
+        name: name.trim() || currentDeck.name,
+        format: format,
+        isActive: isActive,
+        storageLocationId: storageLocationId || '',
+        compartmentIndex: compartmentIndex,
+        mainSleeveId: mainSleeveId,
+        extraSleeveId: extraSleeveId,
+      });
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error('Error al guardar el deck:', err);
       toast.error('No se pudo guardar la ficha técnica del deck');
     } finally {
       setSavingDeck(false);
+    }
+  };
+
+  // Detectar si la ficha técnica del mazo tiene cambios sin guardar
+  const isMetadataDirty = useMemo(() => {
+    if (!initialFormState) return false;
+    return (
+      name !== initialFormState.name ||
+      format !== initialFormState.format ||
+      isActive !== initialFormState.isActive ||
+      storageLocationId !== initialFormState.storageLocationId ||
+      compartmentIndex !== initialFormState.compartmentIndex ||
+      mainSleeveId !== initialFormState.mainSleeveId ||
+      extraSleeveId !== initialFormState.extraSleeveId
+    );
+  }, [initialFormState, name, format, isActive, storageLocationId, compartmentIndex, mainSleeveId, extraSleeveId]);
+
+  // Actualizar metadatos de una copia física (rareza, condición, proxy, notas, funda, ubicación)
+  const handleUpdateUserCard = async (userCardId: string, fields: Partial<UserCard>) => {
+    setUserCards(prev => prev.map(uc => uc.id === userCardId ? { ...uc, ...fields } : uc));
+    setHasMutated(true);
+
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: userCardId,
+          ...fields,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Error al actualizar copia física');
+      toast.success('Detalles de la copia física actualizados');
+    } catch (err) {
+      console.error('Error al actualizar copia física:', err);
+      toast.error('No se pudo actualizar la copia física');
+    }
+  };
+
+  // Registrar una nueva copia física o proxy directamente desde el constructor
+  const handleAddPhysicalCopyForCard = async (cardId: number, isProxy: boolean = false) => {
+    try {
+      const payload: Record<string, unknown> = {
+        card_id: cardId,
+        storage_location_id: storageLocationId || null,
+        compartment_index: compartmentIndex || 0,
+        quantity: 1,
+        rarity: isProxy ? 'Proxy' : 'Common',
+        condition: 'Near Mint',
+        status_flag: 'in_deck',
+        deck_id: currentDeck?.id || null,
+        deck_section: selectedCardDetail?.section || 'main',
+        is_proxy: isProxy,
+        sleeve_type: 'none',
+      };
+
+      const res = await fetch('/api/collection/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const newCard: UserCard = json.data;
+        if (newCard) {
+          setUserCards(prev => [newCard, ...prev]);
+        }
+        setHasMutated(true);
+        toast.success(isProxy ? 'Proxy registrada en tu colección' : 'Copia física registrada');
+      } else {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.error || 'Error al registrar la copia física');
+      }
+    } catch (err) {
+      console.error('Error al registrar copia:', err);
+      toast.error('Error de conexión al registrar la copia');
+    }
+  };
+
+  // Eliminar copia física de la colección
+  const handleDeleteUserCard = async (userCardId: string) => {
+    if (!confirm('¿Eliminar esta copia física de tu colección?')) return;
+
+    setUserCards(prev => prev.filter(uc => uc.id !== userCardId));
+    setHasMutated(true);
+
+    try {
+      await fetch(`/api/collection/cards?id=${userCardId}`, { method: 'DELETE' });
+      toast.success('Copia eliminada de la colección');
+    } catch (err) {
+      console.error('Error al eliminar copia física:', err);
+      toast.error('No se pudo eliminar la copia física');
     }
   };
 
@@ -562,6 +687,7 @@ export function useDeckWorkspaceState({
     setCompartmentIndex,
     savingDeck,
     handleSaveDeck,
+    isMetadataDirty,
 
     // Sleeves
     availableSleeves,
@@ -632,5 +758,8 @@ export function useDeckWorkspaceState({
     handleRemoveCardFromDeck,
     handleChangeCardSection,
     handleUpdateCardPhysicalLocation,
+    handleUpdateUserCard,
+    handleAddPhysicalCopyForCard,
+    handleDeleteUserCard,
   };
 }
