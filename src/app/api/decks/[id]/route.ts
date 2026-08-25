@@ -91,6 +91,7 @@ export async function PUT(
       format,
       skill_name,
       storage_location_id,
+      compartment_index,
       is_active,
       sleeves // Array de { sleeve_id: string, section: 'main_side' | 'extra' }
     } = body;
@@ -131,16 +132,74 @@ export async function PUT(
         .eq('deck_id', deckId);
     }
 
-    // Actualizar ubicación física base de las cartas del deck si cambió storage_location_id
+    // Actualizar ubicación física base de las cartas del deck si cambió storage_location_id o compartment_index
     if (storage_location_id !== undefined) {
+      const cardUpdate: Record<string, unknown> = {
+        storage_location_id: storage_location_id,
+        binder_page: null,
+        binder_slot: null
+      };
+      if (compartment_index !== undefined) {
+        cardUpdate.compartment_index = compartment_index;
+      }
       await supabase
         .from('yg_user_cards')
-        .update({
-          storage_location_id: storage_location_id,
-          binder_page: null,
-          binder_slot: null
-        })
+        .update(cardUpdate)
         .eq('deck_id', deckId);
+
+      // Sincronizar asignación de carril en yg_storage_locations
+      const { data: allLocations } = await supabase
+        .from('yg_storage_locations')
+        .select('id, compartments');
+      
+      if (allLocations && Array.isArray(allLocations)) {
+        for (const locItem of allLocations) {
+          const comp = locItem.compartments as { count?: number; names?: string[]; deck_ids?: (string | null)[] } | null;
+          if (!comp) continue;
+
+          let hasChanges = false;
+          const currentDeckIds = Array.isArray(comp.deck_ids) ? [...comp.deck_ids] : [];
+
+          const newDeckIds = currentDeckIds.map((dId, idx) => {
+            if (storage_location_id && locItem.id === storage_location_id && idx === (compartment_index ?? 0)) {
+              if (dId !== deckId) {
+                hasChanges = true;
+                return deckId;
+              }
+              return dId;
+            }
+            if (dId === deckId) {
+              hasChanges = true;
+              return null;
+            }
+            return dId;
+          });
+
+          if (storage_location_id && locItem.id === storage_location_id) {
+            const targetIdx = compartment_index ?? 0;
+            while (newDeckIds.length <= targetIdx) {
+              newDeckIds.push(null);
+              hasChanges = true;
+            }
+            if (newDeckIds[targetIdx] !== deckId) {
+              newDeckIds[targetIdx] = deckId;
+              hasChanges = true;
+            }
+          }
+
+          if (hasChanges) {
+            await supabase
+              .from('yg_storage_locations')
+              .update({
+                compartments: {
+                  ...comp,
+                  deck_ids: newDeckIds
+                }
+              })
+              .eq('id', locItem.id);
+          }
+        }
+      }
     }
 
     // Sincronizar fundas asignadas al deck si se especificaron

@@ -1403,6 +1403,25 @@ export const useContainerWorkspaceState = ({
         await fetchCards();
       }
 
+      // Si el nuevo deck estaba antes en otro contenedor, limpiarlo de ese contenedor
+      if (newDeckId) {
+        const prevContainer = locations.find(l => l.id !== activeLoc.id && l.compartments?.deck_ids?.includes(newDeckId));
+        if (prevContainer && prevContainer.compartments?.deck_ids) {
+          const cleanedPrevDeckIds = prevContainer.compartments.deck_ids.map(dId => dId === newDeckId ? null : dId);
+          await fetch('/api/collection/storage', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...prevContainer,
+              compartments: {
+                ...prevContainer.compartments,
+                deck_ids: cleanedPrevDeckIds
+              }
+            })
+          });
+        }
+      }
+
       const assignedDeck = internalDecks.find(d => d.id === newDeckId);
       if (newDeckId && assignedDeck) {
         toast.success(`Mazo "${assignedDeck.name}" asignado al Carril ${assignCompartmentIdx + 1}`, { title: '¡Mazo Asignado!' });
@@ -1422,24 +1441,163 @@ export const useContainerWorkspaceState = ({
     }
   };
 
-  // Mover todas las cartas de un mazo a otro carril
-  const handleMoveDeckCards = async (deckId: string, targetCompIdx: number) => {
+  // Mover mazo a otro carril, a otro contenedor o a Sin Clasificar
+  const handleMoveDeckCards = async (deckId: string, targetCompIdx: number = 0, targetLocationId?: string | null) => {
     const activeLoc = location;
     if (!activeLoc || isInbox) return;
+
+    // Si targetLocationId es undefined, se asume el contenedor actual
+    const destLocId = targetLocationId !== undefined ? targetLocationId : activeLoc.id;
+
     try {
-      const res = await fetch('/api/collection/cards', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'move_deck_cards',
-          target_deck_id: deckId,
-          target_storage_location_id: activeLoc.id,
-          target_compartment_index: targetCompIdx
-        })
-      });
-      if (!res.ok) throw new Error('Error al mover cartas');
-      const targetName = activeLoc.compartments?.names?.[targetCompIdx] || `Carril ${targetCompIdx + 1}`;
-      toast.success(`Cartas del mazo movidas a ${targetName}`, { title: '¡Mazo Reubicado!' });
+      if (destLocId === activeLoc.id) {
+        // Movimiento dentro del mismo contenedor a otro carril
+        const res = await fetch('/api/collection/cards', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'move_deck_cards',
+            target_deck_id: deckId,
+            target_storage_location_id: activeLoc.id,
+            target_compartment_index: targetCompIdx
+          })
+        });
+        if (!res.ok) throw new Error('Error al mover cartas');
+
+        // Actualizar yg_storage_locations si tiene deck_ids
+        if (activeLoc.compartments) {
+          const currentDeckIds = [...(activeLoc.compartments.deck_ids || Array(activeLoc.compartments.count).fill(null))];
+          while (currentDeckIds.length <= targetCompIdx) currentDeckIds.push(null);
+          const cleanedDeckIds = currentDeckIds.map((dId, idx) => idx === targetCompIdx ? deckId : (dId === deckId ? null : dId));
+          
+          await fetch('/api/collection/storage', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: activeLoc.id,
+              name: activeLoc.name,
+              type: activeLoc.type,
+              sub_type: activeLoc.sub_type,
+              color_code: activeLoc.color_code,
+              dimensions: activeLoc.dimensions,
+              capacity: activeLoc.capacity,
+              grid_layout: activeLoc.grid_layout,
+              compartments: {
+                ...activeLoc.compartments,
+                deck_ids: cleanedDeckIds
+              },
+              render_style: activeLoc.render_style,
+              description: activeLoc.description
+            })
+          });
+        }
+
+        const targetName = activeLoc.compartments?.names?.[targetCompIdx] || `Carril ${targetCompIdx + 1}`;
+        toast.success(`Mazo movido a ${targetName}`, { title: '¡Mazo Reubicado!' });
+      } else if (destLocId === null) {
+        // Mover a "Sin clasificar" (desvincular del contenedor)
+        await fetch(`/api/decks/${deckId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storage_location_id: null,
+            compartment_index: 0
+          })
+        });
+
+        await fetch('/api/collection/cards', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'move_deck_cards',
+            target_deck_id: deckId,
+            target_storage_location_id: null,
+            target_compartment_index: 0
+          })
+        });
+
+        // Limpiar de deck_ids en activeLoc
+        if (activeLoc.compartments) {
+          const currentDeckIds = [...(activeLoc.compartments.deck_ids || [])];
+          const cleanedDeckIds = currentDeckIds.map(dId => dId === deckId ? null : dId);
+          await fetch('/api/collection/storage', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: activeLoc.id,
+              name: activeLoc.name,
+              type: activeLoc.type,
+              sub_type: activeLoc.sub_type,
+              color_code: activeLoc.color_code,
+              dimensions: activeLoc.dimensions,
+              capacity: activeLoc.capacity,
+              grid_layout: activeLoc.grid_layout,
+              compartments: {
+                ...activeLoc.compartments,
+                deck_ids: cleanedDeckIds
+              },
+              render_style: activeLoc.render_style,
+              description: activeLoc.description
+            })
+          });
+        }
+
+        setInternalDecks(prev => prev.map(d => d.id === deckId ? { ...d, storage_location_id: undefined } : d));
+        toast.success('Mazo desvinculado y enviado a Sin Clasificar', { title: 'Mazo Desvinculado' });
+      } else {
+        // Mover a otro contenedor
+        const targetContainer = locations.find(l => l.id === destLocId);
+
+        await fetch(`/api/decks/${deckId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storage_location_id: destLocId,
+            compartment_index: targetCompIdx
+          })
+        });
+
+        await fetch('/api/collection/cards', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'move_deck_cards',
+            target_deck_id: deckId,
+            target_storage_location_id: destLocId,
+            target_compartment_index: targetCompIdx
+          })
+        });
+
+        // Limpiar de activeLoc
+        if (activeLoc.compartments) {
+          const currentDeckIds = [...(activeLoc.compartments.deck_ids || [])];
+          const cleanedDeckIds = currentDeckIds.map(dId => dId === deckId ? null : dId);
+          await fetch('/api/collection/storage', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: activeLoc.id,
+              name: activeLoc.name,
+              type: activeLoc.type,
+              sub_type: activeLoc.sub_type,
+              color_code: activeLoc.color_code,
+              dimensions: activeLoc.dimensions,
+              capacity: activeLoc.capacity,
+              grid_layout: activeLoc.grid_layout,
+              compartments: {
+                ...activeLoc.compartments,
+                deck_ids: cleanedDeckIds
+              },
+              render_style: activeLoc.render_style,
+              description: activeLoc.description
+            })
+          });
+        }
+
+        setInternalDecks(prev => prev.map(d => d.id === deckId ? { ...d, storage_location_id: destLocId } : d));
+        toast.success(`Mazo trasladado a ${targetContainer?.name || 'otro contenedor'}`, { title: 'Mazo Trasladado' });
+      }
+
       setHasMutated(true);
       if (onMutate) onMutate();
       await fetchCards();

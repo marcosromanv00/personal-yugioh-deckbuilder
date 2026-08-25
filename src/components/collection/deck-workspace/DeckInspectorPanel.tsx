@@ -32,6 +32,8 @@ interface DeckInspectorPanelProps {
   setIsActive: (b: boolean) => void;
   storageLocationId: string;
   setStorageLocationId: (s: string) => void;
+  compartmentIndex?: number;
+  setCompartmentIndex?: (idx: number) => void;
   locations: StorageLocation[];
   availableSleeves: SleeveInventory[];
   mainSleeveId: string;
@@ -80,6 +82,8 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   setIsActive,
   storageLocationId,
   setStorageLocationId,
+  compartmentIndex = 0,
+  setCompartmentIndex,
   locations,
   availableSleeves,
   mainSleeveId,
@@ -179,6 +183,8 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           setIsActive={setIsActive}
           storageLocationId={storageLocationId}
           setStorageLocationId={setStorageLocationId}
+          compartmentIndex={compartmentIndex}
+          setCompartmentIndex={setCompartmentIndex}
           locations={locations}
           availableSleeves={availableSleeves}
           mainSleeveId={mainSleeveId}

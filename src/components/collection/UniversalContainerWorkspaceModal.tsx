@@ -355,6 +355,7 @@ const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModa
           onClose={() => state.setIsAssignDeckModalOpen(false)}
           currentLocation={state.currentLocation}
           location={location}
+          locations={locations}
           decksInContainer={state.decksInContainer}
           cards={state.cards}
           internalDecks={state.internalDecks}

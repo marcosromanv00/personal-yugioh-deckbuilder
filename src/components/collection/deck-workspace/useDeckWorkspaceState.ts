@@ -23,6 +23,7 @@ export function useDeckWorkspaceState({
   deck,
   decks = [],
   onSelectDeck,
+  locations = [],
   sleeves = [],
   onSuccess,
 }: UseDeckWorkspaceStateProps) {
@@ -40,6 +41,7 @@ export function useDeckWorkspaceState({
   const [format, setFormat] = useState('TCG');
   const [isActive, setIsActive] = useState(true);
   const [storageLocationId, setStorageLocationId] = useState<string>('');
+  const [compartmentIndex, setCompartmentIndex] = useState<number>(0);
   const [savingDeck, setSavingDeck] = useState(false);
 
   // Fundas (Sleeves)
@@ -110,6 +112,18 @@ export function useDeckWorkspaceState({
     setFormat(deck.format || 'TCG');
     setIsActive(deck.is_active ?? true);
     setStorageLocationId(deck.storage_location_id || '');
+
+    // Calcular carril inicial según la ubicación o cartas asignadas
+    const targetLoc = locations.find(l => l.id === deck.storage_location_id);
+    let initialComp = 0;
+    if (targetLoc?.compartments?.deck_ids && Array.isArray(targetLoc.compartments.deck_ids)) {
+      const idxInLoc = targetLoc.compartments.deck_ids.indexOf(deck.id);
+      if (idxInLoc >= 0) {
+        initialComp = idxInLoc;
+      }
+    }
+    setCompartmentIndex(initialComp);
+
     setRightMode('details');
     setSelectedCardDetail(null);
     setSectionFilter('all');
@@ -147,7 +161,14 @@ export function useDeckWorkspaceState({
 
         if (cardsRes.ok) {
           const json = await cardsRes.json();
-          setUserCards(json.data || []);
+          const fetchedCards: UserCard[] = json.data || [];
+          setUserCards(fetchedCards);
+
+          // Si el deck no tenía carril registrado en la caja, deducirlo de las cartas
+          const deckUserCard = fetchedCards.find((uc: UserCard) => uc.deck_id === deck.id && uc.storage_location_id === deck.storage_location_id);
+          if (deckUserCard && deckUserCard.compartment_index !== undefined) {
+            setCompartmentIndex(deckUserCard.compartment_index);
+          }
         }
 
         if (sleevesRes.ok) {
@@ -470,6 +491,7 @@ export function useDeckWorkspaceState({
           format: format,
           is_active: isActive,
           storage_location_id: storageLocationId || null,
+          compartment_index: compartmentIndex,
           sleeves: sleevesPayload,
         })
       });
@@ -536,6 +558,8 @@ export function useDeckWorkspaceState({
     setIsActive,
     storageLocationId,
     setStorageLocationId,
+    compartmentIndex,
+    setCompartmentIndex,
     savingDeck,
     handleSaveDeck,
 

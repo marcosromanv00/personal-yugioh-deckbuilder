@@ -12,6 +12,7 @@ interface ContainerDeckAssignmentModalProps {
   onClose: () => void;
   currentLocation: StorageLocation | null;
   location: StorageLocation | null;
+  locations?: StorageLocation[];
   decksInContainer: DeckInContainer[];
   cards: UserCard[];
   internalDecks: Deck[];
@@ -23,7 +24,7 @@ interface ContainerDeckAssignmentModalProps {
   setShouldMoveCardsOnAssign: (b: boolean) => void;
   isAssigningDeck: boolean;
   onSaveDeckAssignment: () => void;
-  onMoveDeckCards: (deckId: string, targetCompIdx: number) => void;
+  onMoveDeckCards: (deckId: string, targetCompIdx: number, targetLocationId?: string | null) => void;
 }
 
 export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModalProps> = ({
@@ -31,6 +32,7 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
   onClose,
   currentLocation,
   location,
+  locations = [],
   decksInContainer,
   cards,
   internalDecks,
@@ -45,6 +47,45 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
   onMoveDeckCards,
 }) => {
   const loc = currentLocation || location;
+  const selectedDeck = internalDecks.find(d => d.id === selectedDeckIdToAssign);
+
+  // Generador de opciones de movimiento para cada mazo
+  const getMoveOptions = (currentCompIdx: number): DropdownOption<string>[] => {
+    const opts: DropdownOption<string>[] = [];
+
+    // 1. Otros carriles en esta misma caja
+    if (loc?.compartments && loc.compartments.count > 1) {
+      (loc.compartments.names || []).forEach((compName, targetIdx) => {
+        if (targetIdx !== currentCompIdx) {
+          opts.push({
+            value: `lane:${targetIdx}`,
+            label: `Carril ${targetIdx + 1}: ${compName || `Fila ${targetIdx + 1}`}`,
+            icon: <Box className="w-3.5 h-3.5 text-zinc-400" />
+          });
+        }
+      });
+    }
+
+    // 2. Otras deckboxes y contenedores
+    locations
+      .filter(l => l.id !== loc?.id)
+      .forEach(otherLoc => {
+        opts.push({
+          value: `container:${otherLoc.id}`,
+          label: `📦 ${otherLoc.name} (${otherLoc.type})`,
+          icon: <Box className="w-3.5 h-3.5 text-amber-500" />
+        });
+      });
+
+    // 3. Sin clasificar (desvincular)
+    opts.push({
+      value: 'unassign',
+      label: '❌ Desvincular (Sin clasificar)',
+      icon: <X className="w-3.5 h-3.5 text-red-500" />
+    });
+
+    return opts;
+  };
 
   return (
     <AnimatePresence>
@@ -99,13 +140,7 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
                 {(loc?.compartments?.names || ['Principal']).map((compName, idx) => {
                   const compCount = cards.filter(c => (c.compartment_index || 0) === idx).reduce((sum, c) => sum + (c.quantity || 1), 0);
                   const laneDecks = decksInContainer.filter(d => d.compartments.has(idx));
-                  const moveOptions = (loc?.compartments?.names || [])
-                    .map((name, targetIdx) => targetIdx !== idx ? ({
-                      value: targetIdx,
-                      label: `Mover a ${name || `Carril ${targetIdx + 1}`}`,
-                      icon: <Box className="w-3.5 h-3.5 text-zinc-400" />
-                    }) : null)
-                    .filter(Boolean) as DropdownOption<number>[];
+                  const moveOptions = getMoveOptions(idx);
 
                   return (
                     <div 
@@ -152,19 +187,26 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
                                 </div>
                               </div>
 
-                              {/* Acciones de Mazo (Mover a otro carril) */}
-                              {loc?.compartments && loc.compartments.count > 1 && moveOptions.length > 0 && (
+                              {/* Acciones de Mazo (Mover a otro carril, caja o sin clasificar) */}
+                              {moveOptions.length > 0 && (
                                 <div className="shrink-0 ml-2">
                                   <PremiumDropdown
                                     options={moveOptions}
-                                    value={-1}
-                                    onChange={(targetIdx) => {
-                                      if (targetIdx !== -1) {
-                                        onMoveDeckCards(d.id, targetIdx);
+                                    value=""
+                                    onChange={(targetVal) => {
+                                      if (!targetVal) return;
+                                      if (targetVal.startsWith('lane:')) {
+                                        const laneIdx = Number(targetVal.replace('lane:', ''));
+                                        onMoveDeckCards(d.id, laneIdx, loc?.id);
+                                      } else if (targetVal.startsWith('container:')) {
+                                        const targetLocId = targetVal.replace('container:', '');
+                                        onMoveDeckCards(d.id, 0, targetLocId);
+                                      } else if (targetVal === 'unassign') {
+                                        onMoveDeckCards(d.id, 0, null);
                                       }
                                     }}
                                     placeholder="Mover mazo a..."
-                                    menuWidth="w-52"
+                                    menuWidth="w-60"
                                     align="right"
                                     size="sm"
                                   />
@@ -187,7 +229,7 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
             {/* Sección 2: Vincular o Importar Nuevo Mazo a un Carril */}
             <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
               <span className="text-[11px] font-mono font-black uppercase tracking-wider text-zinc-500 block">
-                Vincular Mazo Existente a un Carril
+                Vincular / Mover Mazo a un Carril
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -215,15 +257,26 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
                 {/* Selector de Mazo */}
                 <div className={loc?.compartments && loc.compartments.count > 1 ? '' : 'sm:col-span-2'}>
                   <label className="text-[10.5px] font-mono font-black text-zinc-500 uppercase block mb-1">
-                    Mazo a Vincular:
+                    Mazo a Vincular / Mover:
                   </label>
                   <PremiumDropdown
-                    options={internalDecks.map((d) => ({
-                      value: d.id,
-                      label: d.name,
-                      badge: (d.cards || []).reduce((sum, c) => sum + c.count, 0),
-                      icon: <Swords className="w-3.5 h-3.5 text-red-500" />
-                    }))}
+                    options={internalDecks.map((d) => {
+                      const totalCards = (d.cards || []).reduce((sum, c) => sum + c.count, 0);
+                      const locFound = d.storage_location_id ? locations.find(l => l.id === d.storage_location_id) : null;
+                      const locDesc = d.storage_location_id
+                        ? d.storage_location_id === loc?.id
+                          ? 'En esta caja'
+                          : `En: ${locFound?.name || 'Otro Contenedor'}`
+                        : 'Sin clasificar (Inbox)';
+
+                      return {
+                        value: d.id,
+                        label: d.name,
+                        badge: totalCards,
+                        description: locDesc,
+                        icon: <Swords className="w-3.5 h-3.5 text-red-500" />
+                      };
+                    })}
                     value={selectedDeckIdToAssign}
                     onChange={(deckId) => setSelectedDeckIdToAssign(deckId)}
                     placeholder="-- Seleccionar Mazo --"
@@ -233,6 +286,28 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
                   />
                 </div>
               </div>
+
+              {/* Información de Ubicación Actual vs Destino */}
+              {selectedDeck && (
+                <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between font-mono">
+                    <span className="text-zinc-500 font-bold">Ubicación actual:</span>
+                    <b className="text-zinc-800 dark:text-zinc-200">
+                      {selectedDeck.storage_location_id
+                        ? selectedDeck.storage_location_id === loc?.id
+                          ? `Esta caja (${loc?.name})`
+                          : locations.find(l => l.id === selectedDeck.storage_location_id)?.name || 'Otro contenedor'
+                        : 'Sin clasificar (Inbox)'}
+                    </b>
+                  </div>
+                  <div className="flex items-center justify-between font-mono">
+                    <span className="text-zinc-500 font-bold">Destino:</span>
+                    <b className="text-red-600 dark:text-red-400">
+                      {loc?.name} • Carril {assignCompartmentIdx + 1} ({loc?.compartments?.names?.[assignCompartmentIdx] || `Carril ${assignCompartmentIdx + 1}`})
+                    </b>
+                  </div>
+                </div>
+              )}
 
               {/* Opción de mover cartas físicas automáticamente */}
               {selectedDeckIdToAssign && (

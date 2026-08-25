@@ -20,6 +20,8 @@ interface DeckMetadataFormProps {
   setIsActive: (b: boolean) => void;
   storageLocationId: string;
   setStorageLocationId: (s: string) => void;
+  compartmentIndex?: number;
+  setCompartmentIndex?: (idx: number) => void;
   locations: StorageLocation[];
   availableSleeves: SleeveInventory[];
   mainSleeveId: string;
@@ -44,6 +46,8 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
   setIsActive,
   storageLocationId,
   setStorageLocationId,
+  compartmentIndex = 0,
+  setCompartmentIndex,
   locations,
   availableSleeves,
   mainSleeveId,
@@ -116,14 +120,17 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
       </div>
 
       {/* Contenedor Físico Principal (Deckbox / Caja) */}
-      <div className="space-y-1.5 p-3.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xs">
+      <div className="space-y-2 p-3.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xs">
         <label className="text-[10.5px] font-mono font-black uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
           <Box className="w-3.5 h-3.5 text-red-500" />
           <span>Contenedor Físico Base:</span>
         </label>
         <PremiumDropdown
           value={storageLocationId}
-          onChange={(val) => setStorageLocationId(val)}
+          onChange={(val) => {
+            setStorageLocationId(val);
+            if (setCompartmentIndex) setCompartmentIndex(0);
+          }}
           align="full"
           size="sm"
           options={[
@@ -134,6 +141,46 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
             })),
           ]}
         />
+
+        {/* SELECTOR DE CARRIL / FILA (SI LA CAJA TIENE COMPARTIMENTOS MÚLTIPLES) */}
+        {(() => {
+          const hasMultipleLanes = Boolean(
+            currentBaseLocation &&
+            currentBaseLocation.compartments &&
+            (currentBaseLocation.compartments.count > 1 || (currentBaseLocation.compartments.names && currentBaseLocation.compartments.names.length > 1))
+          );
+
+          if (!hasMultipleLanes || !currentBaseLocation) return null;
+
+          const laneNames = currentBaseLocation.compartments.names && currentBaseLocation.compartments.names.length > 0
+            ? currentBaseLocation.compartments.names
+            : Array.from({ length: currentBaseLocation.compartments.count || 2 }).map((_, i) => `Fila ${i + 1}`);
+
+          return (
+            <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 animate-fade-in space-y-1.5">
+              <label className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 font-mono flex items-center justify-between">
+                <span>Carril / Fila en &quot;{currentBaseLocation.name}&quot; *</span>
+                <span className="text-[9px] text-zinc-400 font-normal">Ubicación exacta</span>
+              </label>
+              <PremiumDropdown
+                value={String(compartmentIndex ?? 0)}
+                onChange={(val) => {
+                  if (setCompartmentIndex) setCompartmentIndex(Number(val));
+                }}
+                align="full"
+                size="sm"
+                options={laneNames.map((laneName, idx) => {
+                  const isOccupied = Boolean(currentBaseLocation.compartments?.deck_ids?.[idx]);
+                  return {
+                    value: String(idx),
+                    label: `Carril ${idx + 1}: ${laneName || `Fila ${idx + 1}`}${isOccupied ? ' (Ocupado)' : ' (Disponible)'}`,
+                  };
+                })}
+              />
+            </div>
+          );
+        })()}
+
         <p className="text-[10.5px] text-zinc-500 leading-relaxed mt-1">
           Las cartas principales de este mazo se registrarán como guardadas aquí, salvo que indiques una ubicación separada para ciertas cartas.
         </p>
@@ -206,7 +253,13 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
           <div className="flex justify-between">
             <span>En Contenedor Base:</span>
             <b className="text-zinc-900 dark:text-zinc-100">
-              {currentBaseLocation ? `${currentBaseLocation.name}` : 'Sin asignar'}
+              {currentBaseLocation 
+                ? `${currentBaseLocation.name}${
+                    currentBaseLocation.compartments && (currentBaseLocation.compartments.count > 1 || (currentBaseLocation.compartments.names && currentBaseLocation.compartments.names.length > 1))
+                      ? ` (${currentBaseLocation.compartments.names?.[compartmentIndex ?? 0] || `Carril ${(compartmentIndex ?? 0) + 1}`})`
+                      : ''
+                  }` 
+                : 'Sin asignar'}
             </b>
           </div>
           <div className="flex justify-between">

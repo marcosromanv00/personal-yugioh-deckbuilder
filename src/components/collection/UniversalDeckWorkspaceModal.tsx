@@ -185,6 +185,8 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             setIsActive={state.setIsActive}
             storageLocationId={state.storageLocationId}
             setStorageLocationId={state.setStorageLocationId}
+            compartmentIndex={state.compartmentIndex}
+            setCompartmentIndex={state.setCompartmentIndex}
             locations={locations}
             availableSleeves={state.availableSleeves}
             mainSleeveId={state.mainSleeveId}

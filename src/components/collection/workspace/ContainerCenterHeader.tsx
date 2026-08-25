@@ -201,84 +201,30 @@ export const ContainerCenterHeader: React.FC<ContainerCenterHeaderProps> = ({
           )}
         </div>
 
-        {/* Selector de Carriles */}
+        {/* Selector de Carriles en Dropdown y Botón de Gestión de Mazos */}
         {loc?.compartments && loc.compartments.count > 1 ? (
-          <div className="flex items-center gap-1.5 min-w-0">
-            {/* Si tiene <= 5 carriles: Tabs ultracompactos tipo pill */}
-            {loc.compartments.count <= 5 ? (
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-0.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSelectCompartment(-1);
-                    setActiveClusterFilter(null);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer select-none ${
-                    activeCompartment === -1
-                      ? 'bg-red-600 text-white shadow-xs'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  Todos ({totalPhysicalCards})
-                </button>
-                {loc.compartments.names.map((compName, idx) => {
-                  const compCount = cards.filter(c => (c.compartment_index || 0) === idx).reduce((sum, c) => sum + (c.quantity || 1), 0);
-                  const laneDecks = decksInContainer.filter(d => d.compartments.has(idx));
-                  const isActive = activeCompartment === idx;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        handleSelectCompartment(idx);
-                        setActiveClusterFilter(null);
-                      }}
-                      title={`${compName || `Carril ${idx + 1}`}: ${compCount} cartas (${laneDecks.length} mazos)`}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 select-none ${
-                        isActive
-                          ? 'bg-red-600 text-white shadow-xs'
-                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800'
-                      }`}
-                    >
-                      <span>C{idx + 1}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                        isActive ? 'bg-red-800 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-                      }`}>
-                        {compCount}
-                      </span>
-                      {laneDecks.length > 0 && (
-                        <span className={`text-[10px] ${isActive ? 'text-amber-300' : 'text-zinc-600 dark:text-zinc-400'}`} title={`${laneDecks.length} mazo(s) en este carril`}>
-                          ⚔️{laneDecks.length > 1 ? laneDecks.length : ''}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              /* Si tiene > 5 carriles: Dropdown de Carriles Escalable */
-              <PremiumDropdown
-                options={carrilDropdownOptions}
-                value={activeCompartment}
-                onChange={(val) => {
-                  handleSelectCompartment(val);
-                  setActiveClusterFilter(null);
-                }}
-                icon={<Layers className="w-3.5 h-3.5 text-red-500" />}
-                menuWidth="w-64"
-                size="sm"
-              />
-            )}
+          <div className="flex items-center gap-2 shrink-0">
+            <PremiumDropdown
+              options={carrilDropdownOptions}
+              value={activeCompartment}
+              onChange={(val) => {
+                handleSelectCompartment(val);
+                setActiveClusterFilter(null);
+              }}
+              icon={<Layers className="w-3.5 h-3.5 text-red-500" />}
+              menuWidth="w-64"
+              size="sm"
+            />
 
             {/* Botón de Gestión de Mazos y Carriles */}
             <button
               type="button"
               onClick={onOpenAssignDeckModal}
-              className="px-2.5 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 select-none group"
+              className="px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 select-none group"
               title="Ver y gestionar los mazos distribuidos en esta caja"
             >
               <Swords className="w-3.5 h-3.5 text-red-500 group-hover:text-white" />
-              <span className="hidden sm:inline">Mazos ({decksInContainer.length})</span>
+              <span>Mazos ({decksInContainer.length})</span>
             </button>
           </div>
         ) : null}
