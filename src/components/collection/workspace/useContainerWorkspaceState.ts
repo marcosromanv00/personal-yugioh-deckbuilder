@@ -478,32 +478,41 @@ export const useContainerWorkspaceState = ({
     setIsSearching(true);
     try {
       if (scope === 'staged') {
-        const rawList = cards.filter(uc => !uc.binder_page || !uc.binder_slot);
+        const rawList = cards.filter(uc => !uc.binder_page || !uc.binder_slot || uc.binder_page <= 0 || uc.binder_slot <= 0);
         let filtered = rawList;
         if (query) {
           const qLower = query.toLowerCase();
           filtered = filtered.filter(uc => uc.card_details?.name.toLowerCase().includes(qLower));
         }
-        const seen = new Set<number>();
-        const mappedCards: Card[] = [];
+
+        const groupedStaged = new Map<number, { first: UserCard; items: UserCard[] }>();
         for (const uc of filtered) {
-          if (!uc.card_id || seen.has(uc.card_id)) continue;
-          seen.add(uc.card_id);
-          mappedCards.push({
-            id: uc.card_id,
-            name: uc.card_details?.name || 'Carta Yu-Gi-Oh!',
-            type: uc.card_details?.type || 'Monster',
-            desc: uc.card_details?.desc || '',
-            race: uc.card_details?.race,
-            attribute: uc.card_details?.attribute,
-            atk: uc.card_details?.atk,
-            def: uc.card_details?.def,
-            level: uc.card_details?.level,
-            image_url: uc.card_details?.image_url || '',
-            image_url_small: uc.card_details?.image_url_small || '',
-            archetype: uc.card_details?.archetype,
-          });
+          if (!uc.card_id) continue;
+          if (!groupedStaged.has(uc.card_id)) {
+            groupedStaged.set(uc.card_id, { first: uc, items: [uc] });
+          } else {
+            groupedStaged.get(uc.card_id)!.items.push(uc);
+          }
         }
+
+        const mappedCards: Card[] = [];
+        groupedStaged.forEach(({ first, items }, cardId) => {
+          mappedCards.push({
+            id: cardId,
+            name: first.card_details?.name || 'Carta Yu-Gi-Oh!',
+            type: first.card_details?.type || 'Monster',
+            desc: first.card_details?.desc || '',
+            race: first.card_details?.race,
+            attribute: first.card_details?.attribute,
+            atk: first.card_details?.atk,
+            def: first.card_details?.def,
+            level: first.card_details?.level,
+            image_url: first.card_details?.image_url || '',
+            image_url_small: first.card_details?.image_url_small || '',
+            archetype: first.card_details?.archetype,
+            userCardsGroup: items,
+          });
+        });
         setSearchResults(mappedCards);
         setIsSearching(false);
         return;
@@ -575,7 +584,7 @@ export const useContainerWorkspaceState = ({
     if (leftTab === 'search' && isOpen) {
       const timer = setTimeout(() => {
         executeSearch(searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit);
-      }, 300);
+      }, 250);
       return () => clearTimeout(timer);
     }
   }, [leftTab, searchQuery, searchType, advancedFilters, searchScope, onlyFavorites, searchLimit, executeSearch, isOpen]);
@@ -606,6 +615,28 @@ export const useContainerWorkspaceState = ({
       }
 
       const effectiveCompartment = activeCompartment === -1 ? 0 : activeCompartment;
+      const targetPage = containerType === 'binder' ? (page || (currentBinderViewIndex === 0 ? 1 : currentBinderViewIndex * 2)) : null;
+      const targetSlot = containerType === 'binder' ? (slot || 1) : null;
+
+      // Optimistic state update
+      setCards(prev => {
+        const exists = prev.some(c => c.id === userCard.id);
+        if (exists) {
+          return prev.map(c => c.id === userCard.id ? { 
+            ...c, 
+            binder_page: targetPage ?? undefined, 
+            binder_slot: targetSlot ?? undefined, 
+            storage_location_id: isInbox ? null : containerId 
+          } : c);
+        }
+        return [{ 
+          ...userCard, 
+          binder_page: targetPage ?? undefined, 
+          binder_slot: targetSlot ?? undefined, 
+          storage_location_id: isInbox ? null : containerId 
+        }, ...prev];
+      });
+      setHasMutated(true);
 
       const payload: Record<string, unknown> = {
         id: userCard.id,
@@ -616,13 +647,8 @@ export const useContainerWorkspaceState = ({
       };
 
       if (containerType === 'binder') {
-        if (page && slot) {
-          payload.binder_page = page;
-          payload.binder_slot = slot;
-        } else {
-          payload.binder_page = currentBinderViewIndex === 0 ? 1 : currentBinderViewIndex * 2;
-          payload.binder_slot = 1;
-        }
+        payload.binder_page = targetPage;
+        payload.binder_slot = targetSlot;
       }
 
       const res = await fetch('/api/collection/cards', {
@@ -638,7 +664,6 @@ export const useContainerWorkspaceState = ({
             : `${userCard.card_details?.name || 'Carta física'} ubicada en ${isInbox ? 'Inbox' : location?.name || 'este contenedor'}`,
           { title: '¡Copia asignada!' }
         );
-        setHasMutated(true);
         fetchCards();
       } else {
         toast.error('Error al actualizar la ubicación de la carta física', { title: 'Error' });
@@ -653,19 +678,8 @@ export const useContainerWorkspaceState = ({
   const handleAddCardToContainer = async (card: Card | HoverCardBase, page?: number, slot?: number) => {
     try {
       const cardObj = card as Card;
-      if (cardObj.userCardsGroup && cardObj.userCardsGroup.length > 0) {
-        if (cardObj.userCardsGroup.length > 1 || cardObj.userCardsGroup.some(uc => uc.deck_id || uc.deck_details)) {
-          setPickerCard(cardObj);
-          setPickerUserCards(cardObj.userCardsGroup);
-          setPendingBinderTarget(page && slot ? { page, slot } : null);
-          setIsPickerOpen(true);
-          return;
-        } else if (cardObj.userCardsGroup.length === 1) {
-          await handleSelectPhysicalCopy(cardObj.userCardsGroup[0], 'move', page, slot);
-          return;
-        }
-      }
 
+      // 1. Si es un Binder con página y slot especificados
       if (containerType === 'binder' && page && slot) {
         const existingCardsInSlot = cards.filter(
           c => c.binder_page === page && c.binder_slot === slot
@@ -676,9 +690,11 @@ export const useContainerWorkspaceState = ({
           return;
         }
 
+        // Buscar si ya existe una copia desubicada / en pendientes en este binder
         const existingUnplaced = cards.find(
-          c => c.card_id === card.id && (!c.binder_page || !c.binder_slot)
+          c => Number(c.card_id) === Number(card.id) && (!c.binder_page || !c.binder_slot || c.binder_page <= 0 || c.binder_slot <= 0)
         );
+
         if (existingUnplaced) {
           const updated = { ...existingUnplaced, binder_page: page, binder_slot: slot };
           setCards(prev => prev.map(c => c.id === existingUnplaced.id ? updated : c));
@@ -695,6 +711,21 @@ export const useContainerWorkspaceState = ({
         }
       }
 
+      // 2. Si viene de la búsqueda con grupo de variantes/copias de la colección
+      if (cardObj.userCardsGroup && cardObj.userCardsGroup.length > 0) {
+        if (cardObj.userCardsGroup.length > 1 || cardObj.userCardsGroup.some(uc => uc.deck_id || uc.deck_details)) {
+          setPickerCard(cardObj);
+          setPickerUserCards(cardObj.userCardsGroup);
+          setPendingBinderTarget(page && slot ? { page, slot } : null);
+          setIsPickerOpen(true);
+          return;
+        } else if (cardObj.userCardsGroup.length === 1) {
+          await handleSelectPhysicalCopy(cardObj.userCardsGroup[0], 'move', page, slot);
+          return;
+        }
+      }
+
+      // 3. Crear registro nuevo (Base Global o contenedor sin registro previo)
       const effectiveCompartment = activeCompartment === -1 ? 0 : activeCompartment;
 
       const payload: Record<string, unknown> = {
@@ -976,15 +1007,15 @@ export const useContainerWorkspaceState = ({
     if (!target) return;
     const cardId = target.id;
 
-    // Actualización optimista
-    setCards(prev => prev.map(c => c.id === cardId ? { ...c, binder_page: undefined, binder_slot: undefined } : c));
-    if (selectedUserCard?.id === cardId) {
-      setSelectedUserCard(prev => prev ? { ...prev, binder_page: undefined, binder_slot: undefined } : null);
+    // Actualización optimista inmediata en memoria
+    setCards(prev => prev.map(c => (c.id === cardId || String(c.id) === String(cardId)) ? { ...c, binder_page: null as unknown as undefined, binder_slot: null as unknown as undefined } : c));
+    if (selectedUserCard && (selectedUserCard.id === cardId || String(selectedUserCard.id) === String(cardId))) {
+      setSelectedUserCard(prev => prev ? { ...prev, binder_page: null as unknown as undefined, binder_slot: null as unknown as undefined } : null);
     }
     setHasMutated(true);
 
     try {
-      await fetch('/api/collection/cards', {
+      const res = await fetch('/api/collection/cards', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -993,11 +1024,20 @@ export const useContainerWorkspaceState = ({
           binder_slot: null,
         }),
       });
-      toast.success('Carta enviada a la bandeja de pendientes', { title: '¡Enviada a Pendientes!' });
-      fetchCards();
+
+      if (res.ok) {
+        toast.success(`${target.card_details?.name || 'Carta'} enviada a pendientes`, { title: '¡Enviada a Pendientes!' });
+        if (!isIdealMode) {
+          fetchCards();
+        }
+      } else {
+        const json = await res.json().catch(() => ({}));
+        console.error('Error al enviar a pendientes:', json);
+        toast.error(json.error || 'Error al actualizar en base de datos', { title: 'Error' });
+      }
     } catch (err) {
       console.error('Error al enviar carta a pendientes:', err);
-      toast.error('Error al enviar a pendientes', { title: 'Error' });
+      toast.error('Error de conexión al enviar a pendientes', { title: 'Error' });
     }
   };
 

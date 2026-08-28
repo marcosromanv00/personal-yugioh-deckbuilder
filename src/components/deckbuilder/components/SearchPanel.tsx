@@ -109,7 +109,7 @@ const SearchResultsList = React.memo(({
           <div 
             key={`${card.id}-${idx}`}
             draggable={!isMobile}
-            onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype }) : undefined}
+            onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup }) : undefined}
             onClick={() => addCardToDeck(card)}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -149,7 +149,7 @@ const SearchResultsList = React.memo(({
         <div 
           key={`${card.id}-${idx}`}
           draggable={!isMobile}
-          onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, archetype: card.archetype })}
+          onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup })}
           onClick={() => addCardToDeck(card)}
           onContextMenu={(e) => {
             e.preventDefault();
