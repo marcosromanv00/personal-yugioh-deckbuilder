@@ -110,7 +110,7 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
   return (
     <AnimatePresence>
       <div 
-        className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs font-sans select-none"
+        className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs font-sans select-none overflow-y-auto"
         onClick={onClose}
       >
         <motion.div
@@ -119,10 +119,10 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100"
+          className="w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-visible flex flex-col relative z-10 text-zinc-900 dark:text-zinc-100 my-auto"
         >
           {/* Header */}
-          <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50">
+          <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/80 dark:bg-zinc-900/50 rounded-t-3xl">
             <div className="flex items-center gap-2.5">
               <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/40">
                 <ArrowRightLeft className="w-4 h-4" />
@@ -146,7 +146,7 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
           </div>
 
           {/* Body */}
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 overflow-visible">
             {/* Resumen de la variante */}
             <div className="p-3 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl flex gap-3.5 items-center">
               <div className="relative w-14 aspect-3/4 rounded-lg overflow-hidden bg-zinc-950 shrink-0 border border-zinc-200 dark:border-zinc-800 shadow-xs">
@@ -274,7 +274,7 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 flex gap-2.5">
+          <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 rounded-b-3xl flex gap-2.5">
             <button
               type="button"
               onClick={onClose}

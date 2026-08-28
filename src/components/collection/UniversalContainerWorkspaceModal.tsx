@@ -210,6 +210,8 @@ const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModa
               const card = state.cards.find(c => c.card_id === cardId);
               if (card) state.handleOpenSplitModal(card);
             }}
+            onOpenMoveVariantModal={state.handleOpenMoveVariantModal}
+            onSendCardToStaged={state.handleSendToStaged}
           />
 
           {/* DIVIDER REDIMENSIONABLE DERECHO */}

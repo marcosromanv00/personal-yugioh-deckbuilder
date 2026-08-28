@@ -87,6 +87,10 @@ interface ContainerCenterPanelProps {
   // Duplicates map
   duplicateMap?: Map<number, DuplicateMatchInfo>;
   onOpenConsolidate?: (cardId: number) => void;
+
+  // Modales adicionales de variantes y slot
+  onOpenMoveVariantModal?: (card: UserCard) => void;
+  onSendCardToStaged?: (card: UserCard) => void;
 }
 
 export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
@@ -110,18 +114,19 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
 
   containerSearch,
   setContainerSearch,
-  totalPhysicalCards,
-  activeCompartment,
-  handleSelectCompartment,
-  setActiveClusterFilter,
-  decksInContainer,
-  decksInActiveLane,
-  selectedDeckFilter,
-  setSelectedDeckFilter,
   statusFilter,
   setStatusFilter,
   sortBy,
   setSortBy,
+  activeCompartment,
+  handleSelectCompartment,
+  setActiveClusterFilter,
+  selectedDeckFilter,
+  setSelectedDeckFilter,
+  decksInContainer,
+  decksInActiveLane,
+
+  totalPhysicalCards,
   displayedGridCards,
   filteredCards,
   onOpenAssignDeckModal,
@@ -155,8 +160,12 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
   onClearSelection,
   onToggleSelectGroup,
   onToggleSelectCard,
+
   duplicateMap,
   onOpenConsolidate,
+
+  onOpenMoveVariantModal,
+  onSendCardToStaged,
 }) => {
   return (
     <main 
@@ -283,6 +292,8 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
             onToggleSelectCard={onToggleSelectCard}
             duplicateMap={duplicateMap}
             onOpenConsolidate={onOpenConsolidate}
+            onOpenMoveVariantModal={onOpenMoveVariantModal}
+            onSendCardToStaged={onSendCardToStaged}
           />
         ) : (
           <ContainerGridView

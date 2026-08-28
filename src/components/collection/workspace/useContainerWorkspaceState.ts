@@ -667,6 +667,15 @@ export const useContainerWorkspaceState = ({
       }
 
       if (containerType === 'binder' && page && slot) {
+        const existingCardsInSlot = cards.filter(
+          c => c.binder_page === page && c.binder_slot === slot
+        );
+        const currentSlotQty = existingCardsInSlot.reduce((s, c) => s + (c.quantity || 1), 0);
+        if (currentSlotQty >= 4) {
+          toast.warning(`El Slot ${slot} (Pág. ${page}) ya alcanzó el límite máximo de 4 cartas.`, { title: 'Slot lleno (4 máx.)' });
+          return;
+        }
+
         const existingUnplaced = cards.find(
           c => c.card_id === card.id && (!c.binder_page || !c.binder_slot)
         );
@@ -782,10 +791,37 @@ export const useContainerWorkspaceState = ({
         return;
       }
 
-      const targetCard = cards.find(c => c.binder_page === page && c.binder_slot === slot);
+      const targetCardsInSlot = cards.filter(c => c.binder_page === page && c.binder_slot === slot);
+      const targetSlotQty = targetCardsInSlot.reduce((s, c) => s + (c.quantity || 1), 0);
+      const sourceQty = sourceCard.quantity || 1;
 
-      if (targetCard) {
-        // SWAP / INTERCAMBIO ENTRE SLOTS
+      // Si el slot destino tiene espacio para apilar (suma <= 4)
+      if (targetCardsInSlot.length > 0 && targetSlotQty + sourceQty <= 4) {
+        // Mover a este slot apilándolo
+        setCards(prev => prev.map(c => c.id === sourceCard.id ? { ...c, binder_page: page, binder_slot: slot } : c));
+        if (selectedUserCard?.id === sourceCard.id) {
+          setSelectedUserCard(prev => prev ? { ...prev, binder_page: page, binder_slot: slot } : null);
+        }
+        setHasMutated(true);
+        setDraggedCard(null);
+
+        try {
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: sourceCard.id, binder_page: page, binder_slot: slot }),
+          });
+          toast.success(`Carta añadida al Slot ${slot} (${targetSlotQty + sourceQty}/4)`, { title: '¡Carta apilada en slot!' });
+        } catch (err) {
+          console.error('Error stacking card in slot:', err);
+          toast.error('Error al colocar carta en slot', { title: 'Error' });
+        }
+        return;
+      }
+
+      // Si el slot destino ya tiene 1 carta y el slot origen tiene 1 carta -> SWAP / INTERCAMBIO ENTRE SLOTS
+      if (targetCardsInSlot.length === 1 && sourceCard.binder_page && sourceCard.binder_slot) {
+        const targetCard = targetCardsInSlot[0];
         const sourceOldPage = sourceCard.binder_page;
         const sourceOldSlot = sourceCard.binder_slot;
 
@@ -824,7 +860,7 @@ export const useContainerWorkspaceState = ({
           toast.error('Error al guardar el intercambio de slots', { title: 'Error' });
         }
         return;
-      } else {
+      } else if (targetCardsInSlot.length === 0) {
         // MOVER A SLOT VACÍO
         setCards(prev => prev.map(c => c.id === sourceCard.id ? { ...c, binder_page: page, binder_slot: slot } : c));
         if (selectedUserCard?.id === sourceCard.id) {
@@ -846,14 +882,19 @@ export const useContainerWorkspaceState = ({
           toast.error('Error al mover carta al slot', { title: 'Error' });
         }
         return;
+      } else {
+        toast.warning(`El Slot ${slot} (Pág. ${page}) ya contiene ${targetSlotQty}/4 cartas (límite máximo alcanzado).`, { title: 'Slot lleno' });
+        setDraggedCard(null);
+        return;
       }
     }
 
     // Caso 2: Carta arrastrada desde el buscador o staged
     const cardData: Card = (payload.card || payload) as Card;
-    const existing = cards.find(c => c.binder_page === page && c.binder_slot === slot);
-    if (existing) {
-      toast.warning(`Slot ${slot} (Pág. ${page}) ya está ocupado. Arrastra una carta existente para intercambiarla.`, { title: 'Slot ocupado' });
+    const targetCardsInSlot = cards.filter(c => c.binder_page === page && c.binder_slot === slot);
+    const targetSlotQty = targetCardsInSlot.reduce((s, c) => s + (c.quantity || 1), 0);
+    if (targetSlotQty >= 4) {
+      toast.warning(`Slot ${slot} (Pág. ${page}) ya está lleno con el límite máximo de 4 cartas.`, { title: 'Slot lleno (4 máx.)' });
       setDraggedCard(null);
       return;
     }
@@ -930,13 +971,16 @@ export const useContainerWorkspaceState = ({
   };
 
   // Quitar la carta del slot y enviarla a la bandeja de pendientes del binder
-  const handleSendToStaged = async () => {
-    if (!selectedUserCard) return;
-    const cardId = selectedUserCard.id;
+  const handleSendToStaged = async (cardToSend?: UserCard) => {
+    const target = cardToSend || selectedUserCard;
+    if (!target) return;
+    const cardId = target.id;
 
     // Actualización optimista
     setCards(prev => prev.map(c => c.id === cardId ? { ...c, binder_page: undefined, binder_slot: undefined } : c));
-    setSelectedUserCard(prev => prev ? { ...prev, binder_page: undefined, binder_slot: undefined } : null);
+    if (selectedUserCard?.id === cardId) {
+      setSelectedUserCard(prev => prev ? { ...prev, binder_page: undefined, binder_slot: undefined } : null);
+    }
     setHasMutated(true);
 
     try {
@@ -950,6 +994,7 @@ export const useContainerWorkspaceState = ({
         }),
       });
       toast.success('Carta enviada a la bandeja de pendientes', { title: '¡Enviada a Pendientes!' });
+      fetchCards();
     } catch (err) {
       console.error('Error al enviar carta a pendientes:', err);
       toast.error('Error al enviar a pendientes', { title: 'Error' });
