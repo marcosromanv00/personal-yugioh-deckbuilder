@@ -1,8 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { runIdealOptimization, IdealOptimizerOutput } from './idealOptimizer';
-import { StorageLocation, UserCard, Deck, IdealSyncLog } from '@/types/collection';
+import { StorageLocation, UserCard, Deck, IdealSyncLog, IdealOptimizationConfig } from '@/types/collection';
 
-export async function synchronizeIdealEnvironment(): Promise<IdealOptimizerOutput> {
+export async function synchronizeIdealEnvironment(config?: Partial<IdealOptimizationConfig>): Promise<IdealOptimizerOutput> {
   const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   let locations: StorageLocation[] = [];
@@ -22,15 +22,15 @@ export async function synchronizeIdealEnvironment(): Promise<IdealOptimizerOutpu
       .select('*, card_details:yg_cards(*)');
     if (cardData) cards = cardData as UserCard[];
 
-    // 3. Fetch physical decks
+    // 3. Fetch physical decks with cards
     const { data: deckData } = await supabase
       .from('yg_decks')
-      .select('*');
+      .select('*, cards:yg_deck_cards(*, card_details:yg_cards(*))');
     if (deckData) decks = deckData as Deck[];
   }
 
-  // Run the core balance optimization algorithm
-  const result = runIdealOptimization({ locations, cards, decks });
+  // Run the core balance optimization algorithm with user config
+  const result = runIdealOptimization({ locations, cards, decks, config });
 
   // If Supabase is connected, optionally record sync logs into yg_ideal_sync_logs
   if (isSupabaseConfigured && result.logs.length > 0) {

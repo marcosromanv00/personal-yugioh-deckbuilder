@@ -15,6 +15,7 @@ import { ContainerInspectorPanel } from './workspace/ContainerInspectorPanel';
 import { ContainerDeckAssignmentModal } from './workspace/ContainerDeckAssignmentModal';
 import { BulkActionsFloatingBar } from './BulkActionsFloatingBar';
 import { CardCopySplitModal } from './CardCopySplitModal';
+import { VariantMoveModal } from './VariantMoveModal';
 import { Card } from '@/components/deckbuilder/types';
 
 const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModalProps> = (props) => {
@@ -324,6 +325,8 @@ const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModa
             onMoveCard={state.handleMoveCard}
             onDeleteCard={state.handleDeleteCard}
             onOpenSplitModal={state.handleOpenSplitModal}
+            onOpenMoveVariantModal={state.handleOpenMoveVariantModal}
+            onSendToStaged={state.handleSendToStaged}
           />
         </div>
 
@@ -347,6 +350,16 @@ const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModa
               state.pendingBinderTarget?.slot
             );
           }}
+        />
+
+        {/* Modal para Mover Variante Individual a Otro Contenedor */}
+        <VariantMoveModal
+          isOpen={state.isMoveVariantModalOpen}
+          onClose={state.handleCloseMoveVariantModal}
+          variant={state.variantToMove}
+          locations={locations}
+          currentLocation={state.currentLocation}
+          onConfirmMove={state.handleConfirmMoveVariant}
         />
 
         {/* Modal para Gestión de Mazos y Carriles */}

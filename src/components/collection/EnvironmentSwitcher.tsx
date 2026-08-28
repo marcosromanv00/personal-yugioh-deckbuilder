@@ -2,19 +2,33 @@
 
 import React from 'react';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
-import { Sparkles, ClipboardList } from 'lucide-react';
+import { Sparkles, ClipboardList, Sliders } from 'lucide-react';
 
 export function EnvironmentSwitcher() {
-  const { isIdealMode, toggleIdealMode, openReportModal, isSyncing } = useIdealEnvironment();
+  const { isIdealMode, toggleIdealMode, openReportModal, openConfigModal, isSyncing } = useIdealEnvironment();
 
   return (
     <div className="flex items-center gap-2">
+      {/* Botón de Parámetros de Reorganización (Solo visible en Modo Ideal) */}
+      {isIdealMode && (
+        <button
+          onClick={openConfigModal}
+          title="Parámetros de Reorganización Ideal"
+          className="relative group p-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors shadow-xs cursor-pointer min-h-9 min-w-9 flex items-center justify-center touch-manipulation"
+        >
+          <Sliders className="w-4 h-4 text-zinc-600 dark:text-zinc-300 group-hover:text-red-500 transition-colors" />
+          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block whitespace-nowrap px-2.5 py-1 text-xs font-semibold text-zinc-100 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl backdrop-blur-md z-50 font-sans">
+            Ajustar Parámetros de Optimización
+          </span>
+        </button>
+      )}
+
       {/* Botón de Reporte Permanente (Solo visible en Modo Ideal) */}
       {isIdealMode && (
         <button
           onClick={openReportModal}
           title="Ver Reporte de Ajustes e Ideas"
-          className="relative group p-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors shadow-xs cursor-pointer"
+          className="relative group p-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors shadow-xs cursor-pointer min-h-9 min-w-9 flex items-center justify-center touch-manipulation"
         >
           <ClipboardList className="w-4 h-4 text-zinc-600 dark:text-zinc-300 group-hover:text-red-500 transition-colors" />
           <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block whitespace-nowrap px-2.5 py-1 text-xs font-semibold text-zinc-100 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl backdrop-blur-md z-50 font-sans">

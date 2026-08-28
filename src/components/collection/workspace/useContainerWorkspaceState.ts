@@ -109,6 +109,10 @@ export const useContainerWorkspaceState = ({
   const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
   const [cardToSplit, setCardToSplit] = useState<UserCard | null>(null);
 
+  // Modal de Movimiento Individual de Variante
+  const [isMoveVariantModalOpen, setIsMoveVariantModalOpen] = useState<boolean>(false);
+  const [variantToMove, setVariantToMove] = useState<UserCard | null>(null);
+
   // Estados para Modal de Ruta de Recolección (Pick-List)
   const [isPickListOpen, setIsPickListOpen] = useState<boolean>(false);
   const [selectedClusterForPickList, setSelectedClusterForPickList] = useState<LaneCluster | null>(null);
@@ -748,17 +752,114 @@ export const useContainerWorkspaceState = ({
     setDragOverSlot(null);
     const raw = e.dataTransfer.getData('application/json');
     if (!raw) return;
-    let card: Card;
-    try { card = JSON.parse(raw) as Card; } catch { return; }
+
+    interface DragPayload {
+      type?: string;
+      userCardId?: string;
+      cardId?: number;
+      fromPage?: number;
+      fromSlot?: number;
+      card?: Card;
+      id?: number;
+      name?: string;
+      type_name?: string;
+    }
+
+    let payload: DragPayload;
+    try { payload = JSON.parse(raw) as DragPayload; } catch { return; }
+
+    // Caso 1: Arrastrar carta existente en el binder (desde otro slot o pendiente)
+    if (payload.type === 'binder_slot_card' && payload.userCardId) {
+      const sourceCard = cards.find(c => c.id === payload.userCardId);
+      if (!sourceCard) {
+        setDraggedCard(null);
+        return;
+      }
+
+      // Si se suelta en el mismo slot en el que ya está, no hacer nada
+      if (sourceCard.binder_page === page && sourceCard.binder_slot === slot) {
+        setDraggedCard(null);
+        return;
+      }
+
+      const targetCard = cards.find(c => c.binder_page === page && c.binder_slot === slot);
+
+      if (targetCard) {
+        // SWAP / INTERCAMBIO ENTRE SLOTS
+        const sourceOldPage = sourceCard.binder_page;
+        const sourceOldSlot = sourceCard.binder_slot;
+
+        // Actualización optimista de cards
+        setCards(prev => prev.map(c => {
+          if (c.id === sourceCard.id) return { ...c, binder_page: page, binder_slot: slot };
+          if (c.id === targetCard.id) return { ...c, binder_page: sourceOldPage, binder_slot: sourceOldSlot };
+          return c;
+        }));
+
+        if (selectedUserCard?.id === sourceCard.id) {
+          setSelectedUserCard(prev => prev ? { ...prev, binder_page: page, binder_slot: slot } : null);
+        } else if (selectedUserCard?.id === targetCard.id) {
+          setSelectedUserCard(prev => prev ? { ...prev, binder_page: sourceOldPage, binder_slot: sourceOldSlot } : null);
+        }
+
+        setHasMutated(true);
+        setDraggedCard(null);
+
+        try {
+          await Promise.all([
+            fetch('/api/collection/cards', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: sourceCard.id, binder_page: page, binder_slot: slot }),
+            }),
+            fetch('/api/collection/cards', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: targetCard.id, binder_page: sourceOldPage, binder_slot: sourceOldSlot }),
+            }),
+          ]);
+          toast.success(`Cartas intercambiadas entre slots`, { title: '¡Slots intercambiados!' });
+        } catch (err) {
+          console.error('Error swapping binder slots:', err);
+          toast.error('Error al guardar el intercambio de slots', { title: 'Error' });
+        }
+        return;
+      } else {
+        // MOVER A SLOT VACÍO
+        setCards(prev => prev.map(c => c.id === sourceCard.id ? { ...c, binder_page: page, binder_slot: slot } : c));
+        if (selectedUserCard?.id === sourceCard.id) {
+          setSelectedUserCard(prev => prev ? { ...prev, binder_page: page, binder_slot: slot } : null);
+        }
+
+        setHasMutated(true);
+        setDraggedCard(null);
+
+        try {
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: sourceCard.id, binder_page: page, binder_slot: slot }),
+          });
+          toast.success(`Carta colocada en Pág. ${page}, Slot ${slot}`, { title: '¡Ubicación actualizada!' });
+        } catch (err) {
+          console.error('Error moving card to empty slot:', err);
+          toast.error('Error al mover carta al slot', { title: 'Error' });
+        }
+        return;
+      }
+    }
+
+    // Caso 2: Carta arrastrada desde el buscador o staged
+    const cardData: Card = (payload.card || payload) as Card;
     const existing = cards.find(c => c.binder_page === page && c.binder_slot === slot);
     if (existing) {
-      toast.warning(`Slot ${slot} (Pág. ${page}) ya está ocupado. Selecciónalo para moverlo.`, { title: 'Slot ocupado' });
+      toast.warning(`Slot ${slot} (Pág. ${page}) ya está ocupado. Arrastra una carta existente para intercambiarla.`, { title: 'Slot ocupado' });
+      setDraggedCard(null);
       return;
     }
-    await handleAddCardToContainer(card, page, slot);
+    await handleAddCardToContainer(cardData, page, slot);
     setDraggedCard(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, toast]);
+  }, [cards, selectedUserCard, handleAddCardToContainer, toast]);
 
   const handleDropCardToBox = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -796,13 +897,63 @@ export const useContainerWorkspaceState = ({
     }
   };
 
-  // Mover carta a otro contenedor o inbox
+  // Mover todas las copias de esta carta en este contenedor a otro contenedor o inbox
   const handleMoveCard = async (newLocationId: string | null) => {
     if (!selectedUserCard) return;
     const targetLoc = newLocationId === 'inbox' ? null : newLocationId;
-    await handleUpdateCard({ storage_location_id: targetLoc, binder_page: undefined, binder_slot: undefined });
-    setCards(prev => prev.filter(c => c.id !== selectedUserCard.id));
+    const comp = selectedUserCard.compartment_index || 0;
+    const variantsInThisContainer = cards.filter(
+      c => c.card_id === selectedUserCard.card_id && (c.compartment_index || 0) === comp
+    );
+    const variantIds = variantsInThisContainer.map(v => v.id);
+
+    setCards(prev => prev.filter(c => !variantIds.includes(c.id)));
     setSelectedUserCard(null);
+    setHasMutated(true);
+
+    try {
+      await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          card_ids: variantIds,
+          storage_location_id: targetLoc,
+          binder_page: null,
+          binder_slot: null,
+        }),
+      });
+      toast.success(`Todas las copias se movieron al nuevo contenedor`, { title: '¡Carta trasladada!' });
+      fetchCards();
+    } catch (err) {
+      console.error('Error al mover carta completa:', err);
+    }
+  };
+
+  // Quitar la carta del slot y enviarla a la bandeja de pendientes del binder
+  const handleSendToStaged = async () => {
+    if (!selectedUserCard) return;
+    const cardId = selectedUserCard.id;
+
+    // Actualización optimista
+    setCards(prev => prev.map(c => c.id === cardId ? { ...c, binder_page: undefined, binder_slot: undefined } : c));
+    setSelectedUserCard(prev => prev ? { ...prev, binder_page: undefined, binder_slot: undefined } : null);
+    setHasMutated(true);
+
+    try {
+      await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: cardId,
+          binder_page: null,
+          binder_slot: null,
+        }),
+      });
+      toast.success('Carta enviada a la bandeja de pendientes', { title: '¡Enviada a Pendientes!' });
+    } catch (err) {
+      console.error('Error al enviar carta a pendientes:', err);
+      toast.error('Error al enviar a pendientes', { title: 'Error' });
+    }
   };
 
   // Asignar carta directamente a un mazo activo
@@ -1007,6 +1158,78 @@ export const useContainerWorkspaceState = ({
       fetchCards();
     } catch (err) {
       console.error('Error al eliminar variante:', err);
+    }
+  };
+
+  // Abrir Modal de Movimiento de Variante
+  const handleOpenMoveVariantModal = (variant: UserCard) => {
+    setVariantToMove(variant);
+    setIsMoveVariantModalOpen(true);
+  };
+
+  const handleCloseMoveVariantModal = () => {
+    setIsMoveVariantModalOpen(false);
+    setVariantToMove(null);
+  };
+
+  // Ejecutar movimiento individual de variante a otro contenedor/carril
+  const handleConfirmMoveVariant = async (
+    variantId: string,
+    quantityToMove: number,
+    targetLocationId: string | null,
+    targetCompartmentIndex: number
+  ) => {
+    const targetVariant = cards.find(c => c.id === variantId);
+    if (!targetVariant) return;
+
+    const currentQty = targetVariant.quantity || 1;
+    const isMovingAll = quantityToMove >= currentQty;
+
+    // Actualización optimista de estado
+    if (isMovingAll) {
+      setCards(prev => prev.filter(c => c.id !== variantId));
+      if (selectedUserCard?.id === variantId) {
+        const remaining = cards.filter(c => c.id !== variantId && c.card_id === targetVariant.card_id);
+        setSelectedUserCard(remaining[0] || null);
+      }
+    } else {
+      const newQty = currentQty - quantityToMove;
+      setCards(prev => prev.map(c => c.id === variantId ? { ...c, quantity: newQty } : c));
+      if (selectedUserCard?.id === variantId) {
+        setSelectedUserCard(prev => prev ? { ...prev, quantity: newQty } : null);
+      }
+    }
+
+    setHasMutated(true);
+
+    try {
+      const res = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'split_and_move',
+          user_card_id: variantId,
+          split_quantity: quantityToMove,
+          target_storage_location_id: targetLocationId,
+          target_compartment_index: targetCompartmentIndex,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Error al mover variante');
+      }
+
+      toast.success(
+        `${quantityToMove} copia(s) movida(s) correctamente`,
+        { title: '¡Variante trasladada!' }
+      );
+      fetchCards();
+    } catch (err: unknown) {
+      const e = err as Error;
+      console.error('Error moving variant:', e);
+      toast.error(e.message || 'Error al trasladar variante', { title: 'Error' });
+      fetchCards();
     }
   };
 
@@ -1943,6 +2166,7 @@ export const useContainerWorkspaceState = ({
     handleSelectPhysicalCopy,
     handleUpdateCard,
     handleMoveCard,
+    handleSendToStaged,
     handleAssignToDeck,
     handleApplyRecommendation,
     handleDeleteCard,
@@ -1973,6 +2197,13 @@ export const useContainerWorkspaceState = ({
     handleOpenSplitModal,
     handleCloseSplitModal,
     handleSplitCopies,
+
+    // Variant Move Modal
+    isMoveVariantModalOpen,
+    variantToMove,
+    handleOpenMoveVariantModal,
+    handleCloseMoveVariantModal,
+    handleConfirmMoveVariant,
 
     // Physical Picker Modal
     pickerCard,

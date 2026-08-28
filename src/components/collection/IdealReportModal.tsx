@@ -1,28 +1,111 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Layers, ArrowRight, ShieldAlert, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Sparkles, Layers, ArrowRight, ShieldAlert, CheckCircle2, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 import { PhysicalStagingAssistantModal } from './PhysicalStagingAssistantModal';
+import { UniversalDeckWorkspaceModal } from './UniversalDeckWorkspaceModal';
+import { Deck, StorageLocation, UserCard, IdealSyncLog } from '@/types/collection';
 
 export function IdealReportModal() {
   const { isReportModalOpen, closeReportModal, syncData } = useIdealEnvironment();
   const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [workspaceDeck, setWorkspaceDeck] = useState<Deck | null>(null);
+
+  const mappedDecks: Deck[] = useMemo(() => {
+    if (!syncData?.idealDecks) return [];
+    return syncData.idealDecks.map(d => ({
+      id: d.id,
+      name: d.name || 'Deck Optimizado',
+      description: d.description || '',
+      format: d.format || 'Advanced',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      cards: (d.cards || []).map((c: { card_id: number; count: number; section: string; card_details?: UserCard['card_details'] }) => ({
+        card_id: c.card_id,
+        count: c.count,
+        section: c.section || 'main',
+        card_details: c.card_details
+      })),
+      sleeves: []
+    }));
+  }, [syncData]);
+
+  const mappedLocations: StorageLocation[] = useMemo(() => {
+    if (!syncData?.idealContainers) return [];
+    return syncData.idealContainers.map(loc => ({
+      id: loc.id,
+      name: loc.name || 'Contenedor',
+      type: loc.type || 'box',
+      sub_type: loc.sub_type || 'standard',
+      color_code: loc.color_code || '#ef4444',
+      dimensions: loc.dimensions || { width: 100, height: 100, depth: 100 },
+      capacity: loc.capacity || 100,
+      grid_layout: loc.grid_layout || { rows: 1, cols: 1, pockets_per_page: 9, total_pages: 1 },
+      compartments: loc.compartments || { count: 1, names: ['Principal'] },
+      render_style: loc.render_style || 'default',
+      description: loc.description,
+      created_at: new Date().toISOString(),
+      occupied_cards: loc.occupied_cards || 0
+    }));
+  }, [syncData]);
+
+  const mappedCards: UserCard[] = useMemo(() => {
+    if (!syncData?.idealCards) return [];
+    return syncData.idealCards.map((c, idx) => ({
+      id: c.id || `ideal-card-${idx}`,
+      card_id: c.card_id || 0,
+      storage_location_id: c.storage_location_id || null,
+      deck_id: c.deck_id || null,
+      deck_section: c.deck_section || null,
+      compartment_index: c.compartment_index || 0,
+      rarity: c.rarity || 'Common',
+      condition: c.condition || 'Near Mint',
+      language: c.language || 'ES',
+      quantity: c.quantity || 1,
+      status_flag: c.status_flag || 'collection',
+      sleeve_type: c.sleeve_type || 'none',
+      is_grayscale_shared: c.is_grayscale_shared,
+      shared_notes: c.shared_notes,
+      reorganization_reason: c.reorganization_reason,
+      created_at: new Date().toISOString(),
+      card_details: c.card_details
+    }));
+  }, [syncData]);
 
   if (!isReportModalOpen || !syncData) return null;
-
 
   const deckLogs = syncData.logs.filter(l => l.category === 'deck_created');
   const binderLogs = syncData.logs.filter(l => l.category === 'card_promoted');
   const bulkLogs = syncData.logs.filter(l => l.category === 'bulk_sorted');
 
-  const totalDecksCreated = deckLogs.reduce((acc, l) => acc + (l.card_count || 0), 0);
   const totalCardsPromoted = binderLogs.reduce((acc, l) => acc + (l.card_count || 0), 0);
 
   const toggleExpand = (logId: string) => {
     setExpandedLogId(prev => prev === logId ? null : logId);
+  };
+
+  const handleOpenDeckWorkspace = (log: Omit<IdealSyncLog, 'id' | 'created_at'>) => {
+    // 1. Match by explicit IDs
+    let foundDeck = mappedDecks.find(d => 
+      (log.ideal_deck_id && d.id === log.ideal_deck_id) ||
+      (log.deck_id && d.id === `ideal-deck-${log.deck_id}`)
+    );
+
+    // 2. Match by cleaned title
+    if (!foundDeck) {
+      const cleanName = log.title.replace(/^Deck Optimizador:\s*/i, '').trim().toLowerCase();
+      foundDeck = mappedDecks.find(d => d.name.toLowerCase() === cleanName || d.name.toLowerCase().includes(cleanName));
+    }
+
+    if (foundDeck) {
+      setWorkspaceDeck(foundDeck);
+    } else if (mappedDecks.length > 0) {
+      setWorkspaceDeck(mappedDecks[0]);
+    }
   };
 
   return (
@@ -53,7 +136,8 @@ export function IdealReportModal() {
 
               <button
                 onClick={closeReportModal}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer min-h-11 min-w-11 flex items-center justify-center touch-manipulation"
+                aria-label="Cerrar Reporte"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -74,7 +158,7 @@ export function IdealReportModal() {
                       Decks y Variantes
                     </span>
                     <span className="text-xl font-black text-zinc-900 dark:text-white font-mono">
-                      {syncData.idealDecks.length} Armados
+                      {deckLogs.length} Armados
                     </span>
                   </div>
                 </div>
@@ -131,6 +215,7 @@ export function IdealReportModal() {
                     const isExpanded = expandedLogId === logId;
                     const hasMovedCards = log.moved_cards && log.moved_cards.length > 0;
                     const hasDeckPreview = log.deck_cards_preview && log.deck_cards_preview.length > 0;
+                    const isDeckLog = log.category === 'deck_created';
 
                     return (
                       <div
@@ -157,16 +242,95 @@ export function IdealReportModal() {
                             </div>
                           </div>
 
-                          {(hasMovedCards || hasDeckPreview) && (
-                            <button
-                              onClick={() => toggleExpand(logId)}
-                              className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-red-500 hover:text-red-500 text-xs font-semibold rounded-xl transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <span>{isExpanded ? 'Ocultar cartas' : 'Ver cartas'}</span>
-                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                          )}
+                          {/* Action Buttons for Log Row */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isDeckLog ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDeckWorkspace(log)}
+                                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer touch-manipulation min-h-9"
+                                  title="Abrir modal de detalle de deck como en el sistema regular"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Ver cartas</span>
+                                </button>
+                                {hasDeckPreview && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpand(logId)}
+                                    className="p-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-xl transition-all flex items-center justify-center cursor-pointer min-h-9 min-w-9 touch-manipulation"
+                                    title={isExpanded ? 'Ocultar vista previa rápida' : 'Desplegar vista previa rápida'}
+                                    aria-label="Desplegar vista previa"
+                                  >
+                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              hasMovedCards && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(logId)}
+                                  className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-red-500 hover:text-red-500 text-xs font-semibold rounded-xl transition-all shrink-0 flex items-center gap-1.5 cursor-pointer min-h-9 touch-manipulation"
+                                >
+                                  <span>{isExpanded ? 'Ocultar cartas' : 'Ver cartas'}</span>
+                                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
+                              )
+                            )}
+                          </div>
                         </div>
+
+                        {/* Expandable Deck Cards Preview Grid */}
+                        <AnimatePresence>
+                          {isExpanded && isDeckLog && hasDeckPreview && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800"
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-mono">
+                                  Vista Previa de Cartas Clave:
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDeckWorkspace(log)}
+                                  className="text-xs font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer min-h-8 touch-manipulation"
+                                >
+                                  <span>Abrir Modal de Detalle de Deck</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2">
+                                {log.deck_cards_preview!.map((cp, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl flex flex-col items-center text-center group hover:border-red-500 transition-all"
+                                  >
+                                    <div className="w-full aspect-2/3 relative rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800 mb-1">
+                                      {cp.image_url ? (
+                                        <Image src={cp.image_url} alt={cp.name} fill unoptimized sizes="100px" className="object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-[9px] font-mono text-zinc-500">
+                                          YGO
+                                        </div>
+                                      )}
+                                      <span className="absolute bottom-1 right-1 bg-black/80 text-white text-[9px] font-mono font-black px-1 rounded z-10">
+                                        x{cp.count}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-zinc-800 dark:text-zinc-200 truncate w-full">
+                                      {cp.name}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
 
                         {/* Expandable Moved Cards List */}
                         <AnimatePresence>
@@ -187,7 +351,7 @@ export function IdealReportModal() {
                                     className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl flex items-center gap-2 text-xs"
                                   >
                                     {mc.image_url ? (
-                                      <img src={mc.image_url} alt={mc.name} className="w-8 h-11 object-cover rounded-md shrink-0" />
+                                      <Image src={mc.image_url} alt={mc.name} width={32} height={44} unoptimized className="w-8 h-11 object-cover rounded-md shrink-0" />
                                     ) : (
                                       <div className="w-8 h-11 bg-zinc-200 dark:bg-zinc-800 rounded-md shrink-0 flex items-center justify-center text-[9px] font-mono">
                                         YGO
@@ -224,7 +388,7 @@ export function IdealReportModal() {
               <button
                 type="button"
                 onClick={closeReportModal}
-                className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-800 rounded-xl text-xs font-bold transition-all cursor-pointer min-h-11 touch-manipulation"
               >
                 Cerrar Reporte
               </button>
@@ -232,7 +396,7 @@ export function IdealReportModal() {
               <button
                 type="button"
                 onClick={() => setIsStagingModalOpen(true)}
-                className="w-full sm:w-auto px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 flex items-center justify-center gap-2 cursor-pointer font-display"
+                className="w-full sm:w-auto px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 flex items-center justify-center gap-2 cursor-pointer font-display min-h-11 touch-manipulation"
               >
                 <span>Asistente de Reorganización Física</span>
                 <ArrowRight className="w-4 h-4" />
@@ -247,6 +411,22 @@ export function IdealReportModal() {
         isOpen={isStagingModalOpen}
         onClose={() => setIsStagingModalOpen(false)}
       />
+
+      {/* Universal Deck Workspace Modal */}
+      {workspaceDeck && (
+        <UniversalDeckWorkspaceModal
+          key={workspaceDeck.id}
+          deck={workspaceDeck}
+          isOpen={!!workspaceDeck}
+          onClose={() => setWorkspaceDeck(null)}
+          onSelectDeck={(d) => setWorkspaceDeck(d)}
+          locations={mappedLocations}
+          decks={mappedDecks}
+          sleeves={[]}
+          allUserCards={mappedCards}
+          onSuccess={() => {}}
+        />
+      )}
     </>
   );
 }

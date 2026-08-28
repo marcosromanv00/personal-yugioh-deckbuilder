@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { synchronizeIdealEnvironment } from '@/lib/idealSyncService';
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const result = await synchronizeIdealEnvironment();
+    let config = undefined;
+    try {
+      const body = await req.json();
+      if (body && body.config) {
+        config = body.config;
+      }
+    } catch {
+      // Body may be empty, fallback to default config
+    }
+
+    const result = await synchronizeIdealEnvironment(config);
     return NextResponse.json({
       success: true,
       data: result

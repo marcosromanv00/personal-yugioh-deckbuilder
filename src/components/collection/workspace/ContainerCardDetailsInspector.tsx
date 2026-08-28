@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertCircle, Layers, Boxes, Plus, Trash2, Scissors } from 'lucide-react';
+import { AlertCircle, Layers, Boxes, Plus, Trash2, Scissors, ArrowRightLeft, Inbox } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { getCategoryBadgeStyle, getLanguageDisplay, DispersedCardSummary } from '@/lib/collectionUtils';
@@ -26,6 +26,8 @@ interface ContainerCardDetailsInspectorProps {
   onMoveCard: (newLocId: string | null) => void;
   onDeleteCard: () => void;
   onOpenSplitModal?: (card?: UserCard) => void;
+  onOpenMoveVariantModal?: (variant: UserCard) => void;
+  onSendToStaged?: () => void;
 }
 
 export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspectorProps> = ({
@@ -47,6 +49,8 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
   onMoveCard,
   onDeleteCard,
   onOpenSplitModal,
+  onOpenMoveVariantModal,
+  onSendToStaged,
 }) => {
   const cat = getCategoryBadgeStyle(selectedUserCard.status_flag);
 
@@ -207,6 +211,15 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                         )}
                       </div>
                       <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => onOpenMoveVariantModal?.(v)}
+                          className="text-[10.5px] text-blue-600 dark:text-blue-400 hover:text-blue-500 font-mono font-bold hover:underline cursor-pointer flex items-center gap-1"
+                          title="Mover esta variante a otro contenedor o bandeja"
+                        >
+                          <ArrowRightLeft className="w-3 h-3" />
+                          <span>Mover</span>
+                        </button>
                         {(v.quantity || 1) > 1 && (
                           <button
                             type="button"
@@ -347,6 +360,15 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
                       )}
                     </div>
                     <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenMoveVariantModal?.(v)}
+                        className="text-[10.5px] text-blue-600 dark:text-blue-400 hover:text-blue-500 font-mono font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        title="Mover esta variante a otro contenedor o bandeja"
+                      >
+                        <ArrowRightLeft className="w-3 h-3" />
+                        <span>Mover</span>
+                      </button>
                       {(v.quantity || 1) > 1 && (
                         <button
                           type="button"
@@ -510,10 +532,10 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
         </div>
       )}
 
-      {/* Mover de Contenedor */}
+      {/* Mover todas las copias del contenedor */}
       <div>
         <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-          Mover a Contenedor
+          Mover todas las copias de este contenedor
         </label>
         <PremiumDropdown
           value={selectedUserCard.storage_location_id || 'inbox'}
@@ -544,11 +566,28 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
         />
       </div>
 
-      {/* Botón Eliminar */}
-      <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+      {/* Botones de Acción: Enviar a Pendiente & Eliminar */}
+      <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 flex gap-2">
+        {location?.type === 'binder' && (
+          <button
+            type="button"
+            onClick={onSendToStaged}
+            disabled={!selectedUserCard.binder_page && !selectedUserCard.binder_slot}
+            className="flex-1 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-40 disabled:hover:bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:text-amber-500 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs min-h-11 touch-manipulation"
+            title={
+              !selectedUserCard.binder_page && !selectedUserCard.binder_slot
+                ? 'Esta carta ya está en la bandeja de pendientes'
+                : 'Quitar del slot asignado y enviar a pendientes'
+            }
+          >
+            <Inbox className="w-4 h-4" />
+            <span>Enviar a Pendiente</span>
+          </button>
+        )}
         <button
+          type="button"
           onClick={onDeleteCard}
-          className="w-full py-2.5 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+          className={`${location?.type === 'binder' ? 'flex-1' : 'w-full'} py-2.5 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs min-h-11 touch-manipulation`}
         >
           <Trash2 className="w-4 h-4" />
           <span>Eliminar de Colección</span>

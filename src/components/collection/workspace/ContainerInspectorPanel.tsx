@@ -72,6 +72,8 @@ interface ContainerInspectorPanelProps {
   onMoveCard: (newLocId: string | null) => void;
   onDeleteCard: () => void;
   onOpenSplitModal?: (card?: UserCard) => void;
+  onOpenMoveVariantModal?: (variant: UserCard) => void;
+  onSendToStaged?: () => void;
 }
 
 export const ContainerInspectorPanel: React.FC<ContainerInspectorPanelProps> = ({
@@ -125,6 +127,8 @@ export const ContainerInspectorPanel: React.FC<ContainerInspectorPanelProps> = (
   onMoveCard,
   onDeleteCard,
   onOpenSplitModal,
+  onOpenMoveVariantModal,
+  onSendToStaged,
 }) => {
   return (
     <div 
@@ -282,6 +286,8 @@ export const ContainerInspectorPanel: React.FC<ContainerInspectorPanelProps> = (
             onMoveCard={onMoveCard}
             onDeleteCard={onDeleteCard}
             onOpenSplitModal={onOpenSplitModal}
+            onOpenMoveVariantModal={onOpenMoveVariantModal}
+            onSendToStaged={onSendToStaged}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 dark:text-zinc-500 space-y-2">

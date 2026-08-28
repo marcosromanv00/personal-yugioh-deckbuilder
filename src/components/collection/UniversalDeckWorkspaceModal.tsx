@@ -66,7 +66,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:py-2 sm:px-4 bg-black/80 overflow-hidden font-sans select-none"
+      className="fixed inset-0 z-60 flex items-center justify-center p-0 sm:py-2 sm:px-4 bg-black/80 overflow-hidden font-sans select-none"
       onClick={() => handleRequestClose(state.hasMutated)}
     >
       <motion.div

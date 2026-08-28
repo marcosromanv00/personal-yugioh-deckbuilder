@@ -404,6 +404,106 @@ export async function PUT(req: NextRequest) {
       });
     }
 
+    // Caso especial: Dividir y mover copias a otro contenedor/carril
+    if (body.action === 'split_and_move' && body.user_card_id && typeof body.split_quantity === 'number') {
+      const { user_card_id, split_quantity, target_storage_location_id, target_compartment_index } = body;
+      const qtyToMove = Math.max(1, Math.floor(split_quantity));
+      const targetLocId = target_storage_location_id === 'inbox' || !target_storage_location_id ? null : target_storage_location_id;
+      const targetComp = typeof target_compartment_index === 'number' ? target_compartment_index : 0;
+
+      if (!isSupabaseConfigured) {
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Modo demo: Copias divididas y movidas', 
+          moveCount: qtyToMove 
+        });
+      }
+
+      // 1. Obtener registro original
+      const { data: originalCard, error: fetchErr } = await supabase
+        .from('yg_user_cards')
+        .select('*')
+        .eq('id', user_card_id)
+        .single();
+
+      if (fetchErr || !originalCard) {
+        return NextResponse.json({ error: 'No se encontró el registro de la carta original' }, { status: 404 });
+      }
+
+      const currentQty = originalCard.quantity || 1;
+      
+      // Si se mueven todas las copias (o más), actualizamos el registro directamente
+      if (qtyToMove >= currentQty) {
+        const { data: movedRecord, error: moveErr } = await supabase
+          .from('yg_user_cards')
+          .update({
+            storage_location_id: targetLocId,
+            compartment_index: targetComp,
+            binder_page: null,
+            binder_slot: null,
+          })
+          .eq('id', user_card_id)
+          .select('*, card_details:yg_cards(*)')
+          .single();
+
+        if (moveErr) throw moveErr;
+
+        return NextResponse.json({
+          success: true,
+          action: 'full_move',
+          movedRecord,
+          message: `Se movieron las ${currentQty} copias de la variante.`
+        });
+      }
+
+      // Si se mueve una cantidad parcial (< currentQty):
+      // 2. Reducir la cantidad del registro original
+      const remainingQty = currentQty - qtyToMove;
+      const { data: updatedSource, error: updateErr } = await supabase
+        .from('yg_user_cards')
+        .update({ quantity: remainingQty })
+        .eq('id', user_card_id)
+        .select('*, card_details:yg_cards(*)')
+        .single();
+
+      if (updateErr) throw updateErr;
+
+      // 3. Crear el nuevo registro en la ubicación de destino
+      const { data: newRecord, error: insertErr } = await supabase
+        .from('yg_user_cards')
+        .insert([{
+          card_id: originalCard.card_id,
+          storage_location_id: targetLocId,
+          compartment_index: targetComp,
+          quantity: qtyToMove,
+          rarity: originalCard.rarity || 'Common',
+          condition: originalCard.condition || 'Near Mint',
+          language: originalCard.language || 'en',
+          status_flag: originalCard.status_flag || 'collection',
+          sleeve_type: originalCard.sleeve_type || 'none',
+          sleeve_brand: originalCard.sleeve_brand || null,
+          sleeve_color: originalCard.sleeve_color || null,
+          sleeve_condition: originalCard.sleeve_condition || null,
+          is_proxy: !!originalCard.is_proxy,
+          is_favorite: !!originalCard.is_favorite,
+          notes: originalCard.notes || '',
+          binder_page: null,
+          binder_slot: null,
+        }])
+        .select('*, card_details:yg_cards(*)')
+        .single();
+
+      if (insertErr) throw insertErr;
+
+      return NextResponse.json({
+        success: true,
+        action: 'split_move',
+        updatedSource,
+        newRecord,
+        message: `Se movieron ${qtyToMove} copia(s) al nuevo contenedor.`
+      });
+    }
+
     if (!id) {
       return NextResponse.json({ error: 'ID de registro de carta es obligatorio' }, { status: 400 });
     }

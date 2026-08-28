@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { IdealOptimizerOutput } from '@/lib/idealOptimizer';
-import { IdealSyncLog } from '@/types/collection';
+import { IdealSyncLog, IdealOptimizationConfig } from '@/types/collection';
+import { IdealOptimizationConfigModal } from '@/components/collection/IdealOptimizationConfigModal';
+import { DEFAULT_IDEAL_CONFIG } from '@/lib/idealOptimizer';
 
 interface IdealEnvironmentContextType {
   isIdealMode: boolean;
@@ -12,12 +14,15 @@ interface IdealEnvironmentContextType {
   logs: IdealSyncLog[];
   isReportModalOpen: boolean;
   isAssistantModalOpen: boolean;
+  isConfigModalOpen: boolean;
   toggleIdealMode: () => void;
+  openConfigModal: () => void;
+  closeConfigModal: () => void;
   openReportModal: () => void;
   closeReportModal: () => void;
   openAssistantModal: () => void;
   closeAssistantModal: () => void;
-  triggerResync: () => Promise<void>;
+  triggerResync: (config?: IdealOptimizationConfig) => Promise<void>;
 }
 
 const IdealEnvironmentContext = createContext<IdealEnvironmentContextType | undefined>(undefined);
@@ -30,30 +35,41 @@ export function IdealEnvironmentProvider({ children }: { children: ReactNode }) 
   const [logs, setLogs] = useState<IdealSyncLog[]>([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
   const [isAssistantModalOpen, setIsAssistantModalOpen] = useState<boolean>(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
 
-  // Hydration safety: check localStorage after mount
+  // Hydration safety: synchronize localStorage asynchronously after mount
   useEffect(() => {
-    const saved = localStorage.getItem('yg_ideal_mode_active');
-    if (saved === 'true') {
-      setIsIdealMode(true);
+    try {
+      const saved = localStorage.getItem('yg_ideal_mode_active');
+      if (saved === 'true') {
+        queueMicrotask(() => {
+          setIsIdealMode(true);
+        });
+      }
+    } catch {
+      // localStorage unavailable in SSR or private mode
     }
   }, []);
 
-  const runSyncProcess = useCallback(async () => {
+  const runSyncProcess = useCallback(async (config: IdealOptimizationConfig = DEFAULT_IDEAL_CONFIG) => {
     setIsSyncing(true);
     setSyncStepMessage('🔄 Clonando inventario y contenedores actuales...');
     
-    await new Promise(r => setTimeout(r, 600));
-    setSyncStepMessage('🧠 Analizando sinergias de arquetipos y motores...');
+    await new Promise(r => setTimeout(r, 500));
+    setSyncStepMessage('🧠 Aplicando reglas de arquetipos puros y preservando decks activos...');
     
-    await new Promise(r => setTimeout(r, 600));
-    setSyncStepMessage('🃏 Construyendo decks optimizados y variantes...');
+    await new Promise(r => setTimeout(r, 500));
+    setSyncStepMessage('🃏 Estructurando mosaicos de Exodia, Dioses y apilando slots...');
 
-    await new Promise(r => setTimeout(r, 600));
-    setSyncStepMessage('💎 Promoviendo staples y cartas de alta rareza a Binders...');
+    await new Promise(r => setTimeout(r, 500));
+    setSyncStepMessage('💎 Separando binders de Colección/Temática y Staples competitivas...');
 
     try {
-      const res = await fetch('/api/collection/ideal/sync', { method: 'POST' });
+      const res = await fetch('/api/collection/ideal/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config })
+      });
       const json = await res.json();
       if (json.success && json.data) {
         setSyncData(json.data);
@@ -68,26 +84,35 @@ export function IdealEnvironmentProvider({ children }: { children: ReactNode }) 
       console.error('Error running ideal sync:', e);
     } finally {
       setSyncStepMessage('📋 Informe de reorganización ideal generado.');
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 350));
       setIsSyncing(false);
       setIsReportModalOpen(true);
     }
   }, []);
 
   const toggleIdealMode = useCallback(() => {
-    const nextState = !isIdealMode;
-    setIsIdealMode(nextState);
-    localStorage.setItem('yg_ideal_mode_active', String(nextState));
-
-    if (nextState) {
-      runSyncProcess();
+    if (!isIdealMode) {
+      // Open config modal when turning on ideal mode
+      setIsConfigModalOpen(true);
+    } else {
+      setIsIdealMode(false);
+      localStorage.setItem('yg_ideal_mode_active', 'false');
     }
-  }, [isIdealMode, runSyncProcess]);
+  }, [isIdealMode]);
 
-  const triggerResync = useCallback(async () => {
-    await runSyncProcess();
+  const handleConfirmConfigAndSync = useCallback((config: IdealOptimizationConfig) => {
+    setIsConfigModalOpen(false);
+    setIsIdealMode(true);
+    localStorage.setItem('yg_ideal_mode_active', 'true');
+    runSyncProcess(config);
   }, [runSyncProcess]);
 
+  const triggerResync = useCallback(async (config?: IdealOptimizationConfig) => {
+    await runSyncProcess(config || DEFAULT_IDEAL_CONFIG);
+  }, [runSyncProcess]);
+
+  const openConfigModal = useCallback(() => setIsConfigModalOpen(true), []);
+  const closeConfigModal = useCallback(() => setIsConfigModalOpen(false), []);
   const openReportModal = useCallback(() => setIsReportModalOpen(true), []);
   const closeReportModal = useCallback(() => setIsReportModalOpen(false), []);
   const openAssistantModal = useCallback(() => setIsAssistantModalOpen(true), []);
@@ -103,7 +128,10 @@ export function IdealEnvironmentProvider({ children }: { children: ReactNode }) 
         logs,
         isReportModalOpen,
         isAssistantModalOpen,
+        isConfigModalOpen,
         toggleIdealMode,
+        openConfigModal,
+        closeConfigModal,
         openReportModal,
         closeReportModal,
         openAssistantModal,
@@ -112,6 +140,13 @@ export function IdealEnvironmentProvider({ children }: { children: ReactNode }) 
       }}
     >
       {children}
+
+      {/* Modal de Configuración y Parámetros Previos al Sync */}
+      <IdealOptimizationConfigModal
+        isOpen={isConfigModalOpen}
+        onClose={closeConfigModal}
+        onConfirm={handleConfirmConfigAndSync}
+      />
     </IdealEnvironmentContext.Provider>
   );
 }

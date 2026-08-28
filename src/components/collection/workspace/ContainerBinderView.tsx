@@ -91,6 +91,28 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
               return (
                 <div
                   key={slotNum}
+                  draggable={!isSelectMode && !!cardInSlot}
+                  onDragStart={(e) => {
+                    if (isSelectMode || !cardInSlot) return;
+                    e.dataTransfer.setData('application/json', JSON.stringify({
+                      type: 'binder_slot_card',
+                      userCardId: cardInSlot.id,
+                      cardId: cardInSlot.card_id,
+                      fromPage: leftPageNum,
+                      fromSlot: slotNum,
+                      card: {
+                        id: cardInSlot.card_id,
+                        name: cardInSlot.card_details?.name || 'Carta',
+                        type: cardInSlot.card_details?.type || '',
+                        image_url: cardInSlot.card_details?.image_url || '',
+                        image_url_small: cardInSlot.card_details?.image_url_small || cardInSlot.card_details?.image_url || '',
+                      }
+                    }));
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragEnd={() => {
+                    setDragOverSlot(null);
+                  }}
                   onClick={() => {
                     if (isSelectMode && cardInSlot) {
                       onToggleSelectCard?.(cardInSlot.id);
@@ -102,16 +124,18 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                       if (isMobile) setMobileTab('right');
                     }
                   }}
-                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOverSlot(slotKey); }}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverSlot(slotKey); }}
                   onDragLeave={() => setDragOverSlot(null)}
                   onDrop={(e) => leftPageNum ? onDropCardToBinderSlot(e, leftPageNum, slotNum) : undefined}
                   className={`rounded-lg border aspect-3/4 relative flex items-center justify-center p-1 cursor-pointer transition-all ${
                     isDragOver
-                      ? 'border-solid border-green-400 bg-green-900/20 scale-105'
+                      ? cardInSlot
+                        ? 'border-solid border-amber-400 bg-amber-900/30 scale-105 ring-2 ring-amber-400/60 shadow-lg'
+                        : 'border-solid border-green-400 bg-green-900/20 scale-105'
                       : isSlotCardSelected
                       ? 'border-red-500 bg-red-950/20 ring-2 ring-red-500/60 shadow-md'
                       : cardInSlot
-                      ? 'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700 hover:border-red-500 shadow-xs'
+                      ? 'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700 hover:border-red-500 shadow-xs active:cursor-grabbing'
                       : selectedSearchCard
                       ? 'border-dashed border-purple-500/60 bg-purple-950/20 hover:bg-purple-950/40 animate-pulse'
                       : 'border-dashed border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30'
@@ -123,7 +147,7 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                       <img
                         src={cardInSlot.card_details.image_url_small || cardInSlot.card_details.image_url}
                         alt={cardInSlot.card_details.name}
-                        className="w-full h-full object-cover rounded"
+                        className="w-full h-full object-cover rounded pointer-events-none select-none"
                       />
 
                       {/* Checkbox en modo selección o Alerta de Duplicados */}
@@ -191,6 +215,28 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
               return (
                 <div
                   key={slotNum}
+                  draggable={!isSelectMode && !!cardInSlot}
+                  onDragStart={(e) => {
+                    if (isSelectMode || !cardInSlot) return;
+                    e.dataTransfer.setData('application/json', JSON.stringify({
+                      type: 'binder_slot_card',
+                      userCardId: cardInSlot.id,
+                      cardId: cardInSlot.card_id,
+                      fromPage: rightPageNum,
+                      fromSlot: slotNum,
+                      card: {
+                        id: cardInSlot.card_id,
+                        name: cardInSlot.card_details?.name || 'Carta',
+                        type: cardInSlot.card_details?.type || '',
+                        image_url: cardInSlot.card_details?.image_url || '',
+                        image_url_small: cardInSlot.card_details?.image_url_small || cardInSlot.card_details?.image_url || '',
+                      }
+                    }));
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragEnd={() => {
+                    setDragOverSlot(null);
+                  }}
                   onClick={() => {
                     if (isSelectMode && cardInSlot) {
                       onToggleSelectCard?.(cardInSlot.id);
@@ -202,16 +248,18 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                       if (isMobile) setMobileTab('right');
                     }
                   }}
-                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOverSlot(slotKey); }}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverSlot(slotKey); }}
                   onDragLeave={() => setDragOverSlot(null)}
                   onDrop={(e) => rightPageNum ? onDropCardToBinderSlot(e, rightPageNum, slotNum) : undefined}
                   className={`rounded-lg border aspect-3/4 relative flex items-center justify-center p-1 cursor-pointer transition-all ${
                     isDragOver
-                      ? 'border-solid border-green-400 bg-green-900/20 scale-105'
+                      ? cardInSlot
+                        ? 'border-solid border-amber-400 bg-amber-900/30 scale-105 ring-2 ring-amber-400/60 shadow-lg'
+                        : 'border-solid border-green-400 bg-green-900/20 scale-105'
                       : isSlotCardSelected
                       ? 'border-red-500 bg-red-950/20 ring-2 ring-red-500/60 shadow-md'
                       : cardInSlot
-                      ? 'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700 hover:border-red-500 shadow-xs'
+                      ? 'bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-700 hover:border-red-500 shadow-xs active:cursor-grabbing'
                       : selectedSearchCard
                       ? 'border-dashed border-purple-500/60 bg-purple-950/20 hover:bg-purple-950/40 animate-pulse'
                       : 'border-dashed border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30'
@@ -223,7 +271,7 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                       <img
                         src={cardInSlot.card_details.image_url_small || cardInSlot.card_details.image_url}
                         alt={cardInSlot.card_details.name}
-                        className="w-full h-full object-cover rounded"
+                        className="w-full h-full object-cover rounded pointer-events-none select-none"
                       />
 
                       {/* Checkbox en modo selección o Alerta de Duplicados */}
@@ -260,7 +308,7 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
                     </>
                   ) : (
                     <span className="text-[9px] font-mono text-zinc-600">
-                      {selectedSearchCard ? 'Colocar' : slotNum}
+                      {draggedCard && !cardInSlot ? '＋' : selectedSearchCard ? 'Colocar' : slotNum}
                     </span>
                   )}
                 </div>

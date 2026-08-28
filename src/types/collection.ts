@@ -104,8 +104,25 @@ export interface MovedCardInfo {
   name: string;
   image_url?: string;
   rarity: string;
+  quantity?: number;
   from_location: string;
   to_location: string;
+  binder_page?: number;
+  binder_slot?: number;
+  compartment_index?: number;
+  reason_tag?: string;
+  is_mosaic_piece?: boolean;
+  target_container_type?: 'binder' | 'box' | 'tin' | 'deckbox';
+}
+
+export interface IdealOptimizationConfig {
+  preserve_active_decks: boolean;
+  create_tech_variants: boolean;
+  enable_special_mosaics: boolean;
+  stack_copies_in_same_slot: boolean;
+  separate_collection_and_staples_binders: boolean;
+  min_rarity_for_binder: 'Secret+' | 'Ultra+' | 'Super+' | 'All';
+  bulk_grouping_mode: 'archetype' | 'card_type';
 }
 
 export interface DeckCardPreviewInfo {
@@ -125,6 +142,8 @@ export interface IdealSyncLog {
   source_location_name?: string;
   target_location_name?: string;
   card_count: number;
+  deck_id?: string;
+  ideal_deck_id?: string;
   is_applied_to_physical?: boolean;
   moved_cards?: MovedCardInfo[];
   deck_cards_preview?: DeckCardPreviewInfo[];

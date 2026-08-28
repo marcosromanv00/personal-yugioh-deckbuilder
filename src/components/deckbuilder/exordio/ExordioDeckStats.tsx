@@ -134,7 +134,7 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
           <div className="flex justify-center items-center py-2 relative w-full overflow-hidden">
             <svg
               viewBox={`0 0 ${size} ${size}`}
-              className="w-full max-w-[280px] h-auto overflow-visible"
+              className="w-full max-w-70 h-auto overflow-visible"
             >
               {/* Círculos concéntricos guía */}
               {[0.25, 0.5, 0.75, 1].map((level) => {
