@@ -243,6 +243,7 @@ export interface Deck {
   description?: string;
   format?: string;
   storage_location_id?: string | null;
+  compartment_index?: number;
   is_active?: boolean;
   created_at: string;
   cards?: DeckCardDetail[];

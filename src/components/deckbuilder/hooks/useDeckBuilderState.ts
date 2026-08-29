@@ -716,20 +716,40 @@ export function useDeckBuilderState() {
       return [historyCard, ...filtered].slice(0, 15);
     });
 
-    // Auto-asignación inteligente de copia física
-    const assignedUserCardIds = new Set<string>();
+    // Auto-asignación inteligente de copia física basada en conteo de capacidad real
+    const assignedCounts: Record<string, number> = {};
     deckCards.forEach(c => {
       c.physical_copies?.forEach(pc => {
-        if (pc.user_card_id) assignedUserCardIds.add(pc.user_card_id);
+        if (pc.user_card_id) {
+          assignedCounts[pc.user_card_id] = (assignedCounts[pc.user_card_id] || 0) + 1;
+        }
       });
     });
 
     const ownedForCard = allUserCards.filter(uc => uc.card_id === card.id);
-    const availableUnassigned = ownedForCard.filter(uc => !assignedUserCardIds.has(uc.id));
+    const availableUnassigned = ownedForCard.filter(uc => {
+      const alreadyAssigned = assignedCounts[uc.id] || 0;
+      const totalCapacity = uc.quantity || 1;
+      return alreadyAssigned < totalCapacity;
+    });
+
     availableUnassigned.sort((a, b) => {
+      // 1. Prioridad a cartas ya asignadas a este deck si está activo
+      const aThisDeck = deckId && a.deck_id === deckId ? 0 : 1;
+      const bThisDeck = deckId && b.deck_id === deckId ? 0 : 1;
+      if (aThisDeck !== bThisDeck) return aThisDeck - bThisDeck;
+
+      // 2. Prioridad a cartas libres (sin mazo asignado)
       const aInDeck = a.deck_id ? 1 : 0;
       const bInDeck = b.deck_id ? 1 : 0;
-      return aInDeck - bInDeck;
+      if (aInDeck !== bInDeck) return aInDeck - bInDeck;
+
+      // 3. No-proxy sobre proxy
+      const aProxy = a.is_proxy ? 1 : 0;
+      const bProxy = b.is_proxy ? 1 : 0;
+      if (aProxy !== bProxy) return aProxy - bProxy;
+
+      return 0;
     });
 
     const pickedUserCard = availableUnassigned[0];
@@ -1123,8 +1143,51 @@ export function useDeckBuilderState() {
       setFormat('Master Duel');
     }
 
+    // Mapear copias físicas reales asignadas a este deck desde el inventario
+    const userCardsInDeck = allUserCards.filter(uc => 
+      uc.deck_id === selected.id || 
+      (selected.storage_location_id && uc.storage_location_id === selected.storage_location_id && uc.compartment_index === (selected.compartment_index || 0))
+    );
+
+    const deckAssignedCounts: Record<string, number> = {};
+
     const initialMappedCards: DeckCard[] = (selected.cards || []).map((dc: import('@/types/collection').DeckCardDetail) => {
       const cardDetails = dc.card_details as (Card & typeof dc.card_details);
+      const matchingPhysical = userCardsInDeck.filter(uc => uc.card_id === dc.card_id);
+
+      const physicalCopies: import('../types').DeckCardPhysicalCopy[] = [];
+
+      for (let i = 0; i < dc.count; i++) {
+        const availableUc = matchingPhysical.find(uc => {
+          const used = deckAssignedCounts[uc.id] || 0;
+          return used < (uc.quantity || 1);
+        });
+
+        if (availableUc) {
+          deckAssignedCounts[availableUc.id] = (deckAssignedCounts[availableUc.id] || 0) + 1;
+          const loc = locations.find(l => l.id === availableUc.storage_location_id);
+          physicalCopies.push({
+            user_card_id: availableUc.id,
+            storage_location_id: availableUc.storage_location_id,
+            location_name: loc ? loc.name : 'Inbox / Sin clasificar',
+            rarity: availableUc.rarity || 'Common',
+            condition: availableUc.condition || 'Near Mint',
+            is_proxy: Boolean(availableUc.is_proxy),
+            is_in_active_deck: Boolean(availableUc.deck_id && availableUc.deck_id !== selected.id),
+            active_deck_id: availableUc.deck_id || undefined,
+            active_deck_name: availableUc.deck_details?.name,
+            binder_page: availableUc.binder_page,
+            binder_slot: availableUc.binder_slot,
+            compartment_index: availableUc.compartment_index
+          });
+        } else {
+          physicalCopies.push({
+            is_proxy: true,
+            rarity: 'Receta / Proxy'
+          });
+        }
+      }
+
       return {
         id: dc.card_id,
         name: cardDetails?.name || `Carta #${dc.card_id}`,
@@ -1140,7 +1203,8 @@ export function useDeckBuilderState() {
         def: cardDetails?.def,
         level: cardDetails?.level,
         race: cardDetails?.race,
-        attribute: cardDetails?.attribute
+        attribute: cardDetails?.attribute,
+        physical_copies: physicalCopies
       };
     });
 
@@ -1247,7 +1311,7 @@ export function useDeckBuilderState() {
       setSelectedMainSleeveId('');
       setSelectedExtraSleeveId('');
     }
-  }, []);
+  }, [allUserCards, locations]);
 
   const currentSnapshot = useMemo(() => {
     return JSON.stringify({

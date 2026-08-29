@@ -342,7 +342,7 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
                   <span>Copias Físicas Asignadas ({currentCount})</span>
                 </span>
                 <span className="text-[9.5px] font-mono text-zinc-400">
-                  {allUserCards.filter(uc => uc.card_id === card.id).length} en colección
+                  {allUserCards.filter(uc => uc.card_id === card.id).reduce((sum, uc) => sum + (uc.quantity || 1), 0)} en colección
                 </span>
               </div>
 
@@ -364,10 +364,11 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
                         locDetail = ` (Carril ${uc.compartment_index + 1})`;
                       }
                       const inDeckTag = uc.deck_id ? ` • ⚔️ ${uc.deck_details?.name || 'En Deck Activo'}` : '';
+                      const qtyTag = (uc.quantity || 1) > 1 ? ` (${uc.quantity} disponibles)` : '';
 
                       return {
                         value: uc.id,
-                        label: `${uc.rarity || 'Common'} • ${locName}${locDetail}${inDeckTag}`
+                        label: `${uc.rarity || 'Common'} • ${locName}${locDetail}${inDeckTag}${qtyTag}`
                       };
                     })
                   ];
