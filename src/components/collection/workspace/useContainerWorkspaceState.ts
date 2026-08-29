@@ -14,7 +14,7 @@ import {
 import { findDispersedCardsAcrossLocations } from '@/lib/collectionUtils';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 import { computeCrossContainerDuplicateMap } from '@/lib/collectionSuggestions';
-import { GridCardGroup, DeckInContainer, RightPanelMode, AISubView, DetailsCopiesMode, MobileTab } from './types';
+import { GridCardGroup, DeckInContainer, RightPanelMode, AISubView, DetailsCopiesMode, MobileTab, ContainerHistoryAction } from './types';
 
 interface UseContainerWorkspaceStateProps {
   isOpen: boolean;
@@ -45,6 +45,11 @@ export const useContainerWorkspaceState = ({
   const [cards, setCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMutated, setHasMutated] = useState(false);
+
+  // Pilas de Historial para Deshacer (Undo) y Rehacer (Redo)
+  const [undoStack, setUndoStack] = useState<ContainerHistoryAction[]>([]);
+  const [redoStack, setRedoStack] = useState<ContainerHistoryAction[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Drag & Drop
   const [draggedCard, setDraggedCard] = useState<Card | null>(null);
@@ -251,6 +256,226 @@ export const useContainerWorkspaceState = ({
       setLoading(false);
     }
   }, [isOpen, isInbox, containerId, isIdealMode, location, syncData]);
+
+  // Registrar una acción histórica reversible
+  const pushHistoryAction = useCallback((action: ContainerHistoryAction) => {
+    setUndoStack(prev => [...prev.slice(-29), action]);
+    setRedoStack([]);
+  }, []);
+
+  // Deshacer última acción (Undo)
+  const handleUndo = useCallback(async () => {
+    if (undoStack.length === 0) return;
+    const action = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    setRedoStack(prev => [...prev, action]);
+
+    try {
+      if (action.type === 'add_cards') {
+        const idsToDelete = action.cards.map(c => c.id);
+        setCards(prev => prev.filter(c => !idsToDelete.includes(c.id)));
+        if (selectedUserCard && idsToDelete.includes(selectedUserCard.id)) {
+          setSelectedUserCard(null);
+        }
+        await fetch('/api/collection/cards', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: idsToDelete })
+        });
+      } else if (action.type === 'delete_cards') {
+        setCards(prev => [...action.cards, ...prev]);
+        await fetch('/api/collection/cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cards: action.cards })
+        });
+      } else if (action.type === 'update_cards') {
+        const prevMap = new Map(action.prevCards.map(c => [c.id, c]));
+        setCards(prev => prev.map(c => prevMap.get(c.id) || c));
+        if (selectedUserCard && prevMap.has(selectedUserCard.id)) {
+          setSelectedUserCard(prevMap.get(selectedUserCard.id)!);
+        }
+        for (const card of action.prevCards) {
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: card.id,
+              quantity: card.quantity,
+              condition: card.condition,
+              status_flag: card.status_flag,
+              sleeve_type: card.sleeve_type,
+              sleeve_brand: card.sleeve_brand,
+              sleeve_color: card.sleeve_color,
+              sleeve_condition: card.sleeve_condition,
+              rarity: card.rarity,
+              notes: card.notes,
+              is_favorite: card.is_favorite,
+              deck_id: card.deck_id,
+              deck_section: card.deck_section,
+              compartment_index: card.compartment_index,
+              binder_page: card.binder_page,
+              binder_slot: card.binder_slot,
+            })
+          });
+        }
+      } else if (action.type === 'move_cards') {
+        const itemMap = new Map(action.items.map(i => [i.id, i]));
+        setCards(prev => {
+          const currentFiltered = prev.filter(c => !itemMap.has(c.id));
+          const restoredCards = action.items
+            .filter(i => (isInbox ? !i.prevLocationId : i.prevLocationId === containerId))
+            .map(i => ({
+              ...i.prevCard,
+              storage_location_id: i.prevLocationId,
+              compartment_index: i.prevCompartment ?? i.prevCard.compartment_index,
+              binder_page: i.prevPage ?? i.prevCard.binder_page,
+              binder_slot: i.prevSlot ?? i.prevCard.binder_slot,
+            }));
+          return [...restoredCards, ...currentFiltered];
+        });
+        for (const item of action.items) {
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: item.id,
+              storage_location_id: item.prevLocationId,
+              compartment_index: item.prevCompartment ?? 0,
+              binder_page: item.prevPage ?? null,
+              binder_slot: item.prevSlot ?? null,
+              deck_id: item.prevCard.deck_id ?? null,
+              deck_section: item.prevCard.deck_section ?? null,
+              status_flag: item.prevCard.status_flag || 'collection',
+            })
+          });
+        }
+      }
+      setHasMutated(true);
+      toast.info(`Deshecho: ${action.description}`, { title: 'Deshacer (Undo)' });
+    } catch (err) {
+      console.error('Error al deshacer acción:', err);
+      toast.error('Error al intentar deshacer la acción', { title: 'Error' });
+    }
+  }, [undoStack, selectedUserCard, isInbox, containerId, toast]);
+
+  // Rehacer última acción deshecha (Redo)
+  const handleRedo = useCallback(async () => {
+    if (redoStack.length === 0) return;
+    const action = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    setUndoStack(prev => [...prev, action]);
+
+    try {
+      if (action.type === 'add_cards') {
+        setCards(prev => [...action.cards, ...prev]);
+        await fetch('/api/collection/cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cards: action.cards })
+        });
+      } else if (action.type === 'delete_cards') {
+        const idsToDelete = action.cards.map(c => c.id);
+        setCards(prev => prev.filter(c => !idsToDelete.includes(c.id)));
+        if (selectedUserCard && idsToDelete.includes(selectedUserCard.id)) {
+          setSelectedUserCard(null);
+        }
+        await fetch('/api/collection/cards', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: idsToDelete })
+        });
+      } else if (action.type === 'update_cards') {
+        const newMap = new Map(action.newCards.map(c => [c.id, c]));
+        setCards(prev => prev.map(c => newMap.get(c.id) || c));
+        if (selectedUserCard && newMap.has(selectedUserCard.id)) {
+          setSelectedUserCard(newMap.get(selectedUserCard.id)!);
+        }
+        for (const card of action.newCards) {
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: card.id,
+              quantity: card.quantity,
+              condition: card.condition,
+              status_flag: card.status_flag,
+              sleeve_type: card.sleeve_type,
+              sleeve_brand: card.sleeve_brand,
+              sleeve_color: card.sleeve_color,
+              sleeve_condition: card.sleeve_condition,
+              rarity: card.rarity,
+              notes: card.notes,
+              is_favorite: card.is_favorite,
+              deck_id: card.deck_id,
+              deck_section: card.deck_section,
+              compartment_index: card.compartment_index,
+              binder_page: card.binder_page,
+              binder_slot: card.binder_slot,
+            })
+          });
+        }
+      } else if (action.type === 'move_cards') {
+        const itemMap = new Map(action.items.map(i => [i.id, i]));
+        setCards(prev => {
+          const currentFiltered = prev.filter(c => !itemMap.has(c.id));
+          const restoredCards = action.items
+            .filter(i => (isInbox ? !i.newLocationId : i.newLocationId === containerId))
+            .map(i => ({
+              ...i.newCard,
+              storage_location_id: i.newLocationId,
+              compartment_index: i.newCompartment ?? i.newCard.compartment_index,
+              binder_page: i.newPage ?? i.newCard.binder_page,
+              binder_slot: i.newSlot ?? i.newCard.binder_slot,
+            }));
+          return [...restoredCards, ...currentFiltered];
+        });
+        for (const item of action.items) {
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: item.id,
+              storage_location_id: item.newLocationId,
+              compartment_index: item.newCompartment ?? 0,
+              binder_page: item.newPage ?? null,
+              binder_slot: item.newSlot ?? null,
+              deck_id: item.newCard.deck_id ?? null,
+              deck_section: item.newCard.deck_section ?? null,
+              status_flag: item.newCard.status_flag || 'collection',
+            })
+          });
+        }
+      }
+      setHasMutated(true);
+      toast.info(`Rehecho: ${action.description}`, { title: 'Rehacer (Redo)' });
+    } catch (err) {
+      console.error('Error al rehacer acción:', err);
+      toast.error('Error al intentar rehacer la acción', { title: 'Error' });
+    }
+  }, [redoStack, selectedUserCard, isInbox, containerId, toast]);
+
+  const canUndo = undoStack.length > 0;
+  const canRedo = redoStack.length > 0;
+
+  // Refrescar estado del contenedor de forma explícita
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchCards();
+      const res = await fetch('/api/collection/cards');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) setAllCollectionCards(json.data);
+      }
+      toast.success('Estado del contenedor sincronizado y actualizado', { title: 'Refrescado' });
+    } catch (err) {
+      console.error('Error al refrescar estado del contenedor:', err);
+      toast.error('No se pudo refrescar el estado del contenedor', { title: 'Error' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchCards, toast]);
 
   // Carga inicial al montar el contenedor
   useEffect(() => {
@@ -618,6 +843,30 @@ export const useContainerWorkspaceState = ({
       const targetPage = containerType === 'binder' ? (page || (currentBinderViewIndex === 0 ? 1 : currentBinderViewIndex * 2)) : null;
       const targetSlot = containerType === 'binder' ? (slot || 1) : null;
 
+      pushHistoryAction({
+        type: 'move_cards',
+        description: `Ubicar ${userCard.card_details?.name || 'carta'}`,
+        items: [{
+          id: userCard.id,
+          prevLocationId: userCard.storage_location_id || null,
+          newLocationId: isInbox ? null : containerId,
+          prevCompartment: userCard.compartment_index ?? 0,
+          newCompartment: effectiveCompartment,
+          prevPage: userCard.binder_page ?? null,
+          newPage: targetPage,
+          prevSlot: userCard.binder_slot ?? null,
+          newSlot: targetSlot,
+          prevCard: userCard,
+          newCard: {
+            ...userCard,
+            storage_location_id: isInbox ? null : containerId,
+            compartment_index: effectiveCompartment,
+            binder_page: targetPage ?? undefined,
+            binder_slot: targetSlot ?? undefined,
+          }
+        }]
+      });
+
       // Optimistic state update
       setCards(prev => {
         const exists = prev.some(c => c.id === userCard.id);
@@ -697,6 +946,12 @@ export const useContainerWorkspaceState = ({
 
         if (existingUnplaced) {
           const updated = { ...existingUnplaced, binder_page: page, binder_slot: slot };
+          pushHistoryAction({
+            type: 'update_cards',
+            description: `Ubicar ${card.name} en Pág. ${page}, Slot ${slot}`,
+            prevCards: [existingUnplaced],
+            newCards: [updated]
+          });
           setCards(prev => prev.map(c => c.id === existingUnplaced.id ? updated : c));
           setSelectedUserCard(updated);
           setHasMutated(true);
@@ -759,6 +1014,11 @@ export const useContainerWorkspaceState = ({
         const json = await res.json();
         const insertedCard: UserCard = json.data;
         if (insertedCard) {
+          pushHistoryAction({
+            type: 'add_cards',
+            description: `Añadir ${card.name}`,
+            cards: [insertedCard]
+          });
           setCards(prev => [insertedCard, ...prev]);
           setSelectedUserCard(insertedCard);
         }
@@ -950,7 +1210,16 @@ export const useContainerWorkspaceState = ({
   const handleUpdateCard = async (updatedFields: Partial<UserCard>) => {
     if (!selectedUserCard) return;
 
+    const prevCard = selectedUserCard;
     const updated = { ...selectedUserCard, ...updatedFields };
+
+    pushHistoryAction({
+      type: 'update_cards',
+      description: `Modificar ${selectedUserCard.card_details?.name || 'carta'}`,
+      prevCards: [prevCard],
+      newCards: [updated]
+    });
+
     setSelectedUserCard(updated);
     setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
     setHasMutated(true);
@@ -979,6 +1248,30 @@ export const useContainerWorkspaceState = ({
     );
     const variantIds = variantsInThisContainer.map(v => v.id);
 
+    pushHistoryAction({
+      type: 'move_cards',
+      description: `Trasladar copias de ${selectedUserCard.card_details?.name || 'carta'}`,
+      items: variantsInThisContainer.map(v => ({
+        id: v.id,
+        prevLocationId: v.storage_location_id || null,
+        newLocationId: targetLoc,
+        prevCompartment: v.compartment_index ?? 0,
+        newCompartment: 0,
+        prevPage: v.binder_page ?? null,
+        newPage: null,
+        prevSlot: v.binder_slot ?? null,
+        newSlot: null,
+        prevCard: v,
+        newCard: {
+          ...v,
+          storage_location_id: targetLoc,
+          compartment_index: 0,
+          binder_page: undefined,
+          binder_slot: undefined,
+        }
+      }))
+    });
+
     setCards(prev => prev.filter(c => !variantIds.includes(c.id)));
     setSelectedUserCard(null);
     setHasMutated(true);
@@ -1006,6 +1299,15 @@ export const useContainerWorkspaceState = ({
     const target = cardToSend || selectedUserCard;
     if (!target) return;
     const cardId = target.id;
+    const prevCard = target;
+    const updatedCard: UserCard = { ...target, binder_page: undefined, binder_slot: undefined };
+
+    pushHistoryAction({
+      type: 'update_cards',
+      description: `Enviar ${target.card_details?.name || 'carta'} a pendientes`,
+      prevCards: [prevCard],
+      newCards: [updatedCard]
+    });
 
     // Actualización optimista inmediata en memoria
     setCards(prev => prev.map(c => (c.id === cardId || String(c.id) === String(cardId)) ? { ...c, binder_page: null as unknown as undefined, binder_slot: null as unknown as undefined } : c));
@@ -1080,7 +1382,15 @@ export const useContainerWorkspaceState = ({
     if (!selectedUserCard) return;
     if (!confirm(`¿Eliminar "${selectedUserCard.card_details?.name || 'esta carta'}" de la colección?`)) return;
 
+    const cardToDelete = selectedUserCard;
     const cardIdToDelete = selectedUserCard.id;
+
+    pushHistoryAction({
+      type: 'delete_cards',
+      description: `Eliminar ${cardToDelete.card_details?.name || 'carta'}`,
+      cards: [cardToDelete]
+    });
+
     setSelectedUserCard(null);
     setCards(prev => prev.filter(c => c.id !== cardIdToDelete));
     setHasMutated(true);
@@ -1170,6 +1480,16 @@ export const useContainerWorkspaceState = ({
 
   // Actualizar una variante específica por id
   const handleUpdateVariantById = async (variantId: string, updatedFields: Partial<UserCard>) => {
+    const targetVariant = cards.find(c => c.id === variantId);
+    if (targetVariant) {
+      pushHistoryAction({
+        type: 'update_cards',
+        description: `Actualizar variante de ${targetVariant.card_details?.name || 'carta'}`,
+        prevCards: [targetVariant],
+        newCards: [{ ...targetVariant, ...updatedFields }]
+      });
+    }
+
     setCards(prev => prev.map(c => c.id === variantId ? { ...c, ...updatedFields } : c));
     if (selectedUserCard?.id === variantId) {
       setSelectedUserCard(prev => prev ? { ...prev, ...updatedFields } : null);
@@ -1215,7 +1535,14 @@ export const useContainerWorkspaceState = ({
       if (res.ok) {
         const json = await res.json();
         const insertedCard: UserCard = json.data;
-        setCards(prev => [insertedCard, ...prev]);
+        if (insertedCard) {
+          pushHistoryAction({
+            type: 'add_cards',
+            description: `Añadir variante de ${selectedUserCard.card_details?.name || 'carta'}`,
+            cards: [insertedCard]
+          });
+          setCards(prev => [insertedCard, ...prev]);
+        }
         setHasMutated(true);
         toast.success(`Nueva variante añadida`, { title: '¡Variante creada!' });
         fetchCards();
@@ -1228,6 +1555,15 @@ export const useContainerWorkspaceState = ({
   // Eliminar una variante específica
   const handleDeleteVariantById = async (variantId: string) => {
     if (!confirm('¿Eliminar esta variante/rareza de la colección?')) return;
+
+    const targetVariant = cards.find(c => c.id === variantId);
+    if (targetVariant) {
+      pushHistoryAction({
+        type: 'delete_cards',
+        description: `Eliminar variante de ${targetVariant.card_details?.name || 'carta'}`,
+        cards: [targetVariant]
+      });
+    }
 
     setCards(prev => prev.filter(c => c.id !== variantId));
     if (selectedUserCard?.id === variantId) {
@@ -1269,6 +1605,30 @@ export const useContainerWorkspaceState = ({
 
     const currentQty = targetVariant.quantity || 1;
     const isMovingAll = quantityToMove >= currentQty;
+
+    pushHistoryAction({
+      type: 'move_cards',
+      description: `Trasladar variante de ${targetVariant.card_details?.name || 'carta'}`,
+      items: [{
+        id: variantId,
+        prevLocationId: targetVariant.storage_location_id || null,
+        newLocationId: targetLocationId,
+        prevCompartment: targetVariant.compartment_index ?? 0,
+        newCompartment: targetCompartmentIndex,
+        prevPage: targetVariant.binder_page ?? null,
+        newPage: null,
+        prevSlot: targetVariant.binder_slot ?? null,
+        newSlot: null,
+        prevCard: targetVariant,
+        newCard: {
+          ...targetVariant,
+          storage_location_id: targetLocationId,
+          compartment_index: targetCompartmentIndex,
+          binder_page: undefined,
+          binder_slot: undefined
+        }
+      }]
+    });
 
     // Actualización optimista de estado
     if (isMovingAll) {
@@ -1378,6 +1738,31 @@ export const useContainerWorkspaceState = ({
   // Mover en bloque
   const handleBulkMove = async (targetLocationId: string | null, targetCompartmentIndex: number = 0) => {
     if (selectedCardIds.length === 0) return;
+    const affectedCards = cards.filter(c => selectedCardIds.includes(c.id));
+    pushHistoryAction({
+      type: 'move_cards',
+      description: `Mover ${selectedCardIds.length} cartas en bloque`,
+      items: affectedCards.map(c => ({
+        id: c.id,
+        prevLocationId: c.storage_location_id || null,
+        newLocationId: targetLocationId,
+        prevCompartment: c.compartment_index ?? 0,
+        newCompartment: targetCompartmentIndex,
+        prevPage: c.binder_page ?? null,
+        newPage: null,
+        prevSlot: c.binder_slot ?? null,
+        newSlot: null,
+        prevCard: c,
+        newCard: {
+          ...c,
+          storage_location_id: targetLocationId,
+          compartment_index: targetCompartmentIndex,
+          binder_page: undefined,
+          binder_slot: undefined,
+        }
+      }))
+    });
+
     try {
       const res = await fetch('/api/collection/cards', {
         method: 'PUT',
@@ -1420,6 +1805,14 @@ export const useContainerWorkspaceState = ({
   // Cambiar estado en bloque
   const handleBulkChangeStatus = async (newStatus: CardStatusFlag) => {
     if (selectedCardIds.length === 0) return;
+    const affectedCards = cards.filter(c => selectedCardIds.includes(c.id));
+    pushHistoryAction({
+      type: 'update_cards',
+      description: `Cambiar estado de ${selectedCardIds.length} cartas`,
+      prevCards: affectedCards,
+      newCards: affectedCards.map(c => ({ ...c, status_flag: newStatus }))
+    });
+
     try {
       const res = await fetch('/api/collection/cards', {
         method: 'PUT',
@@ -1454,6 +1847,18 @@ export const useContainerWorkspaceState = ({
   // Cambiar condición y/o fundas en bloque
   const handleBulkChangeCondition = async (newCondition: CardCondition, sleeveType?: SleeveType) => {
     if (selectedCardIds.length === 0) return;
+    const affectedCards = cards.filter(c => selectedCardIds.includes(c.id));
+    pushHistoryAction({
+      type: 'update_cards',
+      description: `Cambiar condición de ${selectedCardIds.length} cartas`,
+      prevCards: affectedCards,
+      newCards: affectedCards.map(c => ({
+        ...c,
+        condition: newCondition,
+        ...(sleeveType !== undefined ? { sleeve_type: sleeveType } : {})
+      }))
+    });
+
     try {
       const updates: Record<string, unknown> = { condition: newCondition };
       if (sleeveType !== undefined) {
@@ -1496,6 +1901,13 @@ export const useContainerWorkspaceState = ({
   // Eliminar en bloque
   const handleBulkDelete = async () => {
     if (selectedCardIds.length === 0) return;
+    const affectedCards = cards.filter(c => selectedCardIds.includes(c.id));
+    pushHistoryAction({
+      type: 'delete_cards',
+      description: `Eliminar ${selectedCardIds.length} cartas en bloque`,
+      cards: affectedCards
+    });
+
     try {
       const res = await fetch('/api/collection/cards', {
         method: 'DELETE',
@@ -1544,6 +1956,8 @@ export const useContainerWorkspaceState = ({
   // Ejecutar separación de copias
   const handleSplitCopies = async (userCardId: string, splitQuantity: number) => {
     try {
+      const targetCard = cards.find(c => c.id === userCardId);
+
       const res = await fetch('/api/collection/cards', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1560,6 +1974,15 @@ export const useContainerWorkspaceState = ({
       }
 
       const { updatedSource, newRecord } = json;
+
+      if (targetCard) {
+        pushHistoryAction({
+          type: 'update_cards',
+          description: `Dividir copias de ${targetCard.card_details?.name || 'carta'}`,
+          prevCards: [targetCard],
+          newCards: newRecord ? [updatedSource, newRecord] : [updatedSource]
+        });
+      }
 
       setCards(prev => {
         const next = prev.map(c => c.id === userCardId ? updatedSource : c);
@@ -2122,7 +2545,16 @@ export const useContainerWorkspaceState = ({
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
       }
-      if (e.key === 'Escape') {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (canUndo) handleUndo();
+      } else if (
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        e.preventDefault();
+        if (canRedo) handleRedo();
+      } else if (e.key === 'Escape') {
         onClose(hasMutated);
       } else if (e.key === 'ArrowLeft') {
         handleNavigatePrev();
@@ -2132,9 +2564,19 @@ export const useContainerWorkspaceState = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, hasMutated, onClose, handleNavigatePrev, handleNavigateNext]);
+  }, [isOpen, hasMutated, onClose, handleNavigatePrev, handleNavigateNext, canUndo, canRedo, handleUndo, handleRedo]);
 
   return {
+    // Undo / Redo / Refresh State
+    canUndo,
+    canRedo,
+    handleUndo,
+    handleRedo,
+    handleRefresh,
+    isRefreshing,
+    undoStack,
+    redoStack,
+
     // Basic state
     cards,
     setCards,

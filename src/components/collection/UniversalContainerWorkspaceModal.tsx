@@ -74,6 +74,12 @@ const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModa
           nextContainer={state.nextContainer}
           handleNavigatePrev={state.handleNavigatePrev}
           handleNavigateNext={state.handleNavigateNext}
+          canUndo={state.canUndo}
+          canRedo={state.canRedo}
+          onUndo={state.handleUndo}
+          onRedo={state.handleRedo}
+          onRefresh={state.handleRefresh}
+          isRefreshing={state.isRefreshing}
         />
 
         {/* ═══ CUERPO PRINCIPAL DE 3 PANELES ═══ */}

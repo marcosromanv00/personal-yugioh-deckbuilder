@@ -27,6 +27,10 @@ const HIGH_PROTECTION_RARITIES = [
   'Ghost Rare',
   'Ultimate Rare',
   'Secret Rare',
+  'Prismatic Secret Rare',
+  'Prismatic Ultimate Rare',
+  'Prismatic Platinum Rare',
+  'Platinum Secret Rare',
   'Collector\'s Rare',
 ];
 

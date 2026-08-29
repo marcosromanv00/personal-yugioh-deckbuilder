@@ -315,6 +315,7 @@ export default function CollectionPage() {
                     setSelectedDeck(deck);
                     setIsDeckDetailsOpen(true);
                   }}
+                  onRefreshData={state.fetchCollectionData}
                 />
               ) : state.activeTab === 'valuation' ? (
                 <ValuationTab

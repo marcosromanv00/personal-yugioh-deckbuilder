@@ -37,3 +37,38 @@ export type RightPanelMode = 'details' | 'analysis';
 export type AISubView = 'lane' | 'card' | 'collection';
 export type DetailsCopiesMode = 'grouped' | 'breakdown';
 export type MobileTab = 'left' | 'center' | 'right';
+
+export type ContainerHistoryAction =
+  | {
+      type: 'add_cards';
+      description: string;
+      cards: UserCard[];
+    }
+  | {
+      type: 'delete_cards';
+      description: string;
+      cards: UserCard[];
+    }
+  | {
+      type: 'update_cards';
+      description: string;
+      prevCards: UserCard[];
+      newCards: UserCard[];
+    }
+  | {
+      type: 'move_cards';
+      description: string;
+      items: {
+        id: string;
+        prevLocationId: string | null;
+        newLocationId: string | null;
+        prevCompartment?: number;
+        newCompartment?: number;
+        prevPage?: number | null;
+        newPage?: number | null;
+        prevSlot?: number | null;
+        newSlot?: number | null;
+        prevCard: UserCard;
+        newCard: UserCard;
+      }[];
+    };

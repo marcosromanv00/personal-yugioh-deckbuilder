@@ -144,6 +144,9 @@ export const CONDITION_MULTIPLIERS: Record<CardCondition, number> = {
 export const HIGH_END_RARITIES = new Set([
   'Secret Rare',
   'Prismatic Secret Rare',
+  'Prismatic Ultimate Rare',
+  'Prismatic Platinum Rare',
+  'Platinum Secret Rare',
   'Starlight Rare',
   "Collector's Rare",
   'Quarter Century Secret Rare',
@@ -161,6 +164,7 @@ export const STANDARD_RARITIES = new Set([
   'Super Rare',
   'Ultra Rare',
   'Gold Rare',
+  'Duel Terminal',
   'Duel Terminal Normal Parallel Rare',
   'Duel Terminal Rare Parallel Rare',
   'Duel Terminal Super Parallel Rare',

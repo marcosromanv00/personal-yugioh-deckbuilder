@@ -75,6 +75,8 @@ export const HIGH_RARITIES = [
   'Collector\'s Rare',
   'Secret Rare',
   'Prismatic Secret Rare',
+  'Prismatic Ultimate Rare',
+  'Prismatic Platinum Rare',
   'Platinum Secret Rare',
   'Ultra Rare'
 ];

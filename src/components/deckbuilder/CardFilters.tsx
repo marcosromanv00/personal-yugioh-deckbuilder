@@ -44,8 +44,9 @@ const TRAP_RACES = [
 const ATTRIBUTES = ['DARK', 'LIGHT', 'FIRE', 'WATER', 'EARTH', 'WIND', 'DIVINE'];
 
 const RARITIES = [
-  'Common', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare', 
-  'Ultimate Rare', 'Ghost Rare', 'Gold Rare', 'Collector\'s Rare', 'Starlight Rare',
+  'Common', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare',
+  'Prismatic Secret Rare', 'Prismatic Ultimate Rare', 'Prismatic Platinum Rare', 'Gold Rare', 'Duel Terminal',
+  'Ultimate Rare', 'Ghost Rare', 'Collector\'s Rare', 'Starlight Rare',
   'Quarter Century Secret Rare', 'Proxy'
 ];
 

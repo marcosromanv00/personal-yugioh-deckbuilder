@@ -87,6 +87,9 @@ const HIGH_RARITIES = [
   'Ultimate Rare',
   'Secret Rare',
   'Prismatic Secret Rare',
+  'Prismatic Ultimate Rare',
+  'Prismatic Platinum Rare',
+  'Platinum Secret Rare',
   'Ultra Rare'
 ];
 

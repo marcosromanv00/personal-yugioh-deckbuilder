@@ -21,7 +21,11 @@ export interface RecommendationResult {
 }
 
 const HIGH_RARITIES = [
-  'Secret Rare', 
+  'Secret Rare',
+  'Prismatic Secret Rare',
+  'Prismatic Ultimate Rare',
+  'Prismatic Platinum Rare',
+  'Platinum Secret Rare',
   'Starlight Rare', 
   'Quarter Century Secret Rare', 
   'Ghost Rare', 
