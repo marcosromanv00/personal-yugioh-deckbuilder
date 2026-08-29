@@ -123,14 +123,42 @@ const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModa
                   }
                 }}
                 openPreviewForCard={(card) => {
-                  const existing = state.cards.find(c => c.card_id === card.id);
+                  const existing = state.cards.find(c => Number(c.card_id) === Number(card.id));
                   if (existing) {
                     state.setSelectedUserCard(existing);
                   } else {
-                    state.handleAddCardToContainer(card);
+                    const fullCard = card as Partial<Card>;
+                    // Previsualización efímera en el inspector sin insertar en base de datos
+                    state.setSelectedUserCard({
+                      id: `preview-${card.id}`,
+                      card_id: card.id,
+                      storage_location_id: state.isInbox ? null : state.containerId,
+                      compartment_index: 0,
+                      quantity: 1,
+                      rarity: 'Common',
+                      condition: 'Near Mint',
+                      language: 'en',
+                      status_flag: 'collection',
+                      sleeve_type: 'none',
+                      created_at: new Date().toISOString(),
+                      card_details: {
+                        name: card.name,
+                        type: card.type || 'Monster',
+                        image_url: card.image_url || '',
+                        image_url_small: card.image_url_small || card.image_url || '',
+                        archetype: card.archetype,
+                        desc: fullCard.desc || '',
+                        race: fullCard.race ?? undefined,
+                        attribute: fullCard.attribute ?? undefined,
+                        atk: fullCard.atk ?? undefined,
+                        def: fullCard.def ?? undefined,
+                        level: fullCard.level ?? undefined,
+                      }
+                    });
                   }
                   if (state.isMobile) state.setMobileTab('right');
                 }}
+                onSelectAllStaged={state.handleSelectAllStaged}
                 handleDragCardStart={(e, cardData) => state.handleDragCardStart(e, cardData as Card)}
                 handleCardMouseEnter={() => {}}
                 handleCardMouseLeave={() => {}}

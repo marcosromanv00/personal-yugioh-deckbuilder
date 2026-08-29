@@ -45,6 +45,7 @@ interface SearchPanelProps {
   setSearchLimit: React.Dispatch<React.SetStateAction<number>>;
   format?: 'Master Duel' | 'TCG' | 'Duel Links';
   userInventoryCounts?: Record<number, number>;
+  onSelectAllStaged?: () => void;
 
   addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
   openPreviewForCard?: (card: HoverCardBase) => void;
@@ -250,6 +251,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   setSearchLimit,
   format,
   userInventoryCounts = {},
+  onSelectAllStaged,
   addCardToDeck,
   handleDragCardStart,
   handleCardMouseEnter,
@@ -930,6 +932,28 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               </button>
             )}
           </div>
+
+          {/* Banner de acción rápida para cartas pendientes */}
+          {searchScope === 'staged' && stagedCardsCount > 0 && onSelectAllStaged && (
+            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200 truncate">
+                  {stagedCardsCount} {stagedCardsCount === 1 ? 'carta pendiente' : 'cartas pendientes'}
+                </p>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+                  Sin ranura asignada en el binder
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onSelectAllStaged}
+                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase font-mono tracking-wider transition-colors shrink-0 cursor-pointer shadow-xs"
+                title="Seleccionar todas para mover a otro contenedor con la barra inferior"
+              >
+                Seleccionar Todo
+              </button>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-1.5">
             {(['All', 'Monster', 'Spell', 'Trap', 'Extra'] as const).map(t => (

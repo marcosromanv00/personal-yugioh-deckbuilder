@@ -257,12 +257,10 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                     size="md"
                     options={[
                       { value: 'inbox', label: '📥 Bandeja Sin Clasificar (Inbox)' },
-                      ...locations
-                        .filter((loc) => !currentLocationId || loc.id !== currentLocationId)
-                        .map((loc) => ({
-                          value: loc.id,
-                          label: `📦 ${loc.name} (${loc.type})`,
-                        })),
+                      ...locations.map((loc) => ({
+                        value: loc.id,
+                        label: `${loc.type === 'binder' ? '📖' : '📦'} ${loc.name} (${loc.type === 'binder' ? 'Binder' : 'Caja'})${loc.id === currentLocationId ? ' [Actual]' : ''}`,
+                      })),
                     ]}
                   />
                 </div>

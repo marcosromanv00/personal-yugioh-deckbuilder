@@ -230,33 +230,54 @@ export async function POST(req: NextRequest) {
 
     // 4. Registrar cartas al inventario general (yg_user_cards) si fue solicitado
     if (register_to_inventory && inventory_cards_to_add && inventory_cards_to_add.length > 0) {
-      const inventoryPayload = inventory_cards_to_add.map((c: InputDeckCard) => {
+      const cardIdsToRegister = inventory_cards_to_add.map((c: InputDeckCard) => c.id);
+      const { data: existingUserCards } = await supabase
+        .from('yg_user_cards')
+        .select('card_id, quantity')
+        .in('card_id', cardIdsToRegister);
+
+      const existingCounts: Record<number, number> = {};
+      for (const euc of existingUserCards || []) {
+        existingCounts[euc.card_id] = (existingCounts[euc.card_id] || 0) + (euc.quantity || 1);
+      }
+
+      const inventoryPayload = [];
+      for (const c of inventory_cards_to_add) {
         const matchingDeckCard = (cards || []).find((dc: InputDeckCard) => dc.id === c.id);
         const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
           ? matchingDeckCard.section
           : null;
 
-        return {
-          card_id: c.id,
-          storage_location_id: storage_location_id || null,
-          deck_id: deck.id,
-          deck_section: section,
-          quantity: c.count || 1,
-          rarity: 'Common',
-          condition: 'Near Mint',
-          language: 'en',
-          status_flag: isActiveVal ? 'in_deck' : 'collection',
-          sleeve_type: 'none',
-          notes: `Registrado automáticamente desde deck "${name}"`
-        };
-      });
+        const targetCount = c.count || 1;
+        const alreadyInInventory = existingCounts[c.id] || 0;
+        const qtyToInsert = Math.max(0, targetCount - alreadyInInventory);
 
-      const { error: invErr } = await supabase
-        .from('yg_user_cards')
-        .insert(inventoryPayload);
+        if (qtyToInsert > 0) {
+          inventoryPayload.push({
+            card_id: c.id,
+            storage_location_id: storage_location_id || null,
+            deck_id: deck.id,
+            deck_section: section,
+            quantity: qtyToInsert,
+            rarity: 'Common',
+            condition: 'Near Mint',
+            language: 'en',
+            status_flag: isActiveVal ? 'in_deck' : 'collection',
+            sleeve_type: 'none',
+            notes: `Registrado automáticamente desde deck "${name}"`
+          });
+          existingCounts[c.id] = alreadyInInventory + qtyToInsert;
+        }
+      }
 
-      if (invErr) {
-        console.error('Error al registrar cartas en inventario:', invErr);
+      if (inventoryPayload.length > 0) {
+        const { error: invErr } = await supabase
+          .from('yg_user_cards')
+          .insert(inventoryPayload);
+
+        if (invErr) {
+          console.error('Error al registrar cartas en inventario:', invErr);
+        }
       }
     }
 
@@ -289,7 +310,7 @@ export async function POST(req: NextRequest) {
         .in('id', assignedUserCardIds);
     }
 
-    // 7. Si se asignó un contenedor físico de almacenamiento al deck, recolocar las cartas existentes libres hacia esa ubicación
+    // 7. Si se asignó un contenedor físico de almacenamiento al deck, recolocar cartas libres (inbox) hacia esa ubicación
     if (storage_location_id && cards && cards.length > 0) {
       const compIdx = typeof body.compartment_index === 'number' ? body.compartment_index : 0;
       for (const dc of cards) {
@@ -306,7 +327,7 @@ export async function POST(req: NextRequest) {
               binder_slot: null
             })
             .eq('card_id', dc.id)
-            .or(`storage_location_id.is.null,deck_id.is.null`);
+            .is('storage_location_id', null);
         }
       }
 
@@ -539,17 +560,17 @@ export async function PUT(req: NextRequest) {
         .select('*, sleeve_details:yg_sleeves(*)')
         .eq('deck_id', id);
 
-      // 2. Obtener copias físicas actuales asociadas a este deck en yg_user_cards
+      // 2. Obtener copias físicas existentes en inventario general para las cartas a registrar
+      const cardIdsToRegister = inventory_cards_to_add.map((c: { id: number }) => c.id);
       const { data: existingUserCards } = await supabase
         .from('yg_user_cards')
         .select('card_id, quantity, deck_section, sleeve_type, sleeve_brand, sleeve_color')
-        .eq('deck_id', id);
+        .in('card_id', cardIdsToRegister);
 
-      // Agrupar copias existentes por card_id y deck_section
-      const existingCounts: Record<string, number> = {};
+      // Agrupar copias existentes totales por card_id
+      const existingCounts: Record<number, number> = {};
       for (const euc of existingUserCards || []) {
-        const key = `${euc.card_id}-${euc.deck_section || 'none'}`;
-        existingCounts[key] = (existingCounts[key] || 0) + (euc.quantity || 1);
+        existingCounts[euc.card_id] = (existingCounts[euc.card_id] || 0) + (euc.quantity || 1);
       }
 
       const inventoryPayload = [];
@@ -561,8 +582,7 @@ export async function PUT(req: NextRequest) {
           : null;
 
         const targetCount = c.count || 1;
-        const key = `${c.id}-${section || 'none'}`;
-        const alreadyInInventory = existingCounts[key] || 0;
+        const alreadyInInventory = existingCounts[c.id] || 0;
         const qtyToInsert = Math.max(0, targetCount - alreadyInInventory);
 
         if (qtyToInsert > 0) {

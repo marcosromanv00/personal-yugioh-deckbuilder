@@ -107,7 +107,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   const toggleCardRegister = (cardId: number) => {
     setCardsToRegister((prev) => ({
       ...prev,
-      [cardId]: prev[cardId] === false ? true : false,
+      [cardId]: !prev[cardId],
     }));
   };
 
@@ -527,7 +527,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                         <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
                           {deckCards.map((c) => {
                             const alreadyInInv = userInventoryCounts[c.id] || 0;
-                            const isChecked = cardsToRegister[c.id] !== false;
+                            const isChecked = Boolean(cardsToRegister[c.id]);
                             const qty = cardQuantities[c.id] ?? c.count;
 
                             return (

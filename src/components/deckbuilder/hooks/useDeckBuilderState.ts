@@ -1099,7 +1099,8 @@ export function useDeckBuilderState() {
     await fetchDecksAndLocations();
     const initialReg: Record<number, boolean> = {};
     deckCards.forEach(c => {
-      initialReg[c.id] = true;
+      const owned = userInventoryCounts[c.id] || 0;
+      initialReg[c.id] = owned < c.count;
     });
     setCardsToRegister(initialReg);
     setSaveFormat(format);
@@ -1327,10 +1328,14 @@ export function useDeckBuilderState() {
           image_url: c.image_url
         })),
         register_to_inventory: registerToInventory,
-        inventory_cards_to_add: cardsToRegisterList.map(c => ({
-          id: c.id,
-          count: c.count
-        })),
+        inventory_cards_to_add: cardsToRegisterList.map(c => {
+          const owned = userInventoryCounts[c.id] || 0;
+          const deficit = Math.max(1, c.count - owned);
+          return {
+            id: c.id,
+            count: deficit
+          };
+        }),
         assigned_user_card_ids: assignedUserCardIds,
         deactivated_deck_ids: deactivatedDeckIds
       };

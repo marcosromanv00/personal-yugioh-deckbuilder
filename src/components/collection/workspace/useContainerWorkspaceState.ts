@@ -1515,6 +1515,20 @@ export const useContainerWorkspaceState = ({
     if (!selectedUserCard) return;
 
     try {
+      let pageToAssign: number | undefined = undefined;
+      let slotToAssign: number | undefined = undefined;
+
+      if (containerType === 'binder' && selectedUserCard.binder_page && selectedUserCard.binder_slot) {
+        const cardsInSameSlot = cards.filter(
+          c => c.binder_page === selectedUserCard.binder_page && c.binder_slot === selectedUserCard.binder_slot
+        );
+        const currentSlotQty = cardsInSameSlot.reduce((s, c) => s + (c.quantity || 1), 0);
+        if (currentSlotQty < 4) {
+          pageToAssign = selectedUserCard.binder_page;
+          slotToAssign = selectedUserCard.binder_slot;
+        }
+      }
+
       const payload: Record<string, unknown> = {
         card_id: selectedUserCard.card_id,
         storage_location_id: selectedUserCard.storage_location_id,
@@ -1525,6 +1539,11 @@ export const useContainerWorkspaceState = ({
         status_flag: selectedUserCard.status_flag || 'collection',
         sleeve_type: 'none',
       };
+
+      if (pageToAssign && slotToAssign) {
+        payload.binder_page = pageToAssign;
+        payload.binder_slot = slotToAssign;
+      }
 
       const res = await fetch('/api/collection/cards', {
         method: 'POST',
@@ -1544,7 +1563,11 @@ export const useContainerWorkspaceState = ({
           setCards(prev => [insertedCard, ...prev]);
         }
         setHasMutated(true);
-        toast.success(`Nueva variante añadida`, { title: '¡Variante creada!' });
+        if (pageToAssign && slotToAssign) {
+          toast.success(`Nueva variante añadida en Ranura ${slotToAssign}`, { title: '¡Variante creada!' });
+        } else {
+          toast.success(`Nueva variante añadida (en Pendientes)`, { title: '¡Variante creada!' });
+        }
         fetchCards();
       }
     } catch (err) {
@@ -1729,6 +1752,19 @@ export const useContainerWorkspaceState = ({
     const allIds = targetCards.map(c => c.id);
     setSelectedCardIds(Array.from(new Set(allIds)));
   }, [cards]);
+
+  // Seleccionar todas las cartas desubicadas / pendientes del binder
+  const handleSelectAllStaged = useCallback(() => {
+    const staged = cards.filter(c => !c.binder_page || !c.binder_slot || c.binder_page <= 0 || c.binder_slot <= 0);
+    const stagedIds = staged.map(c => c.id);
+    if (stagedIds.length === 0) {
+      toast.info('No hay cartas pendientes en este binder.');
+      return;
+    }
+    setSelectedCardIds(Array.from(new Set(stagedIds)));
+    setIsSelectMode(true);
+    toast.info(`${stagedIds.length} cartas pendientes seleccionadas. Usa la barra inferior para moverlas o administrarlas.`, { title: 'Pendientes seleccionadas' });
+  }, [cards, toast]);
 
   // Limpiar selección de cartas
   const clearCardSelection = useCallback(() => {
@@ -2712,6 +2748,7 @@ export const useContainerWorkspaceState = ({
     toggleSelectCard,
     toggleSelectGroup,
     selectAllFilteredCards,
+    handleSelectAllStaged,
     clearCardSelection,
     handleBulkMove,
     handleBulkChangeStatus,
