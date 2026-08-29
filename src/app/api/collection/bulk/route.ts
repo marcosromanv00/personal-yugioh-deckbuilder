@@ -13,9 +13,10 @@ const isSupabaseConfigured = () => {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { text, action, storage_location_id, language, status_flag, sleeve_type, condition, rarity } = body;
+    const text = (body.text || body.bulkText || '') as string;
+    const { action, storage_location_id, language, status_flag, sleeve_type, condition, rarity } = body;
 
-    if (!text || typeof text !== 'string') {
+    if (!text || typeof text !== 'string' || !text.trim()) {
       return NextResponse.json({ error: 'El texto es obligatorio' }, { status: 400 });
     }
 

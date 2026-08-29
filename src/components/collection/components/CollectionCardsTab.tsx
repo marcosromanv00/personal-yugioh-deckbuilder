@@ -22,6 +22,7 @@ import { getCategoryBadgeStyle, getLanguageDisplay } from '@/lib/collectionUtils
 import { DuplicateCardAlertPopover } from '../DuplicateCardAlertPopover';
 import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 import { CardImage } from '@/components/ui/CardImage';
+import { CollectionCardDetailModal } from './CollectionCardDetailModal';
 
 interface CollectionCardsTabProps {
   activeTab: 'containers' | 'suggestions' | 'complete' | 'favorites' | 'sleeves' | 'decks';
@@ -40,6 +41,8 @@ interface CollectionCardsTabProps {
   handleToggleFavorite: (uc: UserCard) => Promise<void>;
   handleDeleteCard: (id: string) => Promise<void>;
   handleUpdateCardStatus: (id: string, status: string) => Promise<void>;
+  onMoveCard?: (id: string, locationId: string | null) => Promise<void>;
+  onOpenContainer?: (loc: StorageLocation) => void;
   onCardContextMenu?: (uc: UserCard) => void;
   isSelectMode?: boolean;
   setIsSelectMode?: (mode: boolean | ((prev: boolean) => boolean)) => void;
@@ -83,10 +86,15 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
   onSelectAll,
   onClearSelection,
   onOpenSplitModal,
+  onMoveCard,
+  onOpenContainer,
   duplicateMap,
 }) => {
   const selectedCount = selectedCardIds.length;
   const gridTopRef = useRef<HTMLDivElement>(null);
+
+  // Estado para carta seleccionada en modal de detalles
+  const [selectedCardForDetail, setSelectedCardForDetail] = useState<UserCard | null>(null);
 
   // Estados de Paginación Clásica
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -426,6 +434,8 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                 onClick={() => {
                   if (isSelectMode) {
                     onToggleSelectCard?.(uc.id);
+                  } else {
+                    setSelectedCardForDetail(uc);
                   }
                 }}
                 onContextMenu={(e) => {
@@ -675,6 +685,49 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL DE DETALLES Y GESTIÓN COMPLETA DE LA CARTA */}
+      <CollectionCardDetailModal
+        isOpen={Boolean(selectedCardForDetail)}
+        onClose={() => setSelectedCardForDetail(null)}
+        userCard={selectedCardForDetail}
+        locations={locations}
+        decks={decks}
+        onToggleFavorite={async (uc) => {
+          await handleToggleFavorite(uc);
+          setSelectedCardForDetail(prev => prev ? { ...prev, is_favorite: !prev.is_favorite } : null);
+        }}
+        onUpdateStatus={async (id, status) => {
+          await handleUpdateCardStatus(id, status);
+          setSelectedCardForDetail(prev => prev ? { ...prev, status_flag: status as any } : null);
+        }}
+        onMoveLocation={async (id, newLocId) => {
+          if (onMoveCard) {
+            await onMoveCard(id, newLocId);
+          } else {
+            await fetch('/api/collection/cards', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, storage_location_id: newLocId }),
+            });
+            handleUpdateCardStatus(id, selectedCardForDetail?.status_flag || 'collection');
+          }
+          setSelectedCardForDetail(prev => prev ? { ...prev, storage_location_id: newLocId } : null);
+        }}
+        onDelete={async (id) => {
+          await handleDeleteCard(id);
+          setSelectedCardForDetail(null);
+        }}
+        onOpenSplitModal={(uc) => {
+          setSelectedCardForDetail(null);
+          onOpenSplitModal?.(uc);
+        }}
+        onOpenContainer={(loc) => {
+          setSelectedCardForDetail(null);
+          onOpenContainer?.(loc);
+        }}
+        duplicateInfo={selectedCardForDetail ? duplicateMap?.get(selectedCardForDetail.card_id) : undefined}
+      />
     </div>
   );
 };

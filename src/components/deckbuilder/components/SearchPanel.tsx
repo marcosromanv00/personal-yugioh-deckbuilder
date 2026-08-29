@@ -369,6 +369,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
+          text: cleanedText,
           bulkText: cleanedText,
           isIdsMode: bulkMode === 'ids'
         }),

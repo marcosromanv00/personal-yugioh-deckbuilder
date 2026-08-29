@@ -392,6 +392,7 @@ export default function CollectionPage() {
                   onClearSelection={state.clearCardSelection}
                   onOpenSplitModal={state.handleOpenSplitModal}
                   duplicateMap={state.crossContainerDuplicatesMap}
+                  onOpenContainer={(loc) => state.handleOpenContainer(loc)}
                   onCardContextMenu={(uc) => {
                     const targetLoc = uc.storage_location_id 
                       ? state.locations.find(l => l.id === uc.storage_location_id) || null
