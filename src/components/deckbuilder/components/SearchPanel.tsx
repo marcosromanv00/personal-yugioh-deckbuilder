@@ -60,6 +60,7 @@ interface SearchResultsListProps {
   searchViewMode: 'grid' | 'list';
   isMobile: boolean;
   getBanlistBadge: (card: Card) => React.ReactNode;
+  userInventoryCounts?: Record<number, number>;
   addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
   openPreviewForCard?: (card: HoverCardBase) => void;
   handleDragCardStart: (e: React.DragEvent, cardData: Card) => void;
@@ -74,12 +75,20 @@ const SearchResultsList = React.memo(({
   searchViewMode,
   isMobile,
   getBanlistBadge,
+  userInventoryCounts,
   addCardToDeck,
   openPreviewForCard,
   handleDragCardStart,
   handleCardMouseEnter,
   handleCardMouseLeave,
 }: SearchResultsListProps) => {
+  const getOwnedCount = (card: Card) => {
+    if (card.userCardsGroup && card.userCardsGroup.length > 0) {
+      return card.userCardsGroup.reduce((sum, uc) => sum + (uc.quantity || 1), 0);
+    }
+    return userInventoryCounts?.[card.id] || 0;
+  };
+
   if (isSearching && searchResults.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -106,11 +115,56 @@ const SearchResultsList = React.memo(({
   if (searchViewMode === 'grid') {
     return (
       <div className={`grid gap-2 ${isMobile ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-4 xl:grid-cols-5'}`}>
-        {searchResults.map((card, idx) => (
+        {searchResults.map((card, idx) => {
+          const ownedCount = getOwnedCount(card);
+          return (
+            <div 
+              key={`${card.id}-${idx}`}
+              draggable={!isMobile}
+              onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup }) : undefined}
+              onClick={() => addCardToDeck(card)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if (openPreviewForCard) {
+                  openPreviewForCard(card as HoverCardBase);
+                }
+              }}
+              onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
+              onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
+              className="relative aspect-[3/4.4] bg-white dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow-xs"
+            >
+              <div className="relative flex-1 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+                <CardImage 
+                  src={card.image_url_small || card.image_url} 
+                  alt={card.name} 
+                  className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
+                />
+                {getBanlistBadge(card)}
+                {ownedCount > 0 && (
+                  <div className="absolute top-1 right-1 bg-red-950/90 text-red-300 font-mono text-[9px] px-1.5 py-0.5 rounded border border-red-500/40 font-black shadow-xs">
+                    {ownedCount}x
+                  </div>
+                )}
+              </div>
+              <div className="mt-1 transition-all text-center min-w-0 px-0.5">
+                <p className="text-[9.5px] font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors truncate leading-tight">{card.name}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {searchResults.map((card, idx) => {
+        const ownedCount = getOwnedCount(card);
+        return (
           <div 
             key={`${card.id}-${idx}`}
             draggable={!isMobile}
-            onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup }) : undefined}
+            onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup })}
             onClick={() => addCardToDeck(card)}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -118,101 +172,62 @@ const SearchResultsList = React.memo(({
                 openPreviewForCard(card as HoverCardBase);
               }
             }}
-            onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
-            onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
-            className="relative aspect-[3/4.4] bg-white dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow-xs"
+            onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
+            onMouseLeave={handleCardMouseLeave}
+            className="flex gap-3 p-3 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group cursor-pointer shadow-xs touch-manipulation"
           >
-            <div className="relative flex-1 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+            <div className="w-14 h-20 rounded-lg overflow-hidden shadow-xs group-hover:scale-105 transition-transform shrink-0">
               <CardImage 
                 src={card.image_url_small || card.image_url} 
                 alt={card.name} 
-                className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
+                className="w-full h-full object-contain" 
               />
-              {getBanlistBadge(card)}
-              {card.userCardsGroup && card.userCardsGroup.length > 0 && (
-                <div className="absolute top-1 right-1 bg-red-950/90 text-red-300 font-mono text-[9px] px-1.5 py-0.5 rounded border border-red-500/40 font-black shadow-xs">
-                  {card.userCardsGroup.length}x
+            </div>
+            <div className="flex-1 flex flex-col justify-between min-w-0">
+              <div>
+                <div className="flex items-center justify-between gap-1">
+                  <p className="text-xs sm:text-sm font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-500 transition-colors">{card.name}</p>
+                  {ownedCount > 0 && (
+                    <span className="text-[10px] font-mono font-bold text-red-500 shrink-0">
+                      {ownedCount}x
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="mt-1 transition-all text-center min-w-0 px-0.5">
-              <p className="text-[9.5px] font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors truncate leading-tight">{card.name}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      {searchResults.map((card, idx) => (
-        <div 
-          key={`${card.id}-${idx}`}
-          draggable={!isMobile}
-          onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup })}
-          onClick={() => addCardToDeck(card)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            if (openPreviewForCard) {
-              openPreviewForCard(card as HoverCardBase);
-            }
-          }}
-          onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
-          onMouseLeave={handleCardMouseLeave}
-          className="flex gap-3 p-3 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group cursor-pointer shadow-xs touch-manipulation"
-        >
-          <div className="w-14 h-20 rounded-lg overflow-hidden shadow-xs group-hover:scale-105 transition-transform shrink-0">
-            <CardImage 
-              src={card.image_url_small || card.image_url} 
-              alt={card.name} 
-              className="w-full h-full object-contain" 
-            />
-          </div>
-          <div className="flex-1 flex flex-col justify-between min-w-0">
-            <div>
-              <div className="flex items-center justify-between gap-1">
-                <p className="text-xs sm:text-sm font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-500 transition-colors">{card.name}</p>
-                {card.userCardsGroup && card.userCardsGroup.length > 0 && (
-                  <span className="text-[10px] font-mono font-bold text-red-500 shrink-0">
-                    {card.userCardsGroup.length}x
-                  </span>
-                )}
+                <p className="text-[10px] text-zinc-500 font-mono font-bold truncate mt-0.5">
+                  #{card.id} • {card.type} • {card.archetype || 'Genérica'}
+                </p>
               </div>
-              <p className="text-[10px] text-zinc-500 font-mono font-bold truncate mt-0.5">
-                #{card.id} • {card.type} • {card.archetype || 'Genérica'}
-              </p>
-            </div>
-            
-            <div className="flex gap-1.5 mt-2">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
-                className="flex-1 py-2 px-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs touch-manipulation min-h-10"
-                title="Añadir al Deck principal o Extra (Auto)"
-              >
-                + Agregar
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
-                className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
-                title="Añadir a Side Deck"
-              >
-                + Side
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extra'); }}
-                className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
-                title="Añadir a Extra Deck"
-              >
-                + Extra
-              </button>
+              
+              <div className="flex gap-1.5 mt-2">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
+                  className="flex-1 py-2 px-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs touch-manipulation min-h-10"
+                  title="Añadir al Deck principal o Extra (Auto)"
+                >
+                  + Agregar
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
+                  className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
+                  title="Añadir a Side Deck"
+                >
+                  + Side
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extra'); }}
+                  className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
+                  title="Añadir a Extra Deck"
+                >
+                  + Extra
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }, (prev, next) => {
@@ -220,7 +235,8 @@ const SearchResultsList = React.memo(({
     prev.isSearching === next.isSearching &&
     prev.searchViewMode === next.searchViewMode &&
     prev.isMobile === next.isMobile &&
-    prev.searchResults === next.searchResults
+    prev.searchResults === next.searchResults &&
+    prev.userInventoryCounts === next.userInventoryCounts
   );
 });
 
@@ -253,6 +269,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   userInventoryCounts = {},
   onSelectAllStaged,
   addCardToDeck,
+  openPreviewForCard,
   handleDragCardStart,
   handleCardMouseEnter,
   handleCardMouseLeave,
@@ -994,7 +1011,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               searchViewMode={searchViewMode}
               isMobile={isMobile}
               getBanlistBadge={getBanlistBadge}
+              userInventoryCounts={userInventoryCounts}
               addCardToDeck={addCardToDeck}
+              openPreviewForCard={openPreviewForCard}
               handleDragCardStart={handleDragCardStart}
               handleCardMouseEnter={handleCardMouseEnter}
               handleCardMouseLeave={handleCardMouseLeave}
