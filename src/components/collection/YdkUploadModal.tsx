@@ -10,12 +10,13 @@ interface YdkUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  onImportToDeck?: (ydkText: string) => Promise<void>;
+  onImportToDeck?: (ydkText: string, linkWithCollection?: boolean) => Promise<void>;
 }
 
 export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose, onSuccess, onImportToDeck }) => {
   // Sub-mode: 'ydk' = .ydk file / names, 'ids' = raw numeric IDs
   const [importMode, setImportMode] = useState<'ydk' | 'ids'>('ydk');
+  const [linkWithCollection, setLinkWithCollection] = useState(true);
   const [ydkText, setYdkText] = useState('');
   const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -59,7 +60,7 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
 
     try {
       if (onImportToDeck) {
-        await onImportToDeck(cleanedText);
+        await onImportToDeck(cleanedText, linkWithCollection);
         setResultMessage('¡Éxito! Baraja cargada en el editor con las cartas indicadas.');
       } else {
         const res = await fetch('/api/collection/inbox', {
@@ -195,6 +196,26 @@ export const YdkUploadModal: React.FC<YdkUploadModalProps> = ({ isOpen, onClose,
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
               />
             </div>
+
+            {onImportToDeck && (
+              <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={linkWithCollection}
+                  onChange={(e) => setLinkWithCollection(e.target.checked)}
+                  className="rounded border-zinc-300 text-red-600 focus:ring-0 w-4 h-4 cursor-pointer mt-0.5 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <span>🔗</span>
+                    <span>Enlazar cartas con Mi Colección</span>
+                  </p>
+                  <p className="text-[10px] text-zinc-500 font-mono leading-tight mt-0.5">
+                    Toma automáticamente las cartas físicas de mayor rareza disponibles y detecta cartas asignadas a otros mazos activos.
+                  </p>
+                </div>
+              </label>
+            )}
 
             {error && (
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-2">

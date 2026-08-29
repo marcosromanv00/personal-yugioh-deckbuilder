@@ -41,6 +41,7 @@ import { MetaAnalysisPanel } from './components/MetaAnalysisPanel';
 import { SaveDeckModal } from './components/SaveDeckModal';
 import { LoadDeckModal } from './components/LoadDeckModal';
 import { CardPreviewModal } from './components/CardPreviewModal';
+import { YdkCollectionLinkModal } from './components/YdkCollectionLinkModal';
 import { ArchetypeBreakdownDrawer } from './components/ArchetypeBreakdownDrawer';
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { MobileNav, type MobileTab } from './components/MobileNav';
@@ -1568,6 +1569,20 @@ export default function DeckBuilder() {
           toast.success('Deck cargado exitosamente desde .YDK / IDs Bulk');
         }}
         onImportToDeck={state.handleImportYdkOrBulk}
+      />
+
+      {/* YDK INTERACTIVE COLLECTION LINKING MODAL */}
+      <YdkCollectionLinkModal
+        isOpen={state.isCollectionLinkModalOpen}
+        onClose={() => state.setIsCollectionLinkModalOpen(false)}
+        parsedCards={state.pendingParsedYdkCards}
+        allUserCards={state.allUserCards}
+        locations={state.locations}
+        onConfirm={(cardsWithCopies, unlinkedCardIds) => {
+          state.confirmCollectionLinkImport(cardsWithCopies, unlinkedCardIds);
+          setIsYdkUploadOpen(false);
+          toast.success('¡Baraja importada y enlazada con tu colección física con éxito!');
+        }}
       />
 
 

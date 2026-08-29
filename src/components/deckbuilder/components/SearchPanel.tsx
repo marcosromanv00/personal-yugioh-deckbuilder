@@ -16,6 +16,7 @@ export interface ParsedBulkItem {
   quantity: number;
   selected: boolean;
   section: 'main' | 'extra' | 'side' | 'extras';
+  linkWithCollection?: boolean;
 }
 
 interface SearchPanelProps {
@@ -279,6 +280,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'search' | 'bulk'>('search');
   // Sub-mode for bulk tab: ydk = file/.ydk/names, ids = raw numeric IDs
   const [bulkMode, setBulkMode] = useState<'ydk' | 'ids'>('ydk');
+  const [bulkLinkWithCollection, setBulkLinkWithCollection] = useState(true);
   const [bulkText, setBulkText] = useState('');
   const [analyzingBulk, setAnalyzingBulk] = useState(false);
   const [bulkSuccessMsg, setBulkSuccessMsg] = useState('');
@@ -366,7 +368,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       const res = await fetch('/api/collection/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleanedText }),
+        body: JSON.stringify({ 
+          bulkText: cleanedText,
+          isIdsMode: bulkMode === 'ids'
+        }),
       });
 
       if (res.ok) {
@@ -376,7 +381,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         setUnmatchedBulkCards(unmatched);
 
         if (parsed.length === 0) {
-          setBulkErrorMsg('No se pudo reconocer ninguna carta en el texto proporcionado.');
+          setBulkErrorMsg('No se detectaron cartas válidas en el texto ingresado.');
           return;
         }
 
@@ -397,6 +402,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             quantity: Math.min(3, Math.max(1, item.quantity || 1)),
             selected: true,
             section,
+            linkWithCollection: bulkLinkWithCollection,
           };
         });
 
@@ -417,6 +423,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
   const toggleBulkItem = (id: string) => {
     setParsedBulkItems(prev => prev.map(item => item.id === id ? { ...item, selected: !item.selected } : item));
+  };
+
+  const toggleBulkItemLink = (id: string) => {
+    setParsedBulkItems(prev => prev.map(item => item.id === id ? { ...item, linkWithCollection: item.linkWithCollection === false ? true : false } : item));
   };
 
   const updateBulkItemQty = (id: string, delta: number) => {
@@ -704,6 +714,24 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                   />
                 </div>
 
+                <label className="flex items-start gap-2 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={bulkLinkWithCollection}
+                    onChange={(e) => setBulkLinkWithCollection(e.target.checked)}
+                    className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer mt-0.5 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1">
+                      <span>🔗</span>
+                      <span>Enlazar con Mi Colección</span>
+                    </p>
+                    <p className="text-[9.5px] text-zinc-500 font-mono leading-tight mt-0.5">
+                      Asigna tus cartas físicas de mayor rareza disponibles y detecta cartas en otros mazos.
+                    </p>
+                  </div>
+                </label>
+
                 {bulkErrorMsg && (
                   <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-2 shrink-0">
                     <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
@@ -778,15 +806,29 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                             <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
                               {item.name}
                             </p>
-                            <span className={`inline-block px-1.5 py-0.2 text-[8.5px] font-black uppercase rounded tracking-wider mt-0.5 ${
-                              item.section === 'extra' 
-                                ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800' 
-                                : item.section === 'side'
-                                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                                : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                            }`}>
-                              {item.section}
-                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={`inline-block px-1.5 py-0.2 text-[8.5px] font-black uppercase rounded tracking-wider ${
+                                item.section === 'extra' 
+                                  ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800' 
+                                  : item.section === 'side'
+                                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                                  : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+                              }`}>
+                                {item.section}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleBulkItemLink(item.id); }}
+                                className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold font-mono uppercase tracking-wider border transition-colors cursor-pointer ${
+                                  item.linkWithCollection !== false
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                    : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                                }`}
+                                title={item.linkWithCollection !== false ? 'Enlazada a Colección (Click para desenlazar)' : 'Desvinculada: se registrará como nueva carta'}
+                              >
+                                {item.linkWithCollection !== false ? '🔗 Enlazada' : '⚫ Nueva'}
+                              </button>
+                            </div>
                           </div>
 
                           {/* Columna de comparación directa En Colección vs A Agregar */}
