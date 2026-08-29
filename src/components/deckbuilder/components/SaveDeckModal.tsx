@@ -96,6 +96,8 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   extractionPickList = [],
 }) => {
   const [saveTab, setSaveTab] = useState<'quick' | 'advanced'>('quick');
+  const [deficitPromptOpen, setDeficitPromptOpen] = useState(false);
+  const [deficitList, setDeficitList] = useState<Array<{ id: number; name: string; required: number; owned: number; missing: number }>>([]);
   const [cardQuantities, setCardQuantities] = useState<Record<number, number>>(() => {
     const initial: Record<number, number> = {};
     deckCards.forEach((c) => {
@@ -125,6 +127,64 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
       updated[c.id] = val;
     });
     setCardsToRegister(updated);
+  };
+
+  const validateAndSave = async () => {
+    if (saveIsActive) {
+      const deficits: Array<{ id: number; name: string; required: number; owned: number; missing: number }> = [];
+      deckCards.forEach((c) => {
+        const owned = userInventoryCounts[c.id] || 0;
+        const willRegister = registerToInventory && cardsToRegister[c.id] ? (cardQuantities[c.id] ?? c.count) : 0;
+        const totalPhysical = owned + willRegister;
+        if (totalPhysical < c.count) {
+          deficits.push({
+            id: c.id,
+            name: c.name,
+            required: c.count,
+            owned,
+            missing: c.count - totalPhysical,
+          });
+        }
+      });
+
+      if (deficits.length > 0) {
+        setDeficitList(deficits);
+        setDeficitPromptOpen(true);
+        return;
+      }
+    }
+
+    await handleSaveDeck();
+  };
+
+  const handleResolveDeficitRegister = () => {
+    setRegisterToInventory(true);
+    setCardsToRegister((prev) => {
+      const updated = { ...prev };
+      deficitList.forEach((d) => {
+        updated[d.id] = true;
+      });
+      return updated;
+    });
+    setCardQuantities((prev) => {
+      const updated = { ...prev };
+      deficitList.forEach((d) => {
+        updated[d.id] = d.missing;
+      });
+      return updated;
+    });
+    setDeficitPromptOpen(false);
+    setTimeout(() => {
+      handleSaveDeck();
+    }, 120);
+  };
+
+  const handleResolveDeficitInactive = () => {
+    setSaveIsActive(false);
+    setDeficitPromptOpen(false);
+    setTimeout(() => {
+      handleSaveDeck();
+    }, 120);
   };
 
 
@@ -640,7 +700,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
 
               <button
                 type="button"
-                onClick={handleSaveDeck}
+                onClick={validateAndSave}
                 disabled={loadingDecks}
                 className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-red-600/25 transition-all cursor-pointer disabled:opacity-50"
               >
@@ -648,6 +708,80 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                 <span>{loadingDecks ? 'Guardando...' : 'Guardar Baraja'}</span>
               </button>
             </div>
+
+            {/* DIÁLOGO INTERACTIVO DE DÉFICIT FÍSICO (BARAJA INCOMPLETA) */}
+            <AnimatePresence>
+              {deficitPromptOpen && (
+                <div className="absolute inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.92 }}
+                    className="bg-white dark:bg-zinc-900 border border-red-500/40 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3.5"
+                  >
+                    <div className="flex items-center gap-2.5 text-red-500">
+                      <span className="text-xl">⚠️</span>
+                      <h4 className="text-sm font-black uppercase tracking-wider">
+                        Baraja Física Incompleta
+                      </h4>
+                    </div>
+
+                    <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                      El deck no se puede guardar como <strong>Activo</strong> (físico en uso) porque no tienes suficientes cartas en tu colección de:
+                    </p>
+
+                    <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 rounded-xl bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 scrollbar-thin">
+                      {deficitList.map((d) => (
+                        <div key={d.id} className="flex items-center justify-between text-xs p-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200/80 dark:border-zinc-800/80">
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0 pr-2">
+                            {d.name}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0 font-mono text-[10.5px]">
+                            <span className="text-zinc-500">Req: <b>{d.required}</b></span>
+                            <span className="text-zinc-400">•</span>
+                            <span className="text-purple-600 dark:text-purple-400">Col: <b>{d.owned}</b></span>
+                            <span className="text-zinc-400">•</span>
+                            <span className="text-red-500 font-bold bg-red-500/10 px-1 py-0.2 rounded">
+                              Faltan {d.missing}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-[10px] text-zinc-500 font-mono">
+                      ¿Deseas registrar las copias faltantes en tu colección o guardar el mazo como Inactivo (solo receta/prototipo)?
+                    </p>
+
+                    <div className="flex flex-col gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={handleResolveDeficitRegister}
+                        className="w-full py-2 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider transition-colors cursor-pointer shadow-md shadow-red-600/20"
+                      >
+                        + Marcar Faltantes para Registrar
+                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleResolveDeficitInactive}
+                          className="flex-1 py-2 px-2.5 rounded-xl bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-[10.5px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                        >
+                          ○ Guardar como Inactivo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeficitPromptOpen(false)}
+                          className="px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10.5px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                        >
+                          Volver
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
       )}

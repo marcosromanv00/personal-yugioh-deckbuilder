@@ -299,6 +299,14 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
                       <span className={`w-1 h-1 rounded-full ${rarityInfo.dotClass}`} />
                       <span>{rarityInfo.text}</span>
                     </div>
+
+                    {/* Borde inferior de color para cartas enlazadas de otros decks activos */}
+                    {isInDeck && (
+                      <div 
+                        className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-amber-500 via-amber-400 to-amber-500 z-10 shadow-xs" 
+                        title={`En uso en: ${pc?.active_deck_name || 'Deck Activo'}`}
+                      />
+                    )}
                   </TouchableCard>
                 </div>
               );

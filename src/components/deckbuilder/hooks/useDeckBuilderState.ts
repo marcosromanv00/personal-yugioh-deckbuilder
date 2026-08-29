@@ -17,6 +17,26 @@ export interface YgoApiCardDetails {
   archetype?: string;
 }
 
+export const RARITY_WEIGHTS: Record<string, number> = {
+  'Starlight Rare': 100,
+  'Quarter Century Secret Rare': 95,
+  'Ghost Rare': 90,
+  'Collector\'s Rare': 85,
+  'Ultimate Rare': 80,
+  'Prismatic Secret Rare': 75,
+  'Secret Rare': 70,
+  'Ultra Rare': 60,
+  'Super Rare': 50,
+  'Rare': 40,
+  'Common': 30,
+  'Short Print': 20,
+};
+
+export const getRarityWeight = (rarity?: string): number => {
+  if (!rarity) return 0;
+  return RARITY_WEIGHTS[rarity] || 35;
+};
+
 export function useDeckBuilderState() {
 
   const { isIdealMode, syncData } = useIdealEnvironment();
@@ -748,6 +768,10 @@ export function useDeckBuilderState() {
       const aProxy = a.is_proxy ? 1 : 0;
       const bProxy = b.is_proxy ? 1 : 0;
       if (aProxy !== bProxy) return aProxy - bProxy;
+
+      // 4. Mayor rareza primero
+      const weightDiff = getRarityWeight(b.rarity) - getRarityWeight(a.rarity);
+      if (weightDiff !== 0) return weightDiff;
 
       return 0;
     });
@@ -1525,7 +1549,7 @@ export function useDeckBuilderState() {
     setCardsToRegister(updated);
   };
 
-  const handleImportYdkOrBulk = async (rawInput: string) => {
+  const handleImportYdkOrBulk = async (rawInput: string, linkWithCollection: boolean = true) => {
     if (!rawInput.trim()) return;
 
     const lines = rawInput.split(/\r?\n/);
@@ -1611,14 +1635,75 @@ export function useDeckBuilderState() {
       }
     });
 
+    const importAssignedCounts: Record<string, number> = {};
+
     const newMappedCards: DeckCard[] = Array.from(countsMap.values()).map(item => {
       const found = detailsMap.get(item.cardId);
       const images = found?.card_images as Array<{ image_url: string }> | undefined;
+      const physicalCopies: import('../types').DeckCardPhysicalCopy[] = [];
+
+      if (linkWithCollection) {
+        const ownedForCard = allUserCards.filter(uc => uc.card_id === item.cardId);
+        // Priorizar: 1) Cartas libres antes que cartas en conflicto, 2) No-proxies, 3) Mayor rareza primero
+        const sortedOwned = [...ownedForCard].sort((a, b) => {
+          const aInDeck = a.deck_id ? 1 : 0;
+          const bInDeck = b.deck_id ? 1 : 0;
+          if (aInDeck !== bInDeck) return aInDeck - bInDeck;
+
+          const aProxy = a.is_proxy ? 1 : 0;
+          const bProxy = b.is_proxy ? 1 : 0;
+          if (aProxy !== bProxy) return aProxy - bProxy;
+
+          const weightDiff = getRarityWeight(b.rarity) - getRarityWeight(a.rarity);
+          if (weightDiff !== 0) return weightDiff;
+
+          return 0;
+        });
+
+        for (let i = 0; i < item.count; i++) {
+          const candidate = sortedOwned.find(uc => {
+            const used = importAssignedCounts[uc.id] || 0;
+            return used < (uc.quantity || 1);
+          });
+
+          if (candidate) {
+            importAssignedCounts[candidate.id] = (importAssignedCounts[candidate.id] || 0) + 1;
+            const loc = locations.find(l => l.id === candidate.storage_location_id);
+            physicalCopies.push({
+              user_card_id: candidate.id,
+              storage_location_id: candidate.storage_location_id,
+              location_name: loc ? loc.name : 'Inbox / Sin clasificar',
+              rarity: candidate.rarity || 'Common',
+              condition: candidate.condition || 'Near Mint',
+              is_proxy: Boolean(candidate.is_proxy),
+              is_in_active_deck: Boolean(candidate.deck_id),
+              active_deck_id: candidate.deck_id || undefined,
+              active_deck_name: candidate.deck_details?.name || (candidate.deck_id ? 'Deck Activo' : undefined),
+              binder_page: candidate.binder_page,
+              binder_slot: candidate.binder_slot,
+              compartment_index: candidate.compartment_index
+            });
+          } else {
+            physicalCopies.push({
+              is_proxy: true,
+              rarity: 'Common'
+            });
+          }
+        }
+      } else {
+        for (let i = 0; i < item.count; i++) {
+          physicalCopies.push({
+            is_proxy: true,
+            rarity: 'Common'
+          });
+        }
+      }
+
       return {
         id: item.cardId,
         name: (found?.name as string) || `Carta #${item.cardId}`,
         count: item.count,
-        proxy_count: 0,
+        proxy_count: physicalCopies.filter(p => p.is_proxy).length,
         section: item.section,
         type: (found?.type as string) || 'Monster',
         image_url: images?.[0]?.image_url || `https://images.ygoprodeck.com/images/cards/${item.cardId}.jpg`,
@@ -1626,7 +1711,8 @@ export function useDeckBuilderState() {
         def: found?.def as number | undefined,
         level: found?.level as number | undefined,
         race: found?.race as string | undefined,
-        attribute: found?.attribute as string | undefined
+        attribute: found?.attribute as string | undefined,
+        physical_copies: physicalCopies
       };
     });
 
@@ -1645,6 +1731,94 @@ export function useDeckBuilderState() {
       }));
     }
   };
+
+  const handleToggleCardLink = useCallback((cardId: number, section: 'main' | 'extra' | 'side' | 'extras', copyIndex?: number) => {
+    setDeckCards(prev => prev.map(c => {
+      if (c.id !== cardId || c.section !== section) return c;
+      const copies = [...(c.physical_copies || [])];
+
+      if (copyIndex !== undefined && copyIndex !== null) {
+        const pc = copies[copyIndex];
+        if (pc?.is_proxy || !pc?.user_card_id) {
+          // Intentar enlazar con una copia física disponible
+          const assignedCounts: Record<string, number> = {};
+          prev.forEach(item => {
+            item.physical_copies?.forEach(p => {
+              if (p.user_card_id) assignedCounts[p.user_card_id] = (assignedCounts[p.user_card_id] || 0) + 1;
+            });
+          });
+          const owned = allUserCards.filter(uc => uc.card_id === cardId && ((assignedCounts[uc.id] || 0) < (uc.quantity || 1)));
+          const target = owned[0];
+          if (target) {
+            const loc = locations.find(l => l.id === target.storage_location_id);
+            copies[copyIndex] = {
+              user_card_id: target.id,
+              storage_location_id: target.storage_location_id,
+              location_name: loc ? loc.name : 'Inbox / Sin clasificar',
+              rarity: target.rarity || 'Common',
+              condition: target.condition || 'Near Mint',
+              is_proxy: false,
+              is_in_active_deck: Boolean(target.deck_id),
+              active_deck_id: target.deck_id || undefined,
+              active_deck_name: target.deck_details?.name,
+              binder_page: target.binder_page,
+              binder_slot: target.binder_slot,
+              compartment_index: target.compartment_index
+            };
+          }
+        } else {
+          // Desvincular / desenlazar para registrar como nueva
+          copies[copyIndex] = {
+            is_proxy: true,
+            rarity: pc?.rarity || 'Common'
+          };
+        }
+      } else {
+        // Toggle de toda la carta
+        const isAllLinked = copies.every(p => !p.is_proxy && p.user_card_id);
+        if (isAllLinked) {
+          for (let i = 0; i < copies.length; i++) {
+            copies[i] = { is_proxy: true, rarity: copies[i]?.rarity || 'Common' };
+          }
+        } else {
+          const assignedCounts: Record<string, number> = {};
+          prev.forEach(item => {
+            item.physical_copies?.forEach(p => {
+              if (p.user_card_id) assignedCounts[p.user_card_id] = (assignedCounts[p.user_card_id] || 0) + 1;
+            });
+          });
+          const owned = allUserCards.filter(uc => uc.card_id === cardId);
+          for (let i = 0; i < copies.length; i++) {
+            const target = owned.find(uc => (assignedCounts[uc.id] || 0) < (uc.quantity || 1));
+            if (target) {
+              assignedCounts[target.id] = (assignedCounts[target.id] || 0) + 1;
+              const loc = locations.find(l => l.id === target.storage_location_id);
+              copies[i] = {
+                user_card_id: target.id,
+                storage_location_id: target.storage_location_id,
+                location_name: loc ? loc.name : 'Inbox / Sin clasificar',
+                rarity: target.rarity || 'Common',
+                condition: target.condition || 'Near Mint',
+                is_proxy: false,
+                is_in_active_deck: Boolean(target.deck_id),
+                active_deck_id: target.deck_id || undefined,
+                active_deck_name: target.deck_details?.name,
+                binder_page: target.binder_page,
+                binder_slot: target.binder_slot,
+                compartment_index: target.compartment_index
+              };
+            }
+          }
+        }
+      }
+
+      return {
+        ...c,
+        physical_copies: copies,
+        proxy_count: copies.filter(p => p.is_proxy).length
+      };
+    }));
+  }, [allUserCards, locations]);
 
 
   useEffect(() => {
@@ -1808,6 +1982,7 @@ export function useDeckBuilderState() {
     handleClearDeck,
     handleExcludeExisting,
     handleImportYdkOrBulk,
+    handleToggleCardLink,
     handleUndo,
     handleRedo,
     canUndo: historyStack.length > 0,
