@@ -354,6 +354,7 @@ export default function CollectionPage() {
                 />
               ) : state.activeTab === 'decks' ? (
                 <DecksTab
+                  loading={state.loading}
                   decks={state.decks}
                   locations={state.locations}
                   sleeves={state.sleeves}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, Shield, Zap, Settings2, X, Loader2 } from 'lucide-react';
+import { Save, Shield, Zap, Settings2, X, Loader2, ChevronDown } from 'lucide-react';
 import { StorageLocation, SleeveInventory } from '@/types/collection';
 import { DeckCard } from '../types';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
@@ -96,6 +96,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   extractionPickList = [],
 }) => {
   const [saveTab, setSaveTab] = useState<'quick' | 'advanced'>('quick');
+  const [isPickListExpanded, setIsPickListExpanded] = useState(false);
   const [deficitPromptOpen, setDeficitPromptOpen] = useState(false);
   const [deficitList, setDeficitList] = useState<Array<{ id: number; name: string; required: number; owned: number; missing: number }>>([]);
   const [cardQuantities, setCardQuantities] = useState<Record<number, number>>(() => {
@@ -330,79 +331,99 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
 
               {/* PLAN DE EXTRACCIÓN FÍSICO (PICK LIST) */}
               {saveIsActive && extractionPickList && extractionPickList.length > 0 && (
-                <div className="space-y-3 bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-2xl border border-emerald-500/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">📋</span>
-                      <div>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
-                          Plan de Extracción Físico (Pick List)
-                        </h4>
-                        <p className="text-[10px] text-zinc-500 font-mono">
-                          Ubicaciones de donde debes sacar las cartas reales para armar este deck
+                <div className="bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-emerald-500/30 overflow-hidden transition-all">
+                  <div
+                    onClick={() => setIsPickListExpanded((prev) => !prev)}
+                    className="p-3 sm:p-3.5 flex items-center justify-between cursor-pointer select-none hover:bg-zinc-100/60 dark:hover:bg-zinc-900/60 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-base shrink-0">📋</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                            Plan de Extracción Físico (Pick List)
+                          </h4>
+                          <span className="text-[9.5px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                            {extractionPickList.length} ubicaciones
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 font-mono truncate">
+                          {isPickListExpanded
+                            ? 'Ubicaciones de donde debes sacar las cartas reales para armar este deck'
+                            : 'Haz clic para desplegar las ubicaciones y cartas a extraer'}
                         </p>
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                      {totalCards} cartas en total
-                    </span>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                        {totalCards} cartas
+                      </span>
+                      <div className="p-1 rounded-lg bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isPickListExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
-                    {extractionPickList.map((group) => (
-                      <div
-                        key={group.id}
-                        className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-2"
-                      >
-                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-1.5">
-                          <span className="text-[11px] font-black uppercase text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                            <span>{group.name}</span>
-                          </span>
-                          <span className="text-[9.5px] font-mono font-bold text-zinc-400">
-                            {group.cards.reduce((acc, c) => acc + c.count, 0)} {group.cards.reduce((acc, c) => acc + c.count, 0) === 1 ? 'carta' : 'cartas'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {group.cards.map((item, itemIdx) => (
-                            <div
-                              key={`${item.cardId}-${itemIdx}`}
-                              className="flex items-center gap-2 p-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/60"
-                            >
-                              {item.image_url && (
-                                <Image
-                                  src={item.image_url}
-                                  alt={item.name}
-                                  width={20}
-                                  height={28}
-                                  unoptimized
-                                  className="w-5 h-7 object-contain rounded shrink-0"
-                                />
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[10.5px] font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                                  {item.name}
-                                </p>
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <span className="text-[8.5px] font-mono font-black px-1 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                                    {item.rarity}
-                                  </span>
-                                  {item.locationDetail && (
-                                    <span className="text-[8.5px] font-mono text-cyan-600 dark:text-cyan-400">
-                                      {item.locationDetail}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <span className="text-xs font-mono font-black text-zinc-700 dark:text-zinc-300 shrink-0 px-1">
-                                x{item.count}
+                  {isPickListExpanded && (
+                    <div className="p-3.5 pt-0 border-t border-zinc-200/60 dark:border-zinc-800/60 space-y-2.5">
+                      <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin pt-3">
+                        {extractionPickList.map((group) => (
+                          <div
+                            key={group.id}
+                            className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-2"
+                          >
+                            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-1.5">
+                              <span className="text-[11px] font-black uppercase text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                                <span>{group.name}</span>
+                              </span>
+                              <span className="text-[9.5px] font-mono font-bold text-zinc-400">
+                                {group.cards.reduce((acc, c) => acc + c.count, 0)} {group.cards.reduce((acc, c) => acc + c.count, 0) === 1 ? 'carta' : 'cartas'}
                               </span>
                             </div>
-                          ))}
-                        </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {group.cards.map((item, itemIdx) => (
+                                <div
+                                  key={`${item.cardId}-${itemIdx}`}
+                                  className="flex items-center gap-2 p-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/60"
+                                >
+                                  {item.image_url && (
+                                    <Image
+                                      src={item.image_url}
+                                      alt={item.name}
+                                      width={20}
+                                      height={28}
+                                      unoptimized
+                                      className="w-5 h-7 object-contain rounded shrink-0"
+                                    />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[10.5px] font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                      {item.name}
+                                    </p>
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[8.5px] font-mono font-black px-1 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                                        {item.rarity}
+                                      </span>
+                                      {item.locationDetail && (
+                                        <span className="text-[8.5px] font-mono text-cyan-600 dark:text-cyan-400">
+                                          {item.locationDetail}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-mono font-black text-zinc-700 dark:text-zinc-300 shrink-0 px-1">
+                                    x{item.count}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -584,7 +605,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                           </div>
                         </div>
 
-                        <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                        <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
                           {deckCards.map((c) => {
                             const alreadyInInv = userInventoryCounts[c.id] || 0;
                             const isChecked = Boolean(cardsToRegister[c.id]);

@@ -37,6 +37,15 @@ interface CollectionSidebarProps {
   onNewContainerClick?: () => void;
 }
 
+interface SidebarNavItem {
+  id: CollectionTab;
+  label: string;
+  icon: React.ElementType;
+  count?: number;
+  color: string;
+  isNew?: boolean;
+}
+
 export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
   activeTab,
   setActiveTab,
@@ -53,80 +62,129 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
   onOpenInbox,
   onNewContainerClick,
 }) => {
-  const navItems = [
+  const physicalNavItems: SidebarNavItem[] = [
     {
       id: 'containers' as CollectionTab,
       label: 'Almacenamiento',
       icon: Box,
       count: containersCount,
-      color: 'text-purple-500',
-      activeBorder: 'border-purple-600',
-      activeBg: 'bg-purple-600/10 text-purple-600 dark:text-purple-400 font-black',
-    },
-    {
-      id: 'valuation' as CollectionTab,
-      label: 'Costos & Valor',
-      icon: TrendingUp,
-      color: 'text-emerald-500',
-      activeBorder: 'border-emerald-500',
-      activeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black',
-      isNew: true,
-    },
-    {
-      id: 'suggestions' as CollectionTab,
-      label: 'Sugerencias',
-      icon: Sparkles,
-      count: suggestionsCount,
-      color: 'text-amber-500',
-      activeBorder: 'border-amber-500',
-      activeBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black',
-      isNew: true,
-    },
-    {
-      id: 'sleeves' as CollectionTab,
-      label: 'Mis Fundas',
-      icon: Shield,
-      count: sleevesCount,
-      color: 'text-cyan-500',
-      activeBorder: 'border-cyan-500',
-      activeBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-black',
+      color: 'text-zinc-700 dark:text-zinc-300',
     },
     {
       id: 'decks' as CollectionTab,
       label: 'Mis Decks',
       icon: FileText,
       count: decksCount,
-      color: 'text-purple-500',
-      activeBorder: 'border-purple-600',
-      activeBg: 'bg-purple-600/10 text-purple-600 dark:text-purple-400 font-black',
+      color: 'text-zinc-700 dark:text-zinc-300',
+    },
+    {
+      id: 'sleeves' as CollectionTab,
+      label: 'Mis Fundas',
+      icon: Shield,
+      count: sleevesCount,
+      color: 'text-zinc-700 dark:text-zinc-300',
     },
     {
       id: 'complete' as CollectionTab,
       label: 'Colección Completa',
       icon: Layers,
       count: totalCardsCount,
-      color: 'text-red-500',
-      activeBorder: 'border-red-600',
-      activeBg: 'bg-red-600/10 text-red-600 dark:text-red-400 font-black',
+      color: 'text-zinc-700 dark:text-zinc-300',
+    },
+  ];
+
+  const intelligenceNavItems: SidebarNavItem[] = [
+    {
+      id: 'suggestions' as CollectionTab,
+      label: 'Sugerencias',
+      icon: Sparkles,
+      count: suggestionsCount,
+      color: 'text-amber-500',
+      isNew: true,
+    },
+    {
+      id: 'valuation' as CollectionTab,
+      label: 'Costos & Valor',
+      icon: TrendingUp,
+      color: 'text-emerald-500',
     },
     {
       id: 'favorites' as CollectionTab,
       label: 'Favoritas',
       icon: Heart,
-      color: 'text-pink-500',
-      activeBorder: 'border-pink-500',
-      activeBg: 'bg-pink-500/10 text-pink-600 dark:text-pink-400 font-black',
+      color: 'text-red-500',
     },
   ];
 
+  const renderNavGroup = (title: string, items: SidebarNavItem[]) => (
+    <div className="space-y-1">
+      {!isCollapsed && (
+        <div className="px-3 pt-2 pb-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-mono">
+            {title}
+          </span>
+        </div>
+      )}
+      <div className="space-y-0.5">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setActiveTab(item.id);
+                setIsMobileOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs font-bold ${
+                isActive
+                  ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 shadow-xs border-l-2 border-red-600'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
+              } ${isCollapsed ? 'justify-center px-0' : ''}`}
+              title={item.label}
+            >
+              <div className="relative shrink-0 flex items-center justify-center">
+                <Icon className={`w-4 h-4 ${isActive ? 'text-red-600 dark:text-red-400' : item.color} ${item.id === 'favorites' && isActive ? 'fill-red-500' : ''}`} />
+                {isCollapsed && item.count !== undefined && item.count > 0 && (
+                  <span className="absolute -top-1.5 -right-2 bg-red-600 text-white font-mono text-[8px] font-bold px-1 rounded-full">
+                    {item.count > 99 ? '99+' : item.count}
+                  </span>
+                )}
+              </div>
+
+              {!isCollapsed && (
+                <div className="flex-1 flex items-center justify-between min-w-0">
+                  <span className="truncate uppercase font-display tracking-wider">
+                    {item.label}
+                  </span>
+                  {item.count !== undefined && (
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ml-1.5 ${
+                      isActive
+                        ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                    }`}>
+                      {item.count}
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const sidebarContent = (
     <div className="flex flex-col h-full justify-between p-3 select-none">
-      {/* Navigation Group */}
+      {/* Navigation Groups */}
       <div className="space-y-4">
         {/* Header de Sidebar */}
         <div className="flex items-center justify-between px-2 pt-1">
           {!isCollapsed && (
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 font-mono">
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-mono">
               Vistas de Colección
             </span>
           )}
@@ -141,65 +199,20 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
           </button>
         </div>
 
-        {/* Lista de Pestañas */}
-        <nav className="space-y-1.5">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+        {/* Sección 1: Inventario Físico */}
+        {renderNavGroup('Inventario Físico', physicalNavItems)}
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setIsMobileOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all cursor-pointer text-xs ${
-                  isActive
-                    ? `${item.activeBg} shadow-xs`
-                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60'
-                } ${isCollapsed ? 'justify-center px-0' : ''}`}
-                title={item.label}
-              >
-                <div className="relative shrink-0 flex items-center justify-center">
-                  <Icon className={`w-4 h-4 ${item.color} ${item.id === 'favorites' && isActive ? 'fill-pink-500' : ''}`} />
-                  {isCollapsed && item.count !== undefined && item.count > 0 && (
-                    <span className="absolute -top-1.5 -right-2 bg-red-600 text-white font-mono text-[8px] font-bold px-1 rounded-full">
-                      {item.count > 99 ? '99+' : item.count}
-                    </span>
-                  )}
-                </div>
-
-                {!isCollapsed && (
-                  <div className="flex-1 flex items-center justify-between min-w-0">
-                    <span className="truncate uppercase font-display tracking-wider font-bold">
-                      {item.label}
-                    </span>
-                    {item.count !== undefined && (
-                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full ml-1.5 ${
-                        isActive
-                          ? 'bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700'
-                          : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
-                      }`}>
-                        {item.count}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+        {/* Sección 2: Inteligencia & Análisis */}
+        {renderNavGroup('Inteligencia & Análisis', intelligenceNavItems)}
       </div>
 
       {/* Quick Inbox & Container Actions at Bottom */}
-      <div className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800">
+      <div className="space-y-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
         {inboxCount > 0 && onOpenInbox && (
           <button
             type="button"
             onClick={onOpenInbox}
-            className={`w-full flex items-center gap-2.5 p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all cursor-pointer text-xs font-bold ${
+            className={`w-full flex items-center gap-2.5 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all cursor-pointer text-xs font-bold ${
               isCollapsed ? 'justify-center px-0' : ''
             }`}
             title={`📥 Inbox (${inboxCount} cartas sin clasificar)`}
@@ -207,8 +220,8 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
             <Inbox className="w-4 h-4 text-amber-500 shrink-0" />
             {!isCollapsed && (
               <div className="flex-1 flex items-center justify-between min-w-0">
-                <span className="truncate">Inbox</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 bg-amber-500 text-zinc-950 rounded-full font-black">
+                <span className="truncate uppercase font-display tracking-wider">Inbox</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500 text-zinc-950 rounded-full font-black">
                   {inboxCount}
                 </span>
               </div>
@@ -220,13 +233,13 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
           <button
             type="button"
             onClick={onNewContainerClick}
-            className={`w-full flex items-center gap-2.5 p-2.5 rounded-2xl bg-zinc-900 hover:bg-black dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-950 transition-all cursor-pointer text-xs font-black uppercase tracking-wider shadow-sm ${
+            className={`w-full flex items-center gap-2.5 p-2 rounded-xl bg-red-600 hover:bg-red-500 text-white transition-all cursor-pointer text-xs font-black uppercase tracking-wider shadow-sm min-h-10 touch-manipulation ${
               isCollapsed ? 'justify-center px-0' : ''
             }`}
             title="Crear Nuevo Contenedor"
           >
             <Plus className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="truncate">Nuevo Contenedor</span>}
+            {!isCollapsed && <span className="truncate font-display">Nuevo Contenedor</span>}
           </button>
         )}
       </div>
