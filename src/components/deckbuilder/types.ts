@@ -38,6 +38,21 @@ export interface Card {
   is_grayscale_shared?: boolean;
 }
 
+export interface DeckCardPhysicalCopy {
+  user_card_id?: string;
+  storage_location_id?: string | null;
+  location_name?: string;
+  rarity?: string;
+  condition?: string;
+  is_proxy?: boolean;
+  is_in_active_deck?: boolean;
+  active_deck_id?: string;
+  active_deck_name?: string;
+  binder_page?: number;
+  binder_slot?: number;
+  compartment_index?: number;
+}
+
 export interface DeckCard {
   id: number;
   name: string;
@@ -64,6 +79,10 @@ export interface DeckCard {
   notes?: string;
   sleeve_id?: string;
   sleeve_color_hex?: string;
+
+  physical_copies?: DeckCardPhysicalCopy[];
+  is_virtual_proxy?: boolean;
+  selected_copy_index?: number;
 }
 
 export interface BanlistAlert {

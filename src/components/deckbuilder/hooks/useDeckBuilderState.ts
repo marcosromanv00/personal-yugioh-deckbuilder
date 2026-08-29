@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Card, DeckCard, ArchetypeItem, BreakdownCardItem, BanlistAlert, Replacement, HistoryItem } from '../types';
+import { Card, DeckCard, DeckCardPhysicalCopy, ArchetypeItem, BreakdownCardItem, BanlistAlert, Replacement, HistoryItem } from '../types';
 import { FilterState } from '../CardFilters';
 import { StorageLocation, SleeveInventory, DeckSleeve, Deck, UserCard } from '@/types/collection';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
@@ -24,7 +24,9 @@ export function useDeckBuilderState() {
   // Formato y Deck
   const [format, setFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('TCG');
   const [saveFormat, setSaveFormat] = useState<'Master Duel' | 'TCG' | 'Duel Links'>('TCG');
-  const [saveIsActive, setSaveIsActive] = useState<boolean>(true);
+  const [saveIsActive, setSaveIsActive] = useState<boolean>(false);
+  const [deckLayoutMode, setDeckLayoutMode] = useState<'collapsed' | 'expanded'>('collapsed');
+  const [deactivatedDeckIds, setDeactivatedDeckIds] = useState<string[]>([]);
   const [deckCards, setDeckCards] = useState<DeckCard[]>([]);
   const [deckName, setDeckName] = useState('Nuevo Deck TCG');
   const [isManualDeckName, setIsManualDeckName] = useState(false);
@@ -460,10 +462,12 @@ export function useDeckBuilderState() {
           
           for (const uc of rawList) {
             if (!uc.card_details) continue;
-            if (seen.has(uc.card_details.id)) continue;
-            seen.add(uc.card_details.id);
+            const cid = uc.card_id;
+            if (seen.has(cid)) continue;
+            seen.add(cid);
+            const cardUserGroup = rawList.filter((x: import('@/types/collection').UserCard) => x.card_id === cid);
             mappedCards.push({
-              id: uc.card_details.id,
+              id: cid,
               name: uc.card_details.name,
               type: uc.card_details.type,
               desc: uc.card_details.desc || '',
@@ -478,6 +482,7 @@ export function useDeckBuilderState() {
               level: uc.card_details.level,
               race: uc.card_details.race,
               attribute: uc.card_details.attribute,
+              userCardsGroup: cardUserGroup
             });
           }
           setSearchResults(mappedCards);
@@ -567,6 +572,10 @@ export function useDeckBuilderState() {
           if (favs) {
             cards = cards.filter(c => favoriteCardIds.includes(c.id));
           }
+          cards = cards.map(c => ({
+            ...c,
+            userCardsGroup: allUserCards.filter(uc => uc.card_id === c.id)
+          }));
           setSearchResults(cards);
         }
       }
@@ -707,6 +716,49 @@ export function useDeckBuilderState() {
       return [historyCard, ...filtered].slice(0, 15);
     });
 
+    // Auto-asignación inteligente de copia física
+    const assignedUserCardIds = new Set<string>();
+    deckCards.forEach(c => {
+      c.physical_copies?.forEach(pc => {
+        if (pc.user_card_id) assignedUserCardIds.add(pc.user_card_id);
+      });
+    });
+
+    const ownedForCard = allUserCards.filter(uc => uc.card_id === card.id);
+    const availableUnassigned = ownedForCard.filter(uc => !assignedUserCardIds.has(uc.id));
+    availableUnassigned.sort((a, b) => {
+      const aInDeck = a.deck_id ? 1 : 0;
+      const bInDeck = b.deck_id ? 1 : 0;
+      return aInDeck - bInDeck;
+    });
+
+    const pickedUserCard = availableUnassigned[0];
+    let newPhysicalCopy: import('../types').DeckCardPhysicalCopy;
+
+    if (pickedUserCard) {
+      const loc = locations.find(l => l.id === pickedUserCard.storage_location_id);
+      const locName = loc ? loc.name : 'Inbox / Sin clasificar';
+      newPhysicalCopy = {
+        user_card_id: pickedUserCard.id,
+        storage_location_id: pickedUserCard.storage_location_id,
+        location_name: locName,
+        rarity: pickedUserCard.rarity || 'Common',
+        condition: pickedUserCard.condition || 'Near Mint',
+        is_proxy: Boolean(pickedUserCard.is_proxy),
+        is_in_active_deck: Boolean(pickedUserCard.deck_id),
+        active_deck_id: pickedUserCard.deck_id || undefined,
+        active_deck_name: pickedUserCard.deck_details?.name || (pickedUserCard.deck_id ? 'Deck Activo' : undefined),
+        binder_page: pickedUserCard.binder_page,
+        binder_slot: pickedUserCard.binder_slot,
+        compartment_index: pickedUserCard.compartment_index
+      };
+    } else {
+      newPhysicalCopy = {
+        is_proxy: true,
+        rarity: 'Receta / Proxy'
+      };
+    }
+
     setDeckCards(prev => {
       const existing = prev.find(c => c.id === card.id && c.section === section);
       if (existing) {
@@ -714,7 +766,12 @@ export function useDeckBuilderState() {
           alert('No puedes jugar más de 3 copias de una misma carta.');
           return prev;
         }
-        return prev.map(c => (c.id === card.id && c.section === section) ? { ...c, count: c.count + 1 } : c);
+        const currentCopies = existing.physical_copies || [];
+        return prev.map(c => (c.id === card.id && c.section === section) ? {
+          ...c,
+          count: c.count + 1,
+          physical_copies: [...currentCopies, newPhysicalCopy]
+        } : c);
       }
       return [...prev, {
         id: card.id,
@@ -731,10 +788,11 @@ export function useDeckBuilderState() {
         def: card.def,
         level: card.level,
         race: card.race,
-        attribute: card.attribute
+        attribute: card.attribute,
+        physical_copies: [newPhysicalCopy]
       }];
     });
-  }, [format, deckCards]);
+  }, [format, deckCards, allUserCards, locations]);
 
   const removeCardFromDeck = useCallback((cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => {
     pushHistory(deckCards);
@@ -759,11 +817,224 @@ export function useDeckBuilderState() {
     setDeckCards(prev => {
       const existing = prev.find(c => c.id === cardId && c.section === section);
       if (existing && existing.count > 1) {
-        return prev.map(c => (c.id === cardId && c.section === section) ? { ...c, count: c.count - 1 } : c);
+        const currentCopies = existing.physical_copies || [];
+        return prev.map(c => (c.id === cardId && c.section === section) ? {
+          ...c,
+          count: c.count - 1,
+          physical_copies: currentCopies.length > 1 ? currentCopies.slice(0, -1) : []
+        } : c);
       }
       return prev.filter(c => !(c.id === cardId && c.section === section));
     });
   }, [deckCards]);
+
+  const removeCopyFromDeck = useCallback((cardId: number, section: 'main' | 'extra' | 'side' | 'extras', copyIndex: number) => {
+    pushHistory(deckCards);
+    setDeckCards(prev => {
+      const existing = prev.find(c => c.id === cardId && c.section === section);
+      if (!existing) return prev;
+      if (existing.count <= 1) {
+        return prev.filter(c => !(c.id === cardId && c.section === section));
+      }
+      const currentCopies = existing.physical_copies ? [...existing.physical_copies] : [];
+      if (copyIndex >= 0 && copyIndex < currentCopies.length) {
+        currentCopies.splice(copyIndex, 1);
+      } else if (currentCopies.length > 0) {
+        currentCopies.pop();
+      }
+      return prev.map(c => (c.id === cardId && c.section === section) ? {
+        ...c,
+        count: c.count - 1,
+        physical_copies: currentCopies
+      } : c);
+    });
+  }, [deckCards]);
+
+  const handleUpdateCardPhysicalCopy = useCallback((
+    cardId: number,
+    section: 'main' | 'extra' | 'side' | 'extras',
+    copyIndex: number,
+    selectedUserCardId: string | 'proxy'
+  ) => {
+    setDeckCards(prev => {
+      return prev.map(c => {
+        if (c.id !== cardId || c.section !== section) return c;
+        const copies = [...(c.physical_copies || [])];
+        while (copies.length <= copyIndex) {
+          copies.push({ is_proxy: true, rarity: 'Receta / Proxy' });
+        }
+
+        if (selectedUserCardId === 'proxy') {
+          copies[copyIndex] = {
+            is_proxy: true,
+            rarity: 'Receta / Proxy'
+          };
+        } else {
+          const targetUc = allUserCards.find(uc => uc.id === selectedUserCardId);
+          if (targetUc) {
+            const loc = locations.find(l => l.id === targetUc.storage_location_id);
+            copies[copyIndex] = {
+              user_card_id: targetUc.id,
+              storage_location_id: targetUc.storage_location_id,
+              location_name: loc ? loc.name : 'Inbox / Sin clasificar',
+              rarity: targetUc.rarity || 'Common',
+              condition: targetUc.condition || 'Near Mint',
+              is_proxy: Boolean(targetUc.is_proxy),
+              is_in_active_deck: Boolean(targetUc.deck_id),
+              active_deck_id: targetUc.deck_id || undefined,
+              active_deck_name: targetUc.deck_details?.name || (targetUc.deck_id ? 'Deck Activo' : undefined),
+              binder_page: targetUc.binder_page,
+              binder_slot: targetUc.binder_slot,
+              compartment_index: targetUc.compartment_index
+            };
+          }
+        }
+        return { ...c, physical_copies: copies };
+      });
+    });
+  }, [allUserCards, locations]);
+
+  const handleResolveConflictAction = useCallback((
+    userCardId: string,
+    action: 'move_to_deck' | 'deactivate_origin'
+  ) => {
+    if (action === 'deactivate_origin') {
+      const targetUc = allUserCards.find(uc => uc.id === userCardId);
+      if (targetUc?.deck_id) {
+        setDeactivatedDeckIds(prev => Array.from(new Set([...prev, targetUc.deck_id!])));
+      }
+    }
+
+    setDeckCards(prev => {
+      return prev.map(c => {
+        if (!c.physical_copies) return c;
+        const updatedCopies = c.physical_copies.map(pc => {
+          if (pc.user_card_id === userCardId) {
+            return {
+              ...pc,
+              is_in_active_deck: false,
+              active_deck_id: undefined,
+              active_deck_name: undefined
+            };
+          }
+          return pc;
+        });
+        return { ...c, physical_copies: updatedCopies };
+      });
+    });
+  }, [allUserCards]);
+
+  const extractionPickList = useMemo(() => {
+    interface ExtractionCardItem {
+      cardId: number;
+      name: string;
+      rarity: string;
+      count: number;
+      image_url: string;
+      locationDetail?: string;
+      userCardId?: string;
+      isInActiveDeck?: boolean;
+      activeDeckId?: string;
+      activeDeckName?: string;
+    }
+
+    interface ExtractionGroup {
+      id: string;
+      name: string;
+      type: 'binder' | 'box' | 'tin' | 'deckbox' | 'drawer' | 'inbox' | 'conflict_deck' | 'global_proxy';
+      colorCode?: string;
+      cards: ExtractionCardItem[];
+    }
+
+    const groupsMap = new Map<string, ExtractionGroup>();
+
+    const getOrCreateGroup = (
+      id: string,
+      name: string,
+      type: 'binder' | 'box' | 'tin' | 'deckbox' | 'drawer' | 'inbox' | 'conflict_deck' | 'global_proxy',
+      colorCode?: string
+    ): ExtractionGroup => {
+      if (!groupsMap.has(id)) {
+        groupsMap.set(id, { id, name, type, colorCode, cards: [] });
+      }
+      return groupsMap.get(id)!;
+    };
+
+    deckCards.forEach(card => {
+      const copies: DeckCardPhysicalCopy[] = card.physical_copies && card.physical_copies.length > 0
+        ? card.physical_copies
+        : Array.from({ length: card.count }).map((): DeckCardPhysicalCopy => ({ is_proxy: true, rarity: 'Receta / Proxy' }));
+
+      copies.forEach(copy => {
+        if (copy.is_proxy || !copy.user_card_id) {
+          const group = getOrCreateGroup('proxies', 'Recetas Virtuales / Proxies', 'global_proxy', '#71717a');
+          const existingCard = group.cards.find(c => c.cardId === card.id && c.rarity === (copy.rarity || 'Receta / Proxy'));
+          if (existingCard) {
+            existingCard.count += 1;
+          } else {
+            group.cards.push({
+              cardId: card.id,
+              name: card.name,
+              rarity: copy.rarity || 'Receta / Proxy',
+              count: 1,
+              image_url: card.image_url
+            });
+          }
+        } else if (copy.is_in_active_deck && copy.active_deck_name) {
+          const groupId = `conflict-${copy.active_deck_id || 'unknown'}`;
+          const group = getOrCreateGroup(groupId, `⚔️ Deck Activo: ${copy.active_deck_name}`, 'conflict_deck', '#f59e0b');
+          group.cards.push({
+            cardId: card.id,
+            name: card.name,
+            rarity: copy.rarity || 'Common',
+            count: 1,
+            image_url: card.image_url,
+            userCardId: copy.user_card_id,
+            isInActiveDeck: true,
+            activeDeckId: copy.active_deck_id,
+            activeDeckName: copy.active_deck_name
+          });
+        } else if (copy.storage_location_id) {
+          const loc = locations.find(l => l.id === copy.storage_location_id);
+          const group = getOrCreateGroup(
+            loc?.id || copy.storage_location_id,
+            loc ? `${loc.type === 'binder' ? '📁' : '📦'} ${loc.name}` : '📦 Contenedor',
+            loc?.type || 'box',
+            loc?.color_code || '#ef4444'
+          );
+
+          let locationDetail = '';
+          if (loc?.type === 'binder' && copy.binder_page) {
+            locationDetail = `Pág. ${copy.binder_page}${copy.binder_slot ? `, Ranura ${copy.binder_slot}` : ''}`;
+          } else if (copy.compartment_index !== undefined) {
+            locationDetail = `Carril ${copy.compartment_index + 1}`;
+          }
+
+          group.cards.push({
+            cardId: card.id,
+            name: card.name,
+            rarity: copy.rarity || 'Common',
+            count: 1,
+            image_url: card.image_url,
+            locationDetail,
+            userCardId: copy.user_card_id
+          });
+        } else {
+          const group = getOrCreateGroup('inbox', '📥 Inbox / Sin clasificar', 'inbox', '#3b82f6');
+          group.cards.push({
+            cardId: card.id,
+            name: card.name,
+            rarity: copy.rarity || 'Common',
+            count: 1,
+            image_url: card.image_url,
+            userCardId: copy.user_card_id
+          });
+        }
+      });
+    });
+
+    return Array.from(groupsMap.values());
+  }, [deckCards, locations]);
 
   const addRecommendedCard = async (cardId: number, cardName: string, targetSection?: 'main' | 'extra' | 'side' | 'extras', cardObj?: Partial<Card & BreakdownCardItem & HistoryItem>) => {
     if (cardObj && cardObj.id) {
@@ -1029,6 +1300,15 @@ export function useDeckBuilderState() {
         }
       }
 
+      const assignedUserCardIds: string[] = [];
+      deckCards.forEach(c => {
+        c.physical_copies?.forEach(pc => {
+          if (pc.user_card_id && !pc.is_proxy) {
+            assignedUserCardIds.push(pc.user_card_id);
+          }
+        });
+      });
+
       const payload = {
         id: finalDeckId,
         name: deckName,
@@ -1050,7 +1330,9 @@ export function useDeckBuilderState() {
         inventory_cards_to_add: cardsToRegisterList.map(c => ({
           id: c.id,
           count: c.count
-        }))
+        })),
+        assigned_user_card_ids: assignedUserCardIds,
+        deactivated_deck_ids: deactivatedDeckIds
       };
 
       const res = await fetch('/api/decks', {
@@ -1437,6 +1719,14 @@ export function useDeckBuilderState() {
     triggerSync,
     openArchetypeBreakdown,
     initializeDeckFromArchetype,
+    deckLayoutMode,
+    setDeckLayoutMode,
+    deactivatedDeckIds,
+    setDeactivatedDeckIds,
+    handleUpdateCardPhysicalCopy,
+    handleResolveConflictAction,
+    removeCopyFromDeck,
+    extractionPickList,
     executeSearch,
     addCardToDeck,
     removeCardFromDeck,

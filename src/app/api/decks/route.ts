@@ -260,7 +260,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Si se asignó un contenedor físico de almacenamiento al deck, recolocar las cartas existentes libres hacia esa ubicación
+    // 5. Inactivar decks en conflicto si fue solicitado
+    const deactivatedDeckIds: string[] = body.deactivated_deck_ids || [];
+    if (deactivatedDeckIds.length > 0) {
+      await supabase
+        .from('yg_decks')
+        .update({ is_active: false })
+        .in('id', deactivatedDeckIds);
+
+      await supabase
+        .from('yg_user_cards')
+        .update({ status_flag: 'collection' })
+        .in('deck_id', deactivatedDeckIds);
+    }
+
+    // 6. Asignar copias físicas específicas seleccionadas en el borrador si el deck es activo
+    const assignedUserCardIds: string[] = body.assigned_user_card_ids || [];
+    if (isActiveVal && assignedUserCardIds.length > 0) {
+      await supabase
+        .from('yg_user_cards')
+        .update({
+          deck_id: deck.id,
+          storage_location_id: storage_location_id || null,
+          status_flag: 'in_deck',
+          binder_page: null,
+          binder_slot: null
+        })
+        .in('id', assignedUserCardIds);
+    }
+
+    // 7. Si se asignó un contenedor físico de almacenamiento al deck, recolocar las cartas existentes libres hacia esa ubicación
     if (storage_location_id && cards && cards.length > 0) {
       const compIdx = typeof body.compartment_index === 'number' ? body.compartment_index : 0;
       for (const dc of cards) {
@@ -581,6 +610,36 @@ export async function PUT(req: NextRequest) {
           console.error('Error al registrar cartas en inventario:', invErr);
         }
       }
+    }
+
+    // Inactivar decks en conflicto si fue solicitado
+    const deactivatedDeckIds: string[] = body.deactivated_deck_ids || [];
+    if (deactivatedDeckIds.length > 0) {
+      await supabase
+        .from('yg_decks')
+        .update({ is_active: false })
+        .in('id', deactivatedDeckIds);
+
+      await supabase
+        .from('yg_user_cards')
+        .update({ status_flag: 'collection' })
+        .in('deck_id', deactivatedDeckIds);
+    }
+
+    // Asignar copias físicas específicas seleccionadas en el borrador si el deck es activo
+    const assignedUserCardIds: string[] = body.assigned_user_card_ids || [];
+    const isNowActive = is_active !== undefined ? is_active : true;
+    if (isNowActive && assignedUserCardIds.length > 0) {
+      await supabase
+        .from('yg_user_cards')
+        .update({
+          deck_id: id,
+          storage_location_id: storage_location_id || null,
+          status_flag: 'in_deck',
+          binder_page: null,
+          binder_slot: null
+        })
+        .in('id', assignedUserCardIds);
     }
 
     return NextResponse.json({ success: true });

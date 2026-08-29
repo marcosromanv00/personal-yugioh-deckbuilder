@@ -38,6 +38,8 @@ export interface MetaAnalysisPanelProps {
   selectedDetailCard?: (Card | DeckCard | HoverCardBase) | null;
   selectedDeckCard?: DeckCard | null;
   onUpdateDeckCard?: (cardId: number, updates: Partial<DeckCard>) => void;
+  onUpdateCardPhysicalCopy?: (cardId: number, section: 'main' | 'extra' | 'side' | 'extras', copyIndex: number, userCardId: string | 'proxy') => void;
+  onResolveConflictAction?: (userCardId: string, action: 'move_to_deck' | 'deactivate_origin') => void;
   onRemoveFromDeck?: (cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => void;
   onAddCardToDeck?: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
   onToggleFavorite?: (cardId: number) => void;
@@ -91,6 +93,8 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
   selectedDetailCard = null,
   selectedDeckCard = null,
   onUpdateDeckCard,
+  onUpdateCardPhysicalCopy,
+  onResolveConflictAction,
   onRemoveFromDeck,
   onAddCardToDeck,
   onToggleFavorite,
@@ -299,7 +303,11 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
               card={selectedDetailCard}
               deckCard={selectedDeckCard}
               isInDeck={Boolean(selectedDeckCard)}
+              allUserCards={allUserCards}
+              locations={locations}
               onUpdateDeckCard={onUpdateDeckCard}
+              onUpdateCardPhysicalCopy={onUpdateCardPhysicalCopy}
+              onResolveConflictAction={onResolveConflictAction}
               onRemoveFromDeck={onRemoveFromDeck}
               onAddCardToDeck={onAddCardToDeck}
               onToggleFavorite={onToggleFavorite}

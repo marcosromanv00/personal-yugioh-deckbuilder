@@ -582,8 +582,10 @@ export default function DeckBuilder() {
   // ── Shared card props helpers ──────────────────────────────────────────────
   const sharedDeckSectionProps = {
     format: state.format,
+    layoutMode: state.deckLayoutMode,
     deckCards: getSortedCards(state.deckCards),
     removeCardFromDeck: handleRemoveCardWithFeedback,
+    removeCopyFromDeck: state.removeCopyFromDeck,
     handleDragCardStart,
     handleDropCardOnSection,
     handleCardMouseEnter: preview.handleCardMouseEnter,
@@ -591,6 +593,7 @@ export default function DeckBuilder() {
     openPreviewForCard: preview.openPreviewForCard,
     onSelectCard: handleSelectCardForDetail,
     selectedCardId: selectedDetailCard?.id,
+    selectedCopyIndex: selectedDeckCard?.selected_copy_index,
   };
 
   return (
@@ -831,6 +834,36 @@ export default function DeckBuilder() {
 
                   {/* Dropdown de Ordenación Pulido React */}
                   <SortDropdown value={sortBy} onChange={setSortBy} />
+
+                  {/* View Layout Toggle: Agrupado vs Desglosado */}
+                  <div className="flex items-center gap-0.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-0.5 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => state.setDeckLayoutMode('collapsed')}
+                      className={`py-1 px-2 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                        state.deckLayoutMode === 'collapsed'
+                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                          : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                      }`}
+                      title="Vista Agrupada (x1, x2, x3)"
+                    >
+                      <span>🗂️</span>
+                      <span className="hidden sm:inline">Agrupado</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => state.setDeckLayoutMode('expanded')}
+                      className={`py-1 px-2 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                        state.deckLayoutMode === 'expanded'
+                          ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
+                          : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                      }`}
+                      title="Vista Desglosada (Ranuras individuales por copia física con rareza)"
+                    >
+                      <span>📑</span>
+                      <span className="hidden sm:inline">Desglosado</span>
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs font-bold">
                   {[
@@ -877,6 +910,8 @@ export default function DeckBuilder() {
               selectedDetailCard={selectedDetailCard}
               selectedDeckCard={selectedDeckCard}
               onUpdateDeckCard={handleUpdateDeckCard}
+              onUpdateCardPhysicalCopy={state.handleUpdateCardPhysicalCopy}
+              onResolveConflictAction={state.handleResolveConflictAction}
               onRemoveFromDeck={handleRemoveCardWithFeedback}
               onAddCardToDeck={handleAddCardWithFeedback}
               onToggleFavorite={state.handleToggleFavorite}
@@ -984,6 +1019,8 @@ export default function DeckBuilder() {
                   selectedDetailCard={selectedDetailCard}
                   selectedDeckCard={selectedDeckCard}
                   onUpdateDeckCard={handleUpdateDeckCard}
+                  onUpdateCardPhysicalCopy={state.handleUpdateCardPhysicalCopy}
+                  onResolveConflictAction={state.handleResolveConflictAction}
                   onRemoveFromDeck={handleRemoveCardWithFeedback}
                   onAddCardToDeck={handleAddCardWithFeedback}
                   onToggleFavorite={state.handleToggleFavorite}
@@ -1107,6 +1144,8 @@ export default function DeckBuilder() {
                   selectedDetailCard={selectedDetailCard}
                   selectedDeckCard={selectedDeckCard}
                   onUpdateDeckCard={handleUpdateDeckCard}
+                  onUpdateCardPhysicalCopy={state.handleUpdateCardPhysicalCopy}
+                  onResolveConflictAction={state.handleResolveConflictAction}
                   onRemoveFromDeck={handleRemoveCardWithFeedback}
                   onAddCardToDeck={handleAddCardWithFeedback}
                   onToggleFavorite={state.handleToggleFavorite}
@@ -1410,6 +1449,7 @@ export default function DeckBuilder() {
         setSelectedExtraSleeveId={state.setSelectedExtraSleeveId}
         handleSaveDeck={state.handleSaveDeck}
         handleExcludeExisting={state.handleExcludeExisting}
+        extractionPickList={state.extractionPickList}
       />
 
       {/* LOAD DECK MODAL */}
@@ -1562,6 +1602,7 @@ export default function DeckBuilder() {
         setSelectedExtraSleeveId={state.setSelectedExtraSleeveId}
         handleSaveDeck={state.handleSaveDeck}
         handleExcludeExisting={state.handleExcludeExisting}
+        extractionPickList={state.extractionPickList}
       />
 
 

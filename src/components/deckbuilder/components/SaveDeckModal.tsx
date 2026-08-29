@@ -36,6 +36,24 @@ interface SaveDeckModalProps {
   setSelectedExtraSleeveId: (id: string) => void;
   handleSaveDeck: () => Promise<void>;
   handleExcludeExisting: () => void;
+  extractionPickList?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    colorCode?: string;
+    cards: Array<{
+      cardId: number;
+      name: string;
+      rarity: string;
+      count: number;
+      image_url: string;
+      locationDetail?: string;
+      userCardId?: string;
+      isInActiveDeck?: boolean;
+      activeDeckId?: string;
+      activeDeckName?: string;
+    }>;
+  }>;
 }
 
 /**
@@ -75,6 +93,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
   setSelectedExtraSleeveId,
   handleSaveDeck,
   handleExcludeExisting,
+  extractionPickList = [],
 }) => {
   const [saveTab, setSaveTab] = useState<'quick' | 'advanced'>('quick');
   const [cardQuantities, setCardQuantities] = useState<Record<number, number>>(() => {
@@ -156,7 +175,7 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                 }`}
               >
                 <Zap className="w-3.5 h-3.5 text-amber-300" />
-                <span>Guardado Rápido</span>
+                <span>Guardado Principal</span>
               </button>
 
               <button
@@ -176,6 +195,33 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 scrollbar-thin">
               
+              {/* SELECTOR DE ESTADO: RECETA VIRTUAL VS DECK ACTIVO */}
+              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-black text-zinc-900 dark:text-zinc-100 uppercase tracking-wider flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${saveIsActive ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
+                    <span>{saveIsActive ? 'Deck Físico Activo (Ensamblado)' : 'Receta Virtual (Prototipo)'}</span>
+                  </h4>
+                  <p className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">
+                    {saveIsActive
+                      ? 'Las cartas físicas se marcarán como ocupadas en este mazo y se generará el plan de extracción de tus contenedores.'
+                      : 'Guarda la lista como fórmula táctica sin mover ni bloquear cartas físicas de tus contenedores.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSaveIsActive(!saveIsActive)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
+                    saveIsActive
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
+                      : 'bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
+                  }`}
+                >
+                  {saveIsActive ? '● Activo' : '○ Receta'}
+                </button>
+              </div>
+
               {/* Información Básica */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -221,6 +267,84 @@ export const SaveDeckModal: React.FC<SaveDeckModalProps> = ({
                   />
                 </div>
               </div>
+
+              {/* PLAN DE EXTRACCIÓN FÍSICO (PICK LIST) */}
+              {saveIsActive && extractionPickList && extractionPickList.length > 0 && (
+                <div className="space-y-3 bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-2xl border border-emerald-500/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">📋</span>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                          Plan de Extracción Físico (Pick List)
+                        </h4>
+                        <p className="text-[10px] text-zinc-500 font-mono">
+                          Ubicaciones de donde debes sacar las cartas reales para armar este deck
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                      {totalCards} cartas en total
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
+                    {extractionPickList.map((group) => (
+                      <div
+                        key={group.id}
+                        className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-2"
+                      >
+                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-1.5">
+                          <span className="text-[11px] font-black uppercase text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                            <span>{group.name}</span>
+                          </span>
+                          <span className="text-[9.5px] font-mono font-bold text-zinc-400">
+                            {group.cards.reduce((acc, c) => acc + c.count, 0)} {group.cards.reduce((acc, c) => acc + c.count, 0) === 1 ? 'carta' : 'cartas'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {group.cards.map((item, itemIdx) => (
+                            <div
+                              key={`${item.cardId}-${itemIdx}`}
+                              className="flex items-center gap-2 p-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/60"
+                            >
+                              {item.image_url && (
+                                <Image
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  width={20}
+                                  height={28}
+                                  unoptimized
+                                  className="w-5 h-7 object-contain rounded shrink-0"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10.5px] font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                  {item.name}
+                                </p>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[8.5px] font-mono font-black px-1 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                                    {item.rarity}
+                                  </span>
+                                  {item.locationDetail && (
+                                    <span className="text-[8.5px] font-mono text-cyan-600 dark:text-cyan-400">
+                                      {item.locationDetail}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-xs font-mono font-black text-zinc-700 dark:text-zinc-300 shrink-0 px-1">
+                                x{item.count}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* OPCIONES AVANZADAS: FUNDAS Y ALMACENAMIENTO */}
               {saveTab === 'advanced' && (

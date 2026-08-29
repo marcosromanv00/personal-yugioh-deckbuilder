@@ -21,7 +21,11 @@ export interface CardDetailPanelProps {
   card: (Card | DeckCard | HoverCardBase) | null;
   deckCard?: DeckCard | null;
   isInDeck: boolean;
+  allUserCards?: import('@/types/collection').UserCard[];
+  locations?: import('@/types/collection').StorageLocation[];
   onUpdateDeckCard?: (cardId: number, updates: Partial<DeckCard>) => void;
+  onUpdateCardPhysicalCopy?: (cardId: number, section: 'main' | 'extra' | 'side' | 'extras', copyIndex: number, userCardId: string | 'proxy') => void;
+  onResolveConflictAction?: (userCardId: string, action: 'move_to_deck' | 'deactivate_origin') => void;
   onRemoveFromDeck?: (cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => void;
   onAddCardToDeck?: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
   onToggleFavorite?: (cardId: number) => void;
@@ -61,7 +65,11 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
   card,
   deckCard,
   isInDeck,
+  allUserCards = [],
+  locations = [],
   onUpdateDeckCard,
+  onUpdateCardPhysicalCopy,
+  onResolveConflictAction,
   onRemoveFromDeck,
   onAddCardToDeck,
   onToggleFavorite,
@@ -324,6 +332,96 @@ export const CardDetailPanel: React.FC<CardDetailPanelProps> = ({
               )}
             </div>
           </div>
+
+          {/* ASIGNACIÓN DE COPIAS FÍSICAS INDIVIDUALES */}
+          {onUpdateCardPhysicalCopy && (
+            <div className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5 font-mono">
+                  <span>📦</span>
+                  <span>Copias Físicas Asignadas ({currentCount})</span>
+                </span>
+                <span className="text-[9.5px] font-mono text-zinc-400">
+                  {allUserCards.filter(uc => uc.card_id === card.id).length} en colección
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {Array.from({ length: currentCount }).map((_, copyIdx) => {
+                  const assignedPc = deckCard.physical_copies?.[copyIdx];
+                  const userCardsForCard = allUserCards.filter(uc => uc.card_id === card.id);
+                  const selectedVal = assignedPc?.is_proxy || !assignedPc?.user_card_id ? 'proxy' : assignedPc.user_card_id;
+
+                  const options = [
+                    { value: 'proxy', label: '⚫ Receta Virtual / Proxy' },
+                    ...userCardsForCard.map((uc) => {
+                      const loc = locations.find(l => l.id === uc.storage_location_id);
+                      const locName = loc ? loc.name : 'Inbox / Sin clasificar';
+                      let locDetail = '';
+                      if (loc?.type === 'binder' && uc.binder_page) {
+                        locDetail = ` (Pág ${uc.binder_page}${uc.binder_slot ? `, Ranura ${uc.binder_slot}` : ''})`;
+                      } else if (uc.compartment_index !== undefined) {
+                        locDetail = ` (Carril ${uc.compartment_index + 1})`;
+                      }
+                      const inDeckTag = uc.deck_id ? ` • ⚔️ ${uc.deck_details?.name || 'En Deck Activo'}` : '';
+
+                      return {
+                        value: uc.id,
+                        label: `${uc.rarity || 'Common'} • ${locName}${locDetail}${inDeckTag}`
+                      };
+                    })
+                  ];
+
+                  return (
+                    <div key={copyIdx} className="p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-bold">
+                        <span className="text-zinc-500 font-mono">Copia #{copyIdx + 1}</span>
+                        {assignedPc?.is_proxy ? (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">Receta / Proxy</span>
+                        ) : assignedPc?.is_in_active_deck ? (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40">⚔️ En Deck Activo</span>
+                        ) : (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">🟢 Lista: {assignedPc?.location_name}</span>
+                        )}
+                      </div>
+
+                      <PremiumDropdown
+                        value={selectedVal}
+                        onChange={(val) => onUpdateCardPhysicalCopy(deckCard.id, deckCard.section, copyIdx, val)}
+                        align="full"
+                        size="sm"
+                        options={options}
+                      />
+
+                      {assignedPc?.is_in_active_deck && assignedPc.user_card_id && onResolveConflictAction && (
+                        <div className="pt-1.5 border-t border-amber-500/20 flex flex-col gap-1">
+                          <p className="text-[9.5px] text-amber-400 font-medium leading-tight">
+                            Pertenece a: <strong>{assignedPc.active_deck_name || 'Deck Activo'}</strong>
+                          </p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onResolveConflictAction(assignedPc.user_card_id!, 'move_to_deck')}
+                              className="flex-1 py-1 px-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-lg text-[9px] font-bold transition-colors cursor-pointer"
+                            >
+                              Mover a este Deck
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onResolveConflictAction(assignedPc.user_card_id!, 'deactivate_origin')}
+                              className="flex-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg text-[9px] font-bold transition-colors cursor-pointer"
+                            >
+                              Inactivar Origen
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* RAREZA Y CONDICIÓN FÍSICA */}
           <div className="grid grid-cols-2 gap-2">
