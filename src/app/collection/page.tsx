@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
   Sun, 
-  Moon,
+  Moon, 
   Menu,
   BrainCircuit,
   TrendingUp,
@@ -49,6 +49,45 @@ export default function CollectionPage() {
   const state = useCollectionState();
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [isDeckDetailsOpen, setIsDeckDetailsOpen] = useState(false);
+
+  // Apertura y cierre de deck con sincronización en URL
+  const handleOpenDeck = useCallback((deck: Deck) => {
+    setSelectedDeck(deck);
+    setIsDeckDetailsOpen(true);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('deck_id', deck.id);
+      window.history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+    }
+  }, []);
+
+  const handleCloseDeck = useCallback(() => {
+    setIsDeckDetailsOpen(false);
+    setSelectedDeck(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('deck_id');
+      url.searchParams.delete('deck');
+      window.history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+    }
+  }, []);
+
+  // Re-abrir modal de deck al recargar si existe deck_id en la URL
+  const initialDeckCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!initialDeckCheckedRef.current && state.decks.length > 0 && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const deckId = params.get('deck_id') || params.get('deck');
+      if (deckId) {
+        const found = state.decks.find(d => d.id === deckId);
+        if (found) {
+          setSelectedDeck(found);
+          setIsDeckDetailsOpen(true);
+          initialDeckCheckedRef.current = true;
+        }
+      }
+    }
+  }, [state.decks]);
 
   // Sidebar Layout State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -100,8 +139,7 @@ export default function CollectionPage() {
             });
           }
           await state.fetchCollectionDataSilently();
-          setSelectedDeck(newDeck);
-          setIsDeckDetailsOpen(true);
+          handleOpenDeck(newDeck);
         }
       }
     } catch (err) {
@@ -311,10 +349,7 @@ export default function CollectionPage() {
                   handleDeleteStorage={state.handleDeleteStorage}
                   handleDropDeck={state.handleDropDeck}
                   handleNewContainerClick={state.handleNewContainerClick}
-                  onDeckClick={(deck) => {
-                    setSelectedDeck(deck);
-                    setIsDeckDetailsOpen(true);
-                  }}
+                  onDeckClick={handleOpenDeck}
                   onRefreshData={state.fetchCollectionData}
                 />
               ) : state.activeTab === 'valuation' ? (
@@ -326,10 +361,7 @@ export default function CollectionPage() {
                     const loc = state.locations.find((l) => l.id === containerId);
                     if (loc) state.handleOpenContainer(loc);
                   }}
-                  onOpenDeck={(deck) => {
-                    setSelectedDeck(deck);
-                    setIsDeckDetailsOpen(true);
-                  }}
+                  onOpenDeck={handleOpenDeck}
                 />
               ) : state.activeTab === 'suggestions' ? (
                 <SuggestionsTab
@@ -351,6 +383,8 @@ export default function CollectionPage() {
                   setEditingSleeve={state.setEditingSleeve}
                   setIsSleeveFormOpen={state.setIsSleeveFormOpen}
                   handleDeleteSleeve={state.handleDeleteSleeve}
+                  onAddStock={state.handleOpenAddStock}
+                  onAddSleeveClick={state.handleOpenCreateSleeve}
                 />
               ) : state.activeTab === 'decks' ? (
                 <DecksTab
@@ -360,10 +394,7 @@ export default function CollectionPage() {
                   sleeves={state.sleeves}
                   allUserCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
                   setDecks={state.setDecks}
-                  onDeckClick={(deck) => {
-                    setSelectedDeck(deck);
-                    setIsDeckDetailsOpen(true);
-                  }}
+                  onDeckClick={handleOpenDeck}
                   onRefreshData={state.fetchCollectionDataSilently}
                 />
               ) : (
@@ -380,7 +411,7 @@ export default function CollectionPage() {
                   allCollectionFilters={state.allCollectionFilters}
                   setAllCollectionFilters={state.setAllCollectionFilters}
                   loadingAllCards={state.loadingAllCards}
-                  allCollectionCards={state.allCollectionCards}
+                  allCollectionCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
                   handleToggleFavorite={state.handleToggleFavorite}
                   handleDeleteCard={state.handleDeleteCard}
                   handleUpdateCardStatus={state.handleUpdateCardStatus}
@@ -415,10 +446,7 @@ export default function CollectionPage() {
                   locations={state.locations}
                   setDecks={state.setDecks}
                   handleDragStart={handleDragStart}
-                  onDeckClick={(deck) => {
-                    setSelectedDeck(deck);
-                    setIsDeckDetailsOpen(true);
-                  }}
+                  onDeckClick={handleOpenDeck}
                 />
               </aside>
             )}
@@ -455,10 +483,7 @@ export default function CollectionPage() {
         }}
         sleeves={state.sleeves}
         decks={state.decks}
-        onDeckClick={(deck) => {
-          setSelectedDeck(deck);
-          setIsDeckDetailsOpen(true);
-        }}
+        onDeckClick={handleOpenDeck}
       />
 
       <SmartOrganizeModal
@@ -486,11 +511,8 @@ export default function CollectionPage() {
         key={selectedDeck?.id || 'none'}
         deck={selectedDeck}
         isOpen={isDeckDetailsOpen}
-        onClose={() => {
-          setIsDeckDetailsOpen(false);
-          setSelectedDeck(null);
-        }}
-        onSelectDeck={(d) => setSelectedDeck(d)}
+        onClose={handleCloseDeck}
+        onSelectDeck={(d) => handleOpenDeck(d)}
         locations={state.locations}
         decks={state.decks}
         sleeves={state.sleeves}
@@ -549,10 +571,7 @@ export default function CollectionPage() {
           const loc = state.locations.find((l) => l.id === containerId);
           if (loc) state.handleOpenContainer(loc);
         }}
-        onOpenDeck={(deck) => {
-          setSelectedDeck(deck);
-          setIsDeckDetailsOpen(true);
-        }}
+        onOpenDeck={handleOpenDeck}
       />
     </div>
   );

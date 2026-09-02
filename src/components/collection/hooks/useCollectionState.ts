@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
@@ -19,6 +19,37 @@ export function useCollectionState() {
 
   // Tab activo y listado de cartas de la colección completa
   const [activeTab, setActiveTab] = useState<'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation'>('containers');
+
+  // Helper para sincronizar parámetros en URL sin recargar
+  const updateUrlParams = useCallback((newParams: Record<string, string | null>) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === '') {
+        url.searchParams.delete(key);
+      } else {
+        url.searchParams.set(key, value);
+      }
+    });
+    window.history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+  }, []);
+
+  const handleSetActiveTab = useCallback((tab: 'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation') => {
+    setActiveTab(tab);
+    updateUrlParams({ tab: tab === 'containers' ? null : tab });
+  }, [updateUrlParams]);
+
+  // Sincronización inicial del tab desde la URL al recargar la página
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const validTabs = ['containers', 'suggestions', 'sleeves', 'decks', 'complete', 'favorites', 'valuation'];
+      if (tabParam && validTabs.includes(tabParam)) {
+        setActiveTab(tabParam as typeof activeTab);
+      }
+    }
+  }, []);
   const [masterCollectionCards, setMasterCollectionCards] = useState<UserCard[]>([]);
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
@@ -67,6 +98,22 @@ export function useCollectionState() {
   const [loadingSleeves, setLoadingSleeves] = useState(false);
   const [isSleeveFormOpen, setIsSleeveFormOpen] = useState(false);
   const [editingSleeve, setEditingSleeve] = useState<SleeveInventory | null>(null);
+  const [sleeveFormTab, setSleeveFormTab] = useState<'add_stock' | 'create'>('create');
+  const [sleeveFormInitialId, setSleeveFormInitialId] = useState<string | undefined>(undefined);
+
+  const handleOpenAddStock = (sleeve?: SleeveInventory) => {
+    setEditingSleeve(null);
+    setSleeveFormTab('add_stock');
+    setSleeveFormInitialId(sleeve?.id);
+    setIsSleeveFormOpen(true);
+  };
+
+  const handleOpenCreateSleeve = () => {
+    setEditingSleeve(null);
+    setSleeveFormTab('create');
+    setSleeveFormInitialId(undefined);
+    setIsSleeveFormOpen(true);
+  };
 
   // Modo de Selección Múltiple y Desglose de Copias en Colección
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
@@ -579,12 +626,13 @@ export function useCollectionState() {
     }
   };
 
-  const handleOpenContainer = (loc: StorageLocation) => {
+  const handleOpenContainer = useCallback((loc: StorageLocation) => {
     setSelectedLocation(loc);
     setIsWorkspaceOpen(true);
-  };
+    updateUrlParams({ location_id: loc.id });
+  }, [updateUrlParams]);
 
-  const handleOpenInbox = () => {
+  const handleOpenInbox = useCallback(() => {
     const virtualInboxLocation: StorageLocation = {
       id: 'inbox',
       name: 'Sin Clasificar (Inbox)',
@@ -600,15 +648,38 @@ export function useCollectionState() {
     };
     setSelectedLocation(virtualInboxLocation);
     setIsWorkspaceOpen(true);
-  };
+    updateUrlParams({ location_id: 'inbox' });
+  }, [updateUrlParams]);
 
-  const handleCloseWorkspace = (hasMutated?: boolean) => {
+  const handleCloseWorkspace = useCallback((hasMutated?: boolean) => {
     setIsWorkspaceOpen(false);
     setSelectedLocation(null);
+    updateUrlParams({ location_id: null });
     if (hasMutated) {
       fetchCollectionDataSilently();
     }
-  };
+  }, [updateUrlParams, fetchCollectionDataSilently]);
+
+  // Re-abrir workspace de contenedor al recargar si existe location_id en la URL
+  const initialLocCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!initialLocCheckedRef.current && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const locId = params.get('location_id') || params.get('container_id');
+      if (locId) {
+        if (locId === 'inbox') {
+          handleOpenInbox();
+          initialLocCheckedRef.current = true;
+        } else if (locations.length > 0) {
+          const found = locations.find(l => l.id === locId);
+          if (found) {
+            handleOpenContainer(found);
+            initialLocCheckedRef.current = true;
+          }
+        }
+      }
+    }
+  }, [locations, handleOpenInbox, handleOpenContainer]);
 
   // Drag and Drop reubicar baraja
   const handleDropDeck = async (deckId: string, locationId: string | null) => {
@@ -654,7 +725,7 @@ export function useCollectionState() {
     inboxCards: effectiveInboxCards,
     loading,
     activeTab,
-    setActiveTab,
+    setActiveTab: handleSetActiveTab,
     allCollectionCards: effectiveAllCards,
     loadingAllCards,
     allCollectionFilters,
@@ -691,6 +762,12 @@ export function useCollectionState() {
     setIsSleeveFormOpen,
     editingSleeve,
     setEditingSleeve,
+    sleeveFormTab,
+    setSleeveFormTab,
+    sleeveFormInitialId,
+    setSleeveFormInitialId,
+    handleOpenAddStock,
+    handleOpenCreateSleeve,
     fetchCollectionData,
     fetchCollectionDataSilently,
     fetchAllCards,
