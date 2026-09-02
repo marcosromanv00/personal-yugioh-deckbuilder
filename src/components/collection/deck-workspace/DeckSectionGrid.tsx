@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { StorageLocation, UserCard, DeckCardDetail } from '@/types/collection';
+import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { MobileDeckTab } from './types';
+import { isExtraDeckCardType } from './useDeckWorkspaceState';
 
 interface DeckSectionGridProps {
   cards: DeckCardDetail[];
@@ -14,6 +15,10 @@ interface DeckSectionGridProps {
   locations: StorageLocation[];
   storageLocationId: string;
   currentBaseLocation?: StorageLocation;
+  availableSleeves?: SleeveInventory[];
+  mainSleeveId?: string;
+  extraSleeveId?: string;
+  poolSleeveId?: string;
   isMobile: boolean;
   setMobileTab: (tab: MobileDeckTab) => void;
   emptyMessage: string;
@@ -32,6 +37,10 @@ export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
   locations,
   storageLocationId,
   currentBaseLocation,
+  availableSleeves = [],
+  mainSleeveId = '',
+  extraSleeveId = '',
+  poolSleeveId = '',
   isMobile,
   setMobileTab,
   emptyMessage,
@@ -56,6 +65,22 @@ export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
         const hasPhysical = physicalCards.length > 0;
         const cardLocationId = physicalCards[0]?.storage_location_id;
         const cardLoc = cardLocationId ? locations.find(l => l.id === cardLocationId) : null;
+
+        // Determinar la funda de esta carta para la franja visual
+        const isExtra = isExtraDeckCardType(cardDetail.card_details?.type);
+        let targetDeckSleeveId = mainSleeveId;
+        if (cardDetail.section === 'extra' || (cardDetail.section === 'side' && isExtra)) {
+          targetDeckSleeveId = extraSleeveId;
+        } else if (cardDetail.section === 'pool' || cardDetail.section === 'extras') {
+          targetDeckSleeveId = poolSleeveId;
+        }
+
+        const customSleeve = (physicalCards[0]?.sleeve_brand && physicalCards[0]?.sleeve_color)
+          ? availableSleeves.find(s => s.brand === physicalCards[0].sleeve_brand && s.color_pattern === physicalCards[0].sleeve_color)
+          : null;
+
+        const deckSleeve = availableSleeves.find(s => s.id === targetDeckSleeveId) || null;
+        const activeSleeve = physicalCards[0]?.sleeve_type === 'none' ? null : (customSleeve || deckSleeve);
 
         return (
           <div
@@ -106,6 +131,15 @@ export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Franja de Color de Funda */}
+            {activeSleeve && (
+              <div
+                className="h-1 w-full rounded-full mt-1 shrink-0 opacity-90 group-hover:opacity-100 transition-opacity"
+                style={{ backgroundColor: activeSleeve.color_hex || '#1a1a2e' }}
+                title={`Funda: ${activeSleeve.name} (${activeSleeve.brand} - ${activeSleeve.color_pattern})`}
+              />
+            )}
           </div>
         );
       })}

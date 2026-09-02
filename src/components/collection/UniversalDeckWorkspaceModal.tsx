@@ -11,6 +11,7 @@ import { DeckWorkspaceHeader } from './deck-workspace/DeckWorkspaceHeader';
 import { DeckCenterPanel } from './deck-workspace/DeckCenterPanel';
 import { DeckInspectorPanel } from './deck-workspace/DeckInspectorPanel';
 import { Card } from '@/components/deckbuilder/types';
+import { SleeveInventory } from '@/types/collection';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalProps> = (props) => {
@@ -180,6 +181,10 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             userCards={state.userCards}
             locations={locations}
             storageLocationId={state.storageLocationId}
+            availableSleeves={state.availableSleeves}
+            mainSleeveId={state.mainSleeveId}
+            extraSleeveId={state.extraSleeveId}
+            poolSleeveId={state.poolSleeveId}
             isMobile={state.isMobile}
             setMobileTab={state.setMobileTab}
           />
@@ -218,15 +223,21 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             setMainSleeveId={state.setMainSleeveId}
             extraSleeveId={state.extraSleeveId}
             setExtraSleeveId={state.setExtraSleeveId}
+            poolSleeveId={state.poolSleeveId}
+            setPoolSleeveId={state.setPoolSleeveId}
             totalMainCount={state.totalMainCount}
             totalSideCount={state.totalSideCount}
+            sideMainCount={state.sideMainCount}
+            sideExtraCount={state.sideExtraCount}
             totalExtraCount={state.totalExtraCount}
             totalPoolCount={state.totalPoolCount}
+            mainRequiredSleeves={state.mainRequiredSleeves}
+            extraRequiredSleeves={state.extraRequiredSleeves}
+            poolRequiredSleeves={state.poolRequiredSleeves}
             savingDeck={state.savingDeck}
             handleSaveDeck={state.handleSaveDeck}
-            onOpenNewSleeveModal={(section) => {
-              state.setTargetSleeveSection(section);
-              state.setIsNewSleeveModalOpen(true);
+            onOpenNewSleeveModal={(section, tab, sleeveId, suggestedQty, sectionTotal) => {
+              state.openSleeveModal(section, tab, sleeveId, suggestedQty, sectionTotal);
             }}
             selectedPhysicalUserCards={state.selectedPhysicalUserCards}
             onChangeCardSection={state.handleChangeCardSection}
@@ -246,18 +257,36 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
 
         </div>
 
-        {/* Modal para Crear Nueva Funda */}
+        {/* Modal para Crear o Añadir Stock a Fundas */}
         <SleeveInventoryFormModal
           isOpen={state.isNewSleeveModalOpen}
+          availableSleeves={state.availableSleeves}
+          initialTab={state.sleeveModalTab}
+          initialSleeveId={state.sleeveModalInitialId}
+          suggestedQuantity={state.sleeveModalSuggestedQty}
+          sectionTotalQuantity={state.sleeveModalSectionTotal}
           onClose={() => {
             state.setIsNewSleeveModalOpen(false);
             state.setTargetSleeveSection(null);
+            state.setSleeveModalInitialId(undefined);
           }}
-          onSuccess={async () => {
+          onSuccess={async (newOrUpdatedSleeve) => {
             const sleevesRes = await fetch('/api/collection/sleeve-inventory');
             if (sleevesRes.ok) {
               const json = await sleevesRes.json();
-              state.setAvailableSleeves(json.data || []);
+              const updatedList: SleeveInventory[] = json.data || [];
+              state.setAvailableSleeves(updatedList);
+              
+              // Si se acaba de registrar una nueva funda y había una sección objetivo, auto-seleccionarla
+              if (newOrUpdatedSleeve && state.targetSleeveSection) {
+                if (state.targetSleeveSection === 'main_side') {
+                  state.setMainSleeveId(newOrUpdatedSleeve.id);
+                } else if (state.targetSleeveSection === 'extra') {
+                  state.setExtraSleeveId(newOrUpdatedSleeve.id);
+                } else if (state.targetSleeveSection === 'pool') {
+                  state.setPoolSleeveId(newOrUpdatedSleeve.id);
+                }
+              }
             }
           }}
         />

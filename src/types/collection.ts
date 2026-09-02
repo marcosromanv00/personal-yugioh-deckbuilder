@@ -198,7 +198,7 @@ export interface DeckCardDetail {
 
 export type SleeveSizeType = 'standard' | 'mini-japanese' | 'european';
 export type SleeveInventoryCondition = 'new' | 'good' | 'worn';
-export type DeckSleeveSection = 'main_side' | 'extra';
+export type DeckSleeveSection = 'main_side' | 'extra' | 'pool';
 
 export interface SleeveInventory {
   id: string;
@@ -211,6 +211,10 @@ export interface SleeveInventory {
   quantity_total: number;
   /** Computed: quantity_total minus all yg_deck_sleeves.quantity_used for this sleeve */
   quantity_available?: number;
+  /** Computed: sum of quantity_used across decks */
+  quantity_used?: number;
+  /** List of decks currently using this sleeve model */
+  used_in_decks?: { deck_id: string; deck_name: string; quantity_used: number }[];
   notes?: string;
   created_at: string;
   updated_at: string;

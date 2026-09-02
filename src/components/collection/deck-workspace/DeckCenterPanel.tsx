@@ -9,7 +9,7 @@ import {
   Shield, 
   Package 
 } from 'lucide-react';
-import { StorageLocation, UserCard, DeckCardDetail } from '@/types/collection';
+import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { DeckSectionGrid } from './DeckSectionGrid';
 import { DeckSectionFilter, RightDeckMode, MobileDeckTab } from './types';
@@ -38,6 +38,10 @@ interface DeckCenterPanelProps {
   userCards: UserCard[];
   locations: StorageLocation[];
   storageLocationId: string;
+  availableSleeves?: SleeveInventory[];
+  mainSleeveId?: string;
+  extraSleeveId?: string;
+  poolSleeveId?: string;
   isMobile: boolean;
   setMobileTab: (tab: MobileDeckTab) => void;
 }
@@ -66,6 +70,10 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
   userCards,
   locations,
   storageLocationId,
+  availableSleeves = [],
+  mainSleeveId = '',
+  extraSleeveId = '',
+  poolSleeveId = '',
   isMobile,
   setMobileTab,
 }) => {
@@ -212,6 +220,10 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   locations={locations}
                   storageLocationId={storageLocationId}
                   currentBaseLocation={currentBaseLocation}
+                  availableSleeves={availableSleeves}
+                  mainSleeveId={mainSleeveId}
+                  extraSleeveId={extraSleeveId}
+                  poolSleeveId={poolSleeveId}
                   isMobile={isMobile}
                   setMobileTab={setMobileTab}
                   emptyMessage="Main Deck vacío"
@@ -247,6 +259,10 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   locations={locations}
                   storageLocationId={storageLocationId}
                   currentBaseLocation={currentBaseLocation}
+                  availableSleeves={availableSleeves}
+                  mainSleeveId={mainSleeveId}
+                  extraSleeveId={extraSleeveId}
+                  poolSleeveId={poolSleeveId}
                   isMobile={isMobile}
                   setMobileTab={setMobileTab}
                   emptyMessage="Extra Deck vacío"
@@ -284,6 +300,10 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   locations={locations}
                   storageLocationId={storageLocationId}
                   currentBaseLocation={currentBaseLocation}
+                  availableSleeves={availableSleeves}
+                  mainSleeveId={mainSleeveId}
+                  extraSleeveId={extraSleeveId}
+                  poolSleeveId={poolSleeveId}
                   isMobile={isMobile}
                   setMobileTab={setMobileTab}
                   emptyMessage="Side Deck vacío"
@@ -321,6 +341,10 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   locations={locations}
                   storageLocationId={storageLocationId}
                   currentBaseLocation={currentBaseLocation}
+                  availableSleeves={availableSleeves}
+                  mainSleeveId={mainSleeveId}
+                  extraSleeveId={extraSleeveId}
+                  poolSleeveId={poolSleeveId}
                   isMobile={isMobile}
                   setMobileTab={setMobileTab}
                   emptyMessage="Reserva de cartas extra vacía"

@@ -44,13 +44,26 @@ interface DeckInspectorPanelProps {
   setMainSleeveId: (s: string) => void;
   extraSleeveId: string;
   setExtraSleeveId: (s: string) => void;
+  poolSleeveId?: string;
+  setPoolSleeveId?: (s: string) => void;
   totalMainCount: number;
   totalSideCount: number;
+  sideMainCount?: number;
+  sideExtraCount?: number;
   totalExtraCount: number;
   totalPoolCount: number;
+  mainRequiredSleeves?: number;
+  extraRequiredSleeves?: number;
+  poolRequiredSleeves?: number;
   savingDeck: boolean;
   handleSaveDeck: () => void;
-  onOpenNewSleeveModal: (section: 'main_side' | 'extra') => void;
+  onOpenNewSleeveModal: (
+    section: 'main_side' | 'extra' | 'pool',
+    tab?: 'add_stock' | 'create',
+    initialSleeveId?: string,
+    suggestedQty?: number,
+    sectionTotal?: number
+  ) => void;
 
   // Card Details Props
   selectedPhysicalUserCards: UserCard[];
@@ -97,10 +110,17 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   setMainSleeveId,
   extraSleeveId,
   setExtraSleeveId,
+  poolSleeveId,
+  setPoolSleeveId,
   totalMainCount,
   totalSideCount,
+  sideMainCount,
+  sideExtraCount,
   totalExtraCount,
   totalPoolCount,
+  mainRequiredSleeves,
+  extraRequiredSleeves,
+  poolRequiredSleeves,
   savingDeck,
   handleSaveDeck,
   onOpenNewSleeveModal,
@@ -253,10 +273,17 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           setMainSleeveId={setMainSleeveId}
           extraSleeveId={extraSleeveId}
           setExtraSleeveId={setExtraSleeveId}
+          poolSleeveId={poolSleeveId}
+          setPoolSleeveId={setPoolSleeveId}
           totalMainCount={totalMainCount}
           totalSideCount={totalSideCount}
+          sideMainCount={sideMainCount}
+          sideExtraCount={sideExtraCount}
           totalExtraCount={totalExtraCount}
           totalPoolCount={totalPoolCount}
+          mainRequiredSleeves={mainRequiredSleeves}
+          extraRequiredSleeves={extraRequiredSleeves}
+          poolRequiredSleeves={poolRequiredSleeves}
           savingDeck={savingDeck}
           handleSaveDeck={handleSaveDeck}
           onOpenNewSleeveModal={onOpenNewSleeveModal}
@@ -270,6 +297,10 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
             locations={locations}
             storageLocationId={storageLocationId}
             currentBaseLocation={currentBaseLocation}
+            availableSleeves={availableSleeves}
+            mainSleeveId={mainSleeveId}
+            extraSleeveId={extraSleeveId}
+            poolSleeveId={poolSleeveId}
             onChangeCardSection={onChangeCardSection}
             onUpdateCardPhysicalLocation={onUpdateCardPhysicalLocation}
             onUpdateUserCard={onUpdateUserCard}

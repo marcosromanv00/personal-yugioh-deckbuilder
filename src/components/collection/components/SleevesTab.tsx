@@ -9,6 +9,8 @@ interface SleevesTabProps {
   setEditingSleeve: (s: SleeveInventory | null) => void;
   setIsSleeveFormOpen: (open: boolean) => void;
   handleDeleteSleeve: (sleeve: SleeveInventory) => Promise<void>;
+  onAddStock?: (sleeve: SleeveInventory) => void;
+  onAddSleeveClick?: () => void;
 }
 
 /**
@@ -21,12 +23,14 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
   setEditingSleeve,
   setIsSleeveFormOpen,
   handleDeleteSleeve,
+  onAddStock,
+  onAddSleeveClick,
 }) => {
   if (loadingSleeves) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <RefreshCw className="w-6 h-6 text-cyan-400 animate-spin mb-2" />
-        <p className="text-xs font-mono text-slate-500">Cargando inventario de fundas...</p>
+        <RefreshCw className="w-6 h-6 text-red-500 animate-spin mb-2" />
+        <p className="text-xs font-mono text-zinc-500">Cargando inventario de fundas...</p>
       </div>
     );
   }
@@ -42,12 +46,17 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
             setIsSleeveFormOpen(true);
           }}
           onDelete={() => handleDeleteSleeve(sleeve)}
+          onAddStock={onAddStock}
         />
       ))}
       <AddSleeveCard
         onClick={() => {
-          setEditingSleeve(null);
-          setIsSleeveFormOpen(true);
+          if (onAddSleeveClick) {
+            onAddSleeveClick();
+          } else {
+            setEditingSleeve(null);
+            setIsSleeveFormOpen(true);
+          }
         }}
       />
     </div>

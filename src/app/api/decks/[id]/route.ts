@@ -204,10 +204,97 @@ export async function PUT(
 
     // Sincronizar fundas asignadas al deck si se especificaron
     if (sleeves && Array.isArray(sleeves)) {
-      const definedSections = sleeves.map(s => s.section || s.section_type);
+      // 1. Obtener conteo y tipos de cartas del mazo por sección
+      const { data: deckCards } = await supabase
+        .from('yg_deck_cards')
+        .select(`
+          count,
+          section,
+          card_details:yg_cards (
+            type
+          )
+        `)
+        .eq('deck_id', deckId);
 
-      // Eliminar fundas de secciones no incluidas
+      const isExtraCardType = (type?: string | null): boolean => {
+        const t = (type || '').toLowerCase();
+        return t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link');
+      };
+
+      const cardsList = (deckCards || []) as { count: number; section: string; card_details?: { type?: string } }[];
+
+      const mainOnlyCount = cardsList
+        .filter((c) => c.section === 'main')
+        .reduce((sum, c) => sum + (c.count || 0), 0);
+
+      const sideMainCount = cardsList
+        .filter((c) => c.section === 'side' && !isExtraCardType(c.card_details?.type))
+        .reduce((sum, c) => sum + (c.count || 0), 0);
+
+      const sideExtraCount = cardsList
+        .filter((c) => c.section === 'side' && isExtraCardType(c.card_details?.type))
+        .reduce((sum, c) => sum + (c.count || 0), 0);
+
+      const extraOnlyCount = cardsList
+        .filter((c) => c.section === 'extra')
+        .reduce((sum, c) => sum + (c.count || 0), 0);
+
+      const poolCount = cardsList
+        .filter((c) => c.section === 'pool' || c.section === 'extras')
+        .reduce((sum, c) => sum + (c.count || 0), 0);
+
+      const mainSideCount = mainOnlyCount + sideMainCount;
+      const extraCount = extraOnlyCount + sideExtraCount;
+
+      const definedSections = sleeves.map((s) => s.section || s.section_type).filter(Boolean);
+
+      // Traer cartas físicas del deck para saber cuáles son de Extra o Main en Side y Pool
+      const { data: physicalCards } = await supabase
+        .from('yg_user_cards')
+        .select(`
+          id,
+          deck_section,
+          card_details:yg_cards (
+            type
+          )
+        `)
+        .eq('deck_id', deckId);
+
+      const pCards = (physicalCards || []) as { id: string; deck_section: string; card_details?: { type?: string } }[];
+
+      // Eliminar fundas de secciones no incluidas y limpiar cartas desasociadas
       if (definedSections.length > 0) {
+        const { data: removedSleeves } = await supabase
+          .from('yg_deck_sleeves')
+          .select('section_type')
+          .eq('deck_id', deckId)
+          .not('section_type', 'in', `(${definedSections.join(',')})`);
+
+        for (const rem of removedSleeves || []) {
+          const sec = rem.section_type;
+          let idsToClean: string[] = [];
+          if (sec === 'extra') {
+            idsToClean = pCards
+              .filter((c) => c.deck_section === 'extra' || (c.deck_section === 'side' && isExtraCardType(c.card_details?.type)))
+              .map((c) => c.id);
+          } else if (sec === 'main_side' || sec === 'main') {
+            idsToClean = pCards
+              .filter((c) => c.deck_section === 'main' || (c.deck_section === 'side' && !isExtraCardType(c.card_details?.type)))
+              .map((c) => c.id);
+          } else if (sec === 'pool' || sec === 'extras') {
+            idsToClean = pCards
+              .filter((c) => c.deck_section === 'pool' || c.deck_section === 'extras')
+              .map((c) => c.id);
+          }
+
+          if (idsToClean.length > 0) {
+            await supabase
+              .from('yg_user_cards')
+              .update({ sleeve_type: 'none', sleeve_brand: null, sleeve_color: null })
+              .in('id', idsToClean);
+          }
+        }
+
         await supabase
           .from('yg_deck_sleeves')
           .delete()
@@ -215,17 +302,33 @@ export async function PUT(
           .not('section_type', 'in', `(${definedSections.join(',')})`);
       } else {
         await supabase
+          .from('yg_user_cards')
+          .update({ sleeve_type: 'none', sleeve_brand: null, sleeve_color: null })
+          .eq('deck_id', deckId);
+
+        await supabase
           .from('yg_deck_sleeves')
           .delete()
           .eq('deck_id', deckId);
       }
 
-      // Upsert de cada funda
+      // Upsert de cada funda y actualización de cartas físicas
       for (const slv of sleeves) {
         const secType = slv.section || slv.section_type;
         if (!slv.sleeve_id || !secType) continue;
 
-        // Comprobar si ya existe
+        let qtyUsed = mainSideCount;
+        if (secType === 'extra') qtyUsed = extraCount;
+        if (secType === 'pool' || secType === 'extras') qtyUsed = poolCount;
+
+        // Obtener detalles de la funda para actualizar las cartas físicas
+        const { data: sleeveData } = await supabase
+          .from('yg_sleeves')
+          .select('brand, color_pattern, condition')
+          .eq('id', slv.sleeve_id)
+          .maybeSingle();
+
+        // Upsert en yg_deck_sleeves con el conteo real de cartas usadas
         const { data: existing } = await supabase
           .from('yg_deck_sleeves')
           .select('id')
@@ -236,7 +339,7 @@ export async function PUT(
         if (existing) {
           await supabase
             .from('yg_deck_sleeves')
-            .update({ sleeve_id: slv.sleeve_id })
+            .update({ sleeve_id: slv.sleeve_id, quantity_used: qtyUsed })
             .eq('id', existing.id);
         } else {
           await supabase
@@ -245,8 +348,38 @@ export async function PUT(
               deck_id: deckId,
               sleeve_id: slv.sleeve_id,
               section_type: secType,
-              quantity_used: 0
+              quantity_used: qtyUsed,
             }]);
+        }
+
+        // Sincronizar copias físicas de las cartas en esta sección
+        if (sleeveData) {
+          let targetCardIds: string[] = [];
+          if (secType === 'extra') {
+            targetCardIds = pCards
+              .filter((c) => c.deck_section === 'extra' || (c.deck_section === 'side' && isExtraCardType(c.card_details?.type)))
+              .map((c) => c.id);
+          } else if (secType === 'main_side' || secType === 'main') {
+            targetCardIds = pCards
+              .filter((c) => c.deck_section === 'main' || (c.deck_section === 'side' && !isExtraCardType(c.card_details?.type)))
+              .map((c) => c.id);
+          } else if (secType === 'pool' || secType === 'extras') {
+            targetCardIds = pCards
+              .filter((c) => c.deck_section === 'pool' || c.deck_section === 'extras')
+              .map((c) => c.id);
+          }
+
+          if (targetCardIds.length > 0) {
+            await supabase
+              .from('yg_user_cards')
+              .update({
+                sleeve_type: 'single',
+                sleeve_brand: sleeveData.brand,
+                sleeve_color: sleeveData.color_pattern,
+                sleeve_condition: sleeveData.condition || 'good',
+              })
+              .in('id', targetCardIds);
+          }
         }
       }
     }
