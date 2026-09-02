@@ -86,8 +86,22 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({
             </div>
           </div>
 
-          {/* Color & Size badges */}
+          {/* Badges: Category, Color & Size */}
           <div className="flex flex-wrap gap-1.5 mb-3">
+            {/* Category badge */}
+            <span
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
+                sleeve.category === 'fit'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                  : sleeve.category === 'over'
+                  ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30'
+                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
+              }`}
+            >
+              <span>{sleeve.category === 'fit' ? '🟢' : sleeve.category === 'over' ? '✨' : '🎴'}</span>
+              <span>{sleeve.category === 'fit' ? 'Fit' : sleeve.category === 'over' ? 'Over' : 'Regular'}</span>
+            </span>
+
             <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
               <span
                 className="w-2.5 h-2.5 rounded-full border border-black/10 dark:border-white/20 shadow-xs"
@@ -99,7 +113,7 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({
               <Layers className="w-2.5 h-2.5 text-zinc-400" />
               {SIZE_LABELS[sleeve.size_type] || sleeve.size_type}
             </span>
-            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${conditionCfg.bg} ${conditionCfg.color}`}>
+            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${conditionCfg.bg} ${conditionCfg.color}`}>
               {conditionCfg.label}
             </span>
           </div>

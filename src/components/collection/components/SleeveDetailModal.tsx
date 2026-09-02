@@ -89,11 +89,15 @@ export const SleeveDetailModal: React.FC<SleeveDetailModalProps> = ({
       const deckCards = deck.cards || [];
       for (const dc of deckCards) {
         let matchesSection = false;
-        if (assignedSections.includes('main_side') && (dc.section === 'main' || dc.section === 'side')) {
+        const isMainOrSide = dc.section === 'main' || dc.section === 'side';
+        const isExtra = dc.section === 'extra';
+        const isPool = dc.section === 'extras' || dc.section === 'pool' || dc.section === 'skill';
+
+        if (isMainOrSide && assignedSections.some(s => s.startsWith('main'))) {
           matchesSection = true;
-        } else if (assignedSections.includes('extra') && dc.section === 'extra') {
+        } else if (isExtra && assignedSections.some(s => s.startsWith('extra'))) {
           matchesSection = true;
-        } else if (assignedSections.includes('pool') && (dc.section === 'extras' || dc.section === 'skill')) {
+        } else if (isPool && assignedSections.some(s => s.startsWith('pool') || s.startsWith('extras'))) {
           matchesSection = true;
         }
 
@@ -114,15 +118,17 @@ export const SleeveDetailModal: React.FC<SleeveDetailModalProps> = ({
       }
     }
 
-    // 2. Cartas sueltas de la colección asignadas con esta funda
+    // 2. Cartas sueltas de la colección asignadas con esta funda (directa por ID o marca/color)
     for (const uc of allUserCards) {
       // Ignorar si ya está asociada a un deck (ya procesada arriba)
       if (uc.deck_id) continue;
 
+      const isDirectIdMatch = uc.sleeve_fit_id === sleeve.id || uc.sleeve_regular_id === sleeve.id || uc.sleeve_over_id === sleeve.id;
       const matchesBrand = uc.sleeve_brand && uc.sleeve_brand.toLowerCase() === sleeve.brand.toLowerCase();
       const matchesColor = uc.sleeve_color && uc.sleeve_color.toLowerCase() === sleeve.color_pattern.toLowerCase();
+      const isBrandColorMatch = matchesBrand && matchesColor && uc.sleeve_type && uc.sleeve_type !== 'none';
 
-      if (matchesBrand && matchesColor && uc.sleeve_type && uc.sleeve_type !== 'none') {
+      if (isDirectIdMatch || isBrandColorMatch) {
         const locName = uc.storage_location_id
           ? locations.find((l) => l.id === uc.storage_location_id)?.name || 'Contenedor'
           : 'Inbox Sin Clasificar';
@@ -212,6 +218,17 @@ export const SleeveDetailModal: React.FC<SleeveDetailModalProps> = ({
                   <h2 className="text-base sm:text-lg font-black text-zinc-900 dark:text-zinc-100 truncate">
                     {sleeve.name}
                   </h2>
+                  <span
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
+                      sleeve.category === 'fit'
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                        : sleeve.category === 'over'
+                        ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30'
+                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
+                    }`}
+                  >
+                    {sleeve.category === 'fit' ? '🟢 Fit (Inner)' : sleeve.category === 'over' ? '✨ Oversleeve' : '🎴 Regular'}
+                  </span>
                   <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${cond.bg} ${cond.color}`}>
                     {cond.label}
                   </span>
