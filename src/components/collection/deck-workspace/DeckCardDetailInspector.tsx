@@ -11,7 +11,8 @@ import {
   Sparkles, 
   Shield, 
   Tag,
-  Scissors
+  Scissors,
+  PackagePlus
 } from 'lucide-react';
 import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
@@ -34,6 +35,7 @@ interface DeckCardDetailInspectorProps {
   onAddPhysicalCopyForCard?: (cardId: number, isProxy?: boolean) => void;
   onDeleteUserCard?: (userCardId: string) => void;
   onRemoveCardFromDeck: (cardId: number, section: 'main' | 'extra' | 'side' | 'pool') => void;
+  onOpenRegisterSleeveForCard?: (userCard: UserCard) => void;
 }
 
 const RARITY_OPTIONS = [
@@ -86,6 +88,7 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
   onAddPhysicalCopyForCard,
   onDeleteUserCard,
   onRemoveCardFromDeck,
+  onOpenRegisterSleeveForCard,
 }) => {
   const [detailsCopiesMode, setDetailsCopiesMode] = useState<DetailsCopiesMode>('grouped');
   const [isVariantsExpanded, setIsVariantsExpanded] = useState(false);
@@ -231,6 +234,17 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
             </div>
           </div>
         )}
+
+        {/* Botón para registrar o sumar la funda física al inventario */}
+        <button
+          type="button"
+          onClick={() => onOpenRegisterSleeveForCard?.(uc)}
+          className="w-full mt-1.5 py-1.5 px-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-400 dark:hover:border-red-600 text-zinc-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 rounded-lg text-[10.5px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-11 sm:min-h-8 touch-manipulation"
+          title="Registrar o sumar el stock de esta funda física a tu inventario"
+        >
+          <PackagePlus className="w-3.5 h-3.5 text-red-500" />
+          <span>📥 Registrar / Sumar a Mis Fundas (+1 Stock)</span>
+        </button>
       </div>
     );
   };

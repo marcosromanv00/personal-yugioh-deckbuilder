@@ -16,6 +16,7 @@ import { StorageLocation, SleeveInventory } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface DeckMetadataFormProps {
+  deckId?: string | null;
   name: string;
   setName: (s: string) => void;
   format: string;
@@ -55,6 +56,7 @@ interface DeckMetadataFormProps {
 }
 
 export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
+  deckId,
   name,
   setName,
   format,
@@ -91,6 +93,28 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
   const mainRequired = mainRequiredSleeves ?? (totalMainCount + sideMainCount);
   const extraRequired = extraRequiredSleeves ?? (totalExtraCount + sideExtraCount);
   const poolRequired = poolRequiredSleeves ?? totalPoolCount;
+
+  // Calcula disponibilidad real para este mazo (stock libre + fundas ya retenidas por este mazo)
+  const getSleeveAvailabilityForDeck = (sleeve: SleeveInventory | undefined, requiredCount: number) => {
+    if (!sleeve) return { avail: 0, diff: 0, isDeficit: false, missingCount: 0, freeStock: 0 };
+    const freeStock = sleeve.quantity_available ?? sleeve.quantity_total;
+    const alreadyUsedInThisDeck = sleeve.used_in_decks?.find(
+      (d) => (deckId && d.deck_id === deckId) || (name && d.deck_name.toLowerCase().trim() === name.toLowerCase().trim())
+    )?.quantity_used || 0;
+
+    const totalAvailForThisDeck = freeStock + alreadyUsedInThisDeck;
+    const diff = totalAvailForThisDeck - requiredCount;
+    const isDeficit = diff < 0;
+    const missingCount = Math.abs(diff);
+
+    return {
+      avail: totalAvailForThisDeck,
+      diff,
+      isDeficit,
+      missingCount,
+      freeStock,
+    };
+  };
 
   return (
     <div className="space-y-4">
@@ -261,27 +285,24 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
           {(() => {
             const selectedMainSleeve = availableSleeves.find((s) => s.id === mainSleeveId);
             if (!selectedMainSleeve) return null;
-            const avail = selectedMainSleeve.quantity_available ?? selectedMainSleeve.quantity_total;
-            const diff = avail - mainRequired;
-            const isDeficit = diff < 0;
-            const missingCount = Math.abs(diff);
+            const status = getSleeveAvailabilityForDeck(selectedMainSleeve, mainRequired);
 
-            if (isDeficit) {
+            if (status.isDeficit) {
               return (
                 <div className="p-2.5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-300 font-mono text-[10.5px]">
                       <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-bold block">Faltan {missingCount} fundas para este mazo</span>
+                        <span className="font-bold block">Faltan {status.missingCount} fundas para este mazo</span>
                         <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                          {avail} disponibles para {mainRequired} cartas
+                          {status.avail} accesibles ({status.freeStock} libres) para {mainRequired} cartas
                         </span>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => onOpenNewSleeveModal('main_side', 'add_stock', selectedMainSleeve.id, missingCount, mainRequired)}
+                      onClick={() => onOpenNewSleeveModal('main_side', 'add_stock', selectedMainSleeve.id, status.missingCount, mainRequired)}
                       className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10.5px] font-bold font-mono flex items-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0"
                     >
                       <PackagePlus className="w-3 h-3" />
@@ -297,7 +318,7 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
                 <div className="flex items-center gap-1.5 truncate">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span className="truncate">
-                    {mainRequired} cartas cubiertas • <b>{diff}</b> fundas libres en inventario
+                    {mainRequired} cartas cubiertas • <b>{status.diff}</b> fundas libres
                   </span>
                 </div>
                 <button
@@ -342,27 +363,24 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
           {(() => {
             const selectedExtraSleeve = availableSleeves.find((s) => s.id === extraSleeveId);
             if (!selectedExtraSleeve) return null;
-            const avail = selectedExtraSleeve.quantity_available ?? selectedExtraSleeve.quantity_total;
-            const diff = avail - extraRequired;
-            const isDeficit = diff < 0;
-            const missingCount = Math.abs(diff);
+            const status = getSleeveAvailabilityForDeck(selectedExtraSleeve, extraRequired);
 
-            if (isDeficit) {
+            if (status.isDeficit) {
               return (
                 <div className="p-2.5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-300 font-mono text-[10.5px]">
                       <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-bold block">Faltan {missingCount} fundas para el Extra</span>
+                        <span className="font-bold block">Faltan {status.missingCount} fundas para el Extra</span>
                         <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                          {avail} disponibles para {extraRequired} cartas
+                          {status.avail} accesibles ({status.freeStock} libres) para {extraRequired} cartas
                         </span>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => onOpenNewSleeveModal('extra', 'add_stock', selectedExtraSleeve.id, missingCount, extraRequired)}
+                      onClick={() => onOpenNewSleeveModal('extra', 'add_stock', selectedExtraSleeve.id, status.missingCount, extraRequired)}
                       className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10.5px] font-bold font-mono flex items-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0"
                     >
                       <PackagePlus className="w-3 h-3" />
@@ -378,7 +396,7 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
                 <div className="flex items-center gap-1.5 truncate">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span className="truncate">
-                    {extraRequired} cartas cubiertas • <b>{diff}</b> fundas libres en inventario
+                    {extraRequired} cartas cubiertas • <b>{status.diff}</b> fundas libres
                   </span>
                 </div>
                 <button
@@ -419,27 +437,24 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
             {(() => {
               const selectedPoolSleeve = availableSleeves.find((s) => s.id === poolSleeveId);
               if (!selectedPoolSleeve) return null;
-              const avail = selectedPoolSleeve.quantity_available ?? selectedPoolSleeve.quantity_total;
-              const diff = avail - poolRequired;
-              const isDeficit = diff < 0;
-              const missingCount = Math.abs(diff);
+              const status = getSleeveAvailabilityForDeck(selectedPoolSleeve, poolRequired);
 
-              if (isDeficit) {
+              if (status.isDeficit) {
                 return (
                   <div className="p-2.5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-300 font-mono text-[10.5px]">
                         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                         <div>
-                          <span className="font-bold block">Faltan {missingCount} fundas para la reserva</span>
+                          <span className="font-bold block">Faltan {status.missingCount} fundas para la reserva</span>
                           <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                            {avail} disponibles para {poolRequired} cartas
+                            {status.avail} accesibles ({status.freeStock} libres) para {poolRequired} cartas
                           </span>
                         </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => onOpenNewSleeveModal('pool', 'add_stock', selectedPoolSleeve.id, missingCount, poolRequired)}
+                        onClick={() => onOpenNewSleeveModal('pool', 'add_stock', selectedPoolSleeve.id, status.missingCount, poolRequired)}
                         className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10.5px] font-bold font-mono flex items-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0"
                       >
                         <PackagePlus className="w-3 h-3" />
@@ -455,7 +470,7 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
                   <div className="flex items-center gap-1.5 truncate">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     <span className="truncate">
-                      {poolRequired} cartas cubiertas • <b>{diff}</b> fundas libres en inventario
+                      {poolRequired} cartas cubiertas • <b>{status.diff}</b> fundas libres
                     </span>
                   </div>
                   <button

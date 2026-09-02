@@ -676,6 +676,16 @@ export function useDeckWorkspaceState({
   // Registrar una nueva copia física o proxy directamente desde el constructor
   const handleAddPhysicalCopyForCard = async (cardId: number, isProxy: boolean = false) => {
     try {
+      const targetSec = selectedCardDetail?.section || 'main';
+      const isExtra = isExtraDeckCardType(selectedCardDetail?.card_details?.type);
+      let targetSleeveId = mainSleeveId;
+      if (targetSec === 'extra' || (targetSec === 'side' && isExtra)) {
+        targetSleeveId = extraSleeveId;
+      } else if (targetSec === 'pool' || targetSec === 'extras') {
+        targetSleeveId = poolSleeveId;
+      }
+      const sectionSleeve = availableSleeves.find(s => s.id === targetSleeveId);
+
       const payload: Record<string, unknown> = {
         card_id: cardId,
         storage_location_id: storageLocationId || null,
@@ -685,9 +695,12 @@ export function useDeckWorkspaceState({
         condition: 'Near Mint',
         status_flag: 'in_deck',
         deck_id: currentDeck?.id || null,
-        deck_section: selectedCardDetail?.section || 'main',
+        deck_section: targetSec,
         is_proxy: isProxy,
-        sleeve_type: 'none',
+        sleeve_type: sectionSleeve ? 'single' : 'none',
+        sleeve_brand: sectionSleeve ? sectionSleeve.brand : '',
+        sleeve_color: sectionSleeve ? sectionSleeve.color_pattern : '',
+        sleeve_condition: sectionSleeve ? (sectionSleeve.condition || 'good') : 'good',
       };
 
       const res = await fetch('/api/collection/cards', {
@@ -766,6 +779,7 @@ export function useDeckWorkspaceState({
     currentDeck,
     deckCards,
     userCards,
+    setUserCards,
     loading,
     hasMutated,
     setHasMutated,

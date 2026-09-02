@@ -82,6 +82,7 @@ interface DeckInspectorPanelProps {
   inferredArchetype?: string;
   savedDecks?: Deck[];
   onAddCardToDeck?: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
+  onOpenRegisterSleeveForCard?: (userCard: UserCard) => void;
 }
 
 export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
@@ -139,6 +140,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   inferredArchetype = 'Híbrido / Staples',
   savedDecks = [],
   onAddCardToDeck,
+  onOpenRegisterSleeveForCard,
 }) => {
   const currentBaseLocation = locations.find(l => l.id === storageLocationId);
   const [isExordioModalOpen, setIsExordioModalOpen] = useState(false);
@@ -257,6 +259,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
       {rightMode === 'details' ? (
         /* Modo 1: Ficha Técnica */
         <DeckMetadataForm
+          deckId={currentDeckId}
           name={name}
           setName={setName}
           format={format}
@@ -307,6 +310,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
             onAddPhysicalCopyForCard={onAddPhysicalCopyForCard}
             onDeleteUserCard={onDeleteUserCard}
             onRemoveCardFromDeck={onRemoveCardFromDeck}
+            onOpenRegisterSleeveForCard={onOpenRegisterSleeveForCard}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 dark:text-zinc-500 space-y-2">

@@ -5,13 +5,14 @@ import { motion } from 'framer-motion';
 import { usePanelResize } from '@/components/deckbuilder/hooks/usePanelResize';
 import { SearchPanel } from '@/components/deckbuilder/components/SearchPanel';
 import { SleeveInventoryFormModal } from './SleeveInventoryFormModal';
+import { RegisterCardSleeveModal } from './RegisterCardSleeveModal';
 import { UniversalDeckWorkspaceModalProps } from './deck-workspace/types';
 import { useDeckWorkspaceState } from './deck-workspace/useDeckWorkspaceState';
 import { DeckWorkspaceHeader } from './deck-workspace/DeckWorkspaceHeader';
 import { DeckCenterPanel } from './deck-workspace/DeckCenterPanel';
 import { DeckInspectorPanel } from './deck-workspace/DeckInspectorPanel';
 import { Card } from '@/components/deckbuilder/types';
-import { SleeveInventory } from '@/types/collection';
+import { SleeveInventory, UserCard } from '@/types/collection';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalProps> = (props) => {
@@ -40,6 +41,8 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
   });
 
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
+  const [registerSleeveUserCard, setRegisterSleeveUserCard] = useState<UserCard | null>(null);
+  const [isRegisterSleeveModalOpen, setIsRegisterSleeveModalOpen] = useState(false);
 
   // Advertencia de recarga del navegador si hay cambios sin guardar
   useEffect(() => {
@@ -246,6 +249,10 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             onAddPhysicalCopyForCard={state.handleAddPhysicalCopyForCard}
             onDeleteUserCard={state.handleDeleteUserCard}
             onRemoveCardFromDeck={state.handleRemoveCardFromDeck}
+            onOpenRegisterSleeveForCard={(uc) => {
+              setRegisterSleeveUserCard(uc);
+              setIsRegisterSleeveModalOpen(true);
+            }}
             currentDeckId={state.currentDeck?.id}
             allUserCards={props.allUserCards && props.allUserCards.length > 0 ? props.allUserCards : state.userCards}
             deckCards={state.deckCards}
@@ -256,6 +263,35 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           />
 
         </div>
+
+        {/* Modal para Registrar o Sumar Funda desde Copia Física */}
+        <RegisterCardSleeveModal
+          isOpen={isRegisterSleeveModalOpen}
+          onClose={() => {
+            setIsRegisterSleeveModalOpen(false);
+            setRegisterSleeveUserCard(null);
+          }}
+          userCard={registerSleeveUserCard}
+          cardDetail={state.selectedCardDetail}
+          availableSleeves={state.availableSleeves}
+          onSleeveUpdatedOrCreated={async (updatedSleeve) => {
+            const [sRes, cRes] = await Promise.all([
+              fetch('/api/collection/sleeve-inventory'),
+              fetch('/api/collection/cards')
+            ]);
+            if (sRes.ok) {
+              const sJson = await sRes.json();
+              state.setAvailableSleeves(sJson.data || []);
+            }
+            if (cRes.ok) {
+              const cJson = await cRes.json();
+              state.setUserCards(cJson.data || []);
+            }
+          }}
+          onOpenCreateSleeveModal={(prefill) => {
+            state.openSleeveModal('main_side', 'create', undefined, 1, 1);
+          }}
+        />
 
         {/* Modal para Crear o Añadir Stock a Fundas */}
         <SleeveInventoryFormModal
