@@ -380,6 +380,9 @@ export default function CollectionPage() {
                 <SleevesTab
                   loadingSleeves={state.loadingSleeves}
                   sleeves={state.sleeves}
+                  allUserCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
+                  decks={state.decks}
+                  locations={state.locations}
                   setEditingSleeve={state.setEditingSleeve}
                   setIsSleeveFormOpen={state.setIsSleeveFormOpen}
                   handleDeleteSleeve={state.handleDeleteSleeve}
@@ -411,7 +414,7 @@ export default function CollectionPage() {
                   allCollectionFilters={state.allCollectionFilters}
                   setAllCollectionFilters={state.setAllCollectionFilters}
                   loadingAllCards={state.loadingAllCards}
-                  allCollectionCards={state.masterCollectionCards.length > 0 ? state.masterCollectionCards : state.allCollectionCards}
+                  allCollectionCards={state.allCollectionCards}
                   handleToggleFavorite={state.handleToggleFavorite}
                   handleDeleteCard={state.handleDeleteCard}
                   handleUpdateCardStatus={state.handleUpdateCardStatus}
