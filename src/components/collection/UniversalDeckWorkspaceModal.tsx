@@ -14,6 +14,7 @@ import { DeckInspectorPanel } from './deck-workspace/DeckInspectorPanel';
 import { Card } from '@/components/deckbuilder/types';
 import { SleeveInventory, UserCard } from '@/types/collection';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { RelocateDeckCardModal } from './deck-workspace/RelocateDeckCardModal';
 
 export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalProps> = (props) => {
   const {
@@ -222,12 +223,34 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             setCompartmentIndex={state.setCompartmentIndex}
             locations={locations}
             availableSleeves={state.availableSleeves}
+
+            mainProtection={state.mainProtection}
+            setMainProtection={state.setMainProtection}
+            mainSleeveFitId={state.mainSleeveFitId}
+            setMainSleeveFitId={state.setMainSleeveFitId}
             mainSleeveId={state.mainSleeveId}
             setMainSleeveId={state.setMainSleeveId}
+            mainSleeveOverId={state.mainSleeveOverId}
+            setMainSleeveOverId={state.setMainSleeveOverId}
+
+            extraProtection={state.extraProtection}
+            setExtraProtection={state.setExtraProtection}
+            extraSleeveFitId={state.extraSleeveFitId}
+            setExtraSleeveFitId={state.setExtraSleeveFitId}
             extraSleeveId={state.extraSleeveId}
             setExtraSleeveId={state.setExtraSleeveId}
+            extraSleeveOverId={state.extraSleeveOverId}
+            setExtraSleeveOverId={state.setExtraSleeveOverId}
+
+            poolProtection={state.poolProtection}
+            setPoolProtection={state.setPoolProtection}
+            poolSleeveFitId={state.poolSleeveFitId}
+            setPoolSleeveFitId={state.setPoolSleeveFitId}
             poolSleeveId={state.poolSleeveId}
             setPoolSleeveId={state.setPoolSleeveId}
+            poolSleeveOverId={state.poolSleeveOverId}
+            setPoolSleeveOverId={state.setPoolSleeveOverId}
+
             totalMainCount={state.totalMainCount}
             totalSideCount={state.totalSideCount}
             sideMainCount={state.sideMainCount}
@@ -239,12 +262,13 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             poolRequiredSleeves={state.poolRequiredSleeves}
             savingDeck={state.savingDeck}
             handleSaveDeck={state.handleSaveDeck}
-            onOpenNewSleeveModal={(section, tab, sleeveId, suggestedQty, sectionTotal) => {
-              state.openSleeveModal(section, tab, sleeveId, suggestedQty, sectionTotal);
+            onOpenNewSleeveModal={(section, tab, sleeveId, suggestedQty, sectionTotal, initialCategory) => {
+              state.openSleeveModal(section, tab, sleeveId, suggestedQty, sectionTotal, initialCategory);
             }}
             selectedPhysicalUserCards={state.selectedPhysicalUserCards}
             onChangeCardSection={state.handleChangeCardSection}
             onUpdateCardPhysicalLocation={state.handleUpdateCardPhysicalLocation}
+            onRequestRelocateCard={state.handleRequestRelocateCard}
             onUpdateUserCard={state.handleUpdateUserCard}
             onAddPhysicalCopyForCard={state.handleAddPhysicalCopyForCard}
             onDeleteUserCard={state.handleDeleteUserCard}
@@ -299,12 +323,14 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           availableSleeves={state.availableSleeves}
           initialTab={state.sleeveModalTab}
           initialSleeveId={state.sleeveModalInitialId}
+          initialCategory={state.sleeveModalInitialCategory}
           suggestedQuantity={state.sleeveModalSuggestedQty}
           sectionTotalQuantity={state.sleeveModalSectionTotal}
           onClose={() => {
             state.setIsNewSleeveModalOpen(false);
             state.setTargetSleeveSection(null);
             state.setSleeveModalInitialId(undefined);
+            state.setSleeveModalInitialCategory(undefined);
           }}
           onSuccess={async (newOrUpdatedSleeve) => {
             const sleevesRes = await fetch('/api/collection/sleeve-inventory');
@@ -313,19 +339,44 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
               const updatedList: SleeveInventory[] = json.data || [];
               state.setAvailableSleeves(updatedList);
               
-              // Si se acaba de registrar una nueva funda y había una sección objetivo, auto-seleccionarla
+              // Si se acaba de registrar una nueva funda y había una sección objetivo, auto-seleccionarla según su categoría
               if (newOrUpdatedSleeve && state.targetSleeveSection) {
+                const cat = newOrUpdatedSleeve.category || 'regular';
                 if (state.targetSleeveSection === 'main_side') {
-                  state.setMainSleeveId(newOrUpdatedSleeve.id);
+                  if (cat === 'fit') state.setMainSleeveFitId(newOrUpdatedSleeve.id);
+                  else if (cat === 'over') state.setMainSleeveOverId(newOrUpdatedSleeve.id);
+                  else state.setMainSleeveId(newOrUpdatedSleeve.id);
                 } else if (state.targetSleeveSection === 'extra') {
-                  state.setExtraSleeveId(newOrUpdatedSleeve.id);
+                  if (cat === 'fit') state.setExtraSleeveFitId(newOrUpdatedSleeve.id);
+                  else if (cat === 'over') state.setExtraSleeveOverId(newOrUpdatedSleeve.id);
+                  else state.setExtraSleeveId(newOrUpdatedSleeve.id);
                 } else if (state.targetSleeveSection === 'pool') {
-                  state.setPoolSleeveId(newOrUpdatedSleeve.id);
+                  if (cat === 'fit') state.setPoolSleeveFitId(newOrUpdatedSleeve.id);
+                  else if (cat === 'over') state.setPoolSleeveOverId(newOrUpdatedSleeve.id);
+                  else state.setPoolSleeveId(newOrUpdatedSleeve.id);
                 }
               }
             }
           }}
         />
+
+        {/* Modal de Confirmación para Reubicación y Desvinculación de Cartas */}
+        {state.pendingRelocation && (
+          <RelocateDeckCardModal
+            isOpen={Boolean(state.pendingRelocation)}
+            onClose={state.handleCancelRelocate}
+            cardId={state.pendingRelocation.userCard.card_id}
+            cardName={state.pendingRelocation.userCard.card_details?.name || state.selectedCardDetail?.card_details?.name || `Carta #${state.pendingRelocation.userCard.card_id}`}
+            cardImageUrl={state.pendingRelocation.userCard.card_details?.image_url || state.selectedCardDetail?.card_details?.image_url}
+            quantity={state.pendingRelocation.userCard.quantity || 1}
+            deckName={state.currentDeck?.name || 'Mazo Actual'}
+            deckSection={state.selectedCardDetail?.section || state.pendingRelocation.userCard.deck_section || 'Main'}
+            targetLocationName={state.pendingRelocation.targetLocationName}
+            onConfirmRemoveFromDeck={state.handleConfirmRelocateAndRemoveFromDeck}
+            onConfirmKeepInDeck={state.handleConfirmRelocateOnly}
+            loading={state.relocatingLoading}
+          />
+        )}
 
         {/* Diálogo de Confirmación para Cambios No Guardados en Ficha Técnica */}
         <ConfirmDialog

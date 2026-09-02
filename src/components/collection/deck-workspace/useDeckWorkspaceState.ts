@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { StorageLocation, UserCard, SleeveInventory, Deck, DeckCardDetail } from '@/types/collection';
+import { StorageLocation, UserCard, SleeveInventory, Deck, DeckCardDetail, SleeveCategory } from '@/types/collection';
 import { Card, HoverCardBase } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -25,6 +25,55 @@ export const isExtraDeckCardType = (cardOrType?: string | { type?: string; card_
     : cardOrType.card_details?.type || cardOrType.type || '';
   const t = rawType.toLowerCase();
   return t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link');
+};
+
+export const parseSleevesList = (
+  sleevesList?: { section?: string; section_type?: string; sleeve_id?: string; sleeve_details?: { category?: string } }[]
+) => {
+  let mainFit = '';
+  let mainReg = '';
+  let mainOver = '';
+  let extraFit = '';
+  let extraReg = '';
+  let extraOver = '';
+  let poolFit = '';
+  let poolReg = '';
+  let poolOver = '';
+
+  if (Array.isArray(sleevesList)) {
+    for (const sl of sleevesList) {
+      const sec = sl.section || sl.section_type || '';
+      const id = sl.sleeve_id || '';
+      const cat = sl.sleeve_details?.category;
+
+      if (sec.startsWith('main')) {
+        if (sec.endsWith('_fit') || cat === 'fit') mainFit = id;
+        else if (sec.endsWith('_over') || cat === 'over') mainOver = id;
+        else mainReg = id;
+      } else if (sec.startsWith('extra')) {
+        if (sec.endsWith('_fit') || cat === 'fit') extraFit = id;
+        else if (sec.endsWith('_over') || cat === 'over') extraOver = id;
+        else extraReg = id;
+      } else if (sec.startsWith('pool') || sec.startsWith('extras')) {
+        if (sec.endsWith('_fit') || cat === 'fit') poolFit = id;
+        else if (sec.endsWith('_over') || cat === 'over') poolOver = id;
+        else poolReg = id;
+      }
+    }
+  }
+
+  const mainCount = (mainFit ? 1 : 0) + (mainReg ? 1 : 0) + (mainOver ? 1 : 0);
+  const extraCount = (extraFit ? 1 : 0) + (extraReg ? 1 : 0) + (extraOver ? 1 : 0);
+  const poolCount = (poolFit ? 1 : 0) + (poolReg ? 1 : 0) + (poolOver ? 1 : 0);
+
+  return {
+    mainFit, mainReg, mainOver,
+    mainProt: (mainCount >= 3 ? 'triple' : mainCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
+    extraFit, extraReg, extraOver,
+    extraProt: (extraCount >= 3 ? 'triple' : extraCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
+    poolFit, poolReg, poolOver,
+    poolProt: (poolCount >= 3 ? 'triple' : poolCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
+  };
 };
 
 export function useDeckWorkspaceState({
@@ -54,15 +103,32 @@ export function useDeckWorkspaceState({
   const [compartmentIndex, setCompartmentIndex] = useState<number>(0);
   const [savingDeck, setSavingDeck] = useState(false);
 
-  // Fundas (Sleeves)
+  // Fundas (Sleeves) - Sistema Multicapa (Fit, Regular, Over)
   const [availableSleeves, setAvailableSleeves] = useState<SleeveInventory[]>(sleeves);
+
+  // Main & Side Deck Sleeves
+  const [mainProtection, setMainProtection] = useState<'single' | 'double' | 'triple'>('single');
+  const [mainSleeveFitId, setMainSleeveFitId] = useState<string>('');
   const [mainSleeveId, setMainSleeveId] = useState<string>('');
+  const [mainSleeveOverId, setMainSleeveOverId] = useState<string>('');
+
+  // Extra Deck Sleeves
+  const [extraProtection, setExtraProtection] = useState<'single' | 'double' | 'triple'>('single');
+  const [extraSleeveFitId, setExtraSleeveFitId] = useState<string>('');
   const [extraSleeveId, setExtraSleeveId] = useState<string>('');
+  const [extraSleeveOverId, setExtraSleeveOverId] = useState<string>('');
+
+  // Pool Sleeves
+  const [poolProtection, setPoolProtection] = useState<'single' | 'double' | 'triple'>('single');
+  const [poolSleeveFitId, setPoolSleeveFitId] = useState<string>('');
   const [poolSleeveId, setPoolSleeveId] = useState<string>('');
+  const [poolSleeveOverId, setPoolSleeveOverId] = useState<string>('');
+
   const [isNewSleeveModalOpen, setIsNewSleeveModalOpen] = useState(false);
   const [targetSleeveSection, setTargetSleeveSection] = useState<'main_side' | 'extra' | 'pool' | null>(null);
   const [sleeveModalTab, setSleeveModalTab] = useState<'add_stock' | 'create'>('add_stock');
   const [sleeveModalInitialId, setSleeveModalInitialId] = useState<string | undefined>(undefined);
+  const [sleeveModalInitialCategory, setSleeveModalInitialCategory] = useState<SleeveCategory | undefined>(undefined);
   const [sleeveModalSuggestedQty, setSleeveModalSuggestedQty] = useState<number | undefined>(undefined);
   const [sleeveModalSectionTotal, setSleeveModalSectionTotal] = useState<number | undefined>(undefined);
 
@@ -71,11 +137,13 @@ export function useDeckWorkspaceState({
     tab: 'add_stock' | 'create' = 'add_stock',
     sleeveId?: string,
     suggestedQty?: number,
-    sectionTotal?: number
+    sectionTotal?: number,
+    initialCategory?: SleeveCategory
   ) => {
     setTargetSleeveSection(section);
     setSleeveModalTab(tab);
     setSleeveModalInitialId(sleeveId);
+    setSleeveModalInitialCategory(initialCategory);
     setSleeveModalSuggestedQty(suggestedQty);
     setSleeveModalSectionTotal(sectionTotal);
     setIsNewSleeveModalOpen(true);
@@ -120,9 +188,18 @@ export function useDeckWorkspaceState({
     isActive: boolean;
     storageLocationId: string;
     compartmentIndex: number;
+    mainProtection: 'single' | 'double' | 'triple';
+    mainSleeveFitId: string;
     mainSleeveId: string;
+    mainSleeveOverId: string;
+    extraProtection: 'single' | 'double' | 'triple';
+    extraSleeveFitId: string;
     extraSleeveId: string;
+    extraSleeveOverId: string;
+    poolProtection: 'single' | 'double' | 'triple';
+    poolSleeveFitId: string;
     poolSleeveId: string;
+    poolSleeveOverId: string;
   } | null>(null);
 
   // Mobile Tabs
@@ -174,21 +251,22 @@ export function useDeckWorkspaceState({
       setDeckCards(deck.cards);
     }
 
-    // Cargar fundas asignadas al deck si existen
-    let initMainSleeve = '';
-    let initExtraSleeve = '';
-    let initPoolSleeve = '';
-    if (deck.sleeves && Array.isArray(deck.sleeves)) {
-      const mainSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'main' || ('section' in s ? s.section : s.section_type) === 'main_side');
-      const extraSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'extra');
-      const poolSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'pool' || ('section' in s ? s.section : s.section_type) === 'extras');
-      initMainSleeve = mainSl?.sleeve_id || '';
-      initExtraSleeve = extraSl?.sleeve_id || '';
-      initPoolSleeve = poolSl?.sleeve_id || '';
-    }
-    setMainSleeveId(initMainSleeve);
-    setExtraSleeveId(initExtraSleeve);
-    setPoolSleeveId(initPoolSleeve);
+    // Cargar fundas asignadas al deck si existen (soporte multicapa)
+    const initParsed = parseSleevesList(deck.sleeves);
+    setMainProtection(initParsed.mainProt);
+    setMainSleeveFitId(initParsed.mainFit);
+    setMainSleeveId(initParsed.mainReg);
+    setMainSleeveOverId(initParsed.mainOver);
+
+    setExtraProtection(initParsed.extraProt);
+    setExtraSleeveFitId(initParsed.extraFit);
+    setExtraSleeveId(initParsed.extraReg);
+    setExtraSleeveOverId(initParsed.extraOver);
+
+    setPoolProtection(initParsed.poolProt);
+    setPoolSleeveFitId(initParsed.poolFit);
+    setPoolSleeveId(initParsed.poolReg);
+    setPoolSleeveOverId(initParsed.poolOver);
 
     setInitialFormState({
       name: deck.name || '',
@@ -196,9 +274,18 @@ export function useDeckWorkspaceState({
       isActive: deck.is_active ?? true,
       storageLocationId: deck.storage_location_id || '',
       compartmentIndex: initialComp,
-      mainSleeveId: initMainSleeve,
-      extraSleeveId: initExtraSleeve,
-      poolSleeveId: initPoolSleeve,
+      mainProtection: initParsed.mainProt,
+      mainSleeveFitId: initParsed.mainFit,
+      mainSleeveId: initParsed.mainReg,
+      mainSleeveOverId: initParsed.mainOver,
+      extraProtection: initParsed.extraProt,
+      extraSleeveFitId: initParsed.extraFit,
+      extraSleeveId: initParsed.extraReg,
+      extraSleeveOverId: initParsed.extraOver,
+      poolProtection: initParsed.poolProt,
+      poolSleeveFitId: initParsed.poolFit,
+      poolSleeveId: initParsed.poolReg,
+      poolSleeveOverId: initParsed.poolOver,
     });
 
     const fetchDeckDetails = async () => {
@@ -216,26 +303,36 @@ export function useDeckWorkspaceState({
             setDeckCards(json.data.cards || []);
 
             if (json.data.sleeves && Array.isArray(json.data.sleeves)) {
-              const mainSl = json.data.sleeves.find((s: { section?: string; section_type?: string; sleeve_id?: string }) =>
-                (s.section === 'main' || s.section === 'main_side' || s.section_type === 'main' || s.section_type === 'main_side')
-              );
-              const extraSl = json.data.sleeves.find((s: { section?: string; section_type?: string; sleeve_id?: string }) =>
-                (s.section === 'extra' || s.section_type === 'extra')
-              );
-              const poolSl = json.data.sleeves.find((s: { section?: string; section_type?: string; sleeve_id?: string }) =>
-                (s.section === 'pool' || s.section === 'extras' || s.section_type === 'pool' || s.section_type === 'extras')
-              );
-              const loadedMain = mainSl?.sleeve_id || '';
-              const loadedExtra = extraSl?.sleeve_id || '';
-              const loadedPool = poolSl?.sleeve_id || '';
-              setMainSleeveId(loadedMain);
-              setExtraSleeveId(loadedExtra);
-              setPoolSleeveId(loadedPool);
+              const loadedParsed = parseSleevesList(json.data.sleeves);
+              setMainProtection(loadedParsed.mainProt);
+              setMainSleeveFitId(loadedParsed.mainFit);
+              setMainSleeveId(loadedParsed.mainReg);
+              setMainSleeveOverId(loadedParsed.mainOver);
+
+              setExtraProtection(loadedParsed.extraProt);
+              setExtraSleeveFitId(loadedParsed.extraFit);
+              setExtraSleeveId(loadedParsed.extraReg);
+              setExtraSleeveOverId(loadedParsed.extraOver);
+
+              setPoolProtection(loadedParsed.poolProt);
+              setPoolSleeveFitId(loadedParsed.poolFit);
+              setPoolSleeveId(loadedParsed.poolReg);
+              setPoolSleeveOverId(loadedParsed.poolOver);
+
               setInitialFormState(prev => prev ? {
                 ...prev,
-                mainSleeveId: loadedMain,
-                extraSleeveId: loadedExtra,
-                poolSleeveId: loadedPool,
+                mainProtection: loadedParsed.mainProt,
+                mainSleeveFitId: loadedParsed.mainFit,
+                mainSleeveId: loadedParsed.mainReg,
+                mainSleeveOverId: loadedParsed.mainOver,
+                extraProtection: loadedParsed.extraProt,
+                extraSleeveFitId: loadedParsed.extraFit,
+                extraSleeveId: loadedParsed.extraReg,
+                extraSleeveOverId: loadedParsed.extraOver,
+                poolProtection: loadedParsed.poolProt,
+                poolSleeveFitId: loadedParsed.poolFit,
+                poolSleeveId: loadedParsed.poolReg,
+                poolSleeveOverId: loadedParsed.poolOver,
               } : null);
             }
           }
@@ -569,15 +666,45 @@ export function useDeckWorkspaceState({
     setSavingDeck(true);
 
     try {
-      const sleevesPayload: { sleeve_id: string; section: 'main_side' | 'extra' | 'pool' }[] = [];
-      if (mainSleeveId) {
-        sleevesPayload.push({ sleeve_id: mainSleeveId, section: 'main_side' });
+      const sleevesPayload: { sleeve_id: string; section: string }[] = [];
+
+      // Main & Side Sleeves
+      if (mainProtection === 'triple') {
+        if (mainSleeveFitId) sleevesPayload.push({ sleeve_id: mainSleeveFitId, section: 'main_side_fit' });
+        if (mainSleeveId) sleevesPayload.push({ sleeve_id: mainSleeveId, section: 'main_side_regular' });
+        if (mainSleeveOverId) sleevesPayload.push({ sleeve_id: mainSleeveOverId, section: 'main_side_over' });
+      } else if (mainProtection === 'double') {
+        if (mainSleeveFitId) sleevesPayload.push({ sleeve_id: mainSleeveFitId, section: 'main_side_fit' });
+        if (mainSleeveId) sleevesPayload.push({ sleeve_id: mainSleeveId, section: 'main_side_regular' });
+        if (mainSleeveOverId) sleevesPayload.push({ sleeve_id: mainSleeveOverId, section: 'main_side_over' });
+      } else {
+        if (mainSleeveId) sleevesPayload.push({ sleeve_id: mainSleeveId, section: 'main_side_regular' });
       }
-      if (extraSleeveId) {
-        sleevesPayload.push({ sleeve_id: extraSleeveId, section: 'extra' });
+
+      // Extra Deck Sleeves
+      if (extraProtection === 'triple') {
+        if (extraSleeveFitId) sleevesPayload.push({ sleeve_id: extraSleeveFitId, section: 'extra_fit' });
+        if (extraSleeveId) sleevesPayload.push({ sleeve_id: extraSleeveId, section: 'extra_regular' });
+        if (extraSleeveOverId) sleevesPayload.push({ sleeve_id: extraSleeveOverId, section: 'extra_over' });
+      } else if (extraProtection === 'double') {
+        if (extraSleeveFitId) sleevesPayload.push({ sleeve_id: extraSleeveFitId, section: 'extra_fit' });
+        if (extraSleeveId) sleevesPayload.push({ sleeve_id: extraSleeveId, section: 'extra_regular' });
+        if (extraSleeveOverId) sleevesPayload.push({ sleeve_id: extraSleeveOverId, section: 'extra_over' });
+      } else {
+        if (extraSleeveId) sleevesPayload.push({ sleeve_id: extraSleeveId, section: 'extra_regular' });
       }
-      if (poolSleeveId) {
-        sleevesPayload.push({ sleeve_id: poolSleeveId, section: 'pool' });
+
+      // Pool Sleeves
+      if (poolProtection === 'triple') {
+        if (poolSleeveFitId) sleevesPayload.push({ sleeve_id: poolSleeveFitId, section: 'pool_fit' });
+        if (poolSleeveId) sleevesPayload.push({ sleeve_id: poolSleeveId, section: 'pool_regular' });
+        if (poolSleeveOverId) sleevesPayload.push({ sleeve_id: poolSleeveOverId, section: 'pool_over' });
+      } else if (poolProtection === 'double') {
+        if (poolSleeveFitId) sleevesPayload.push({ sleeve_id: poolSleeveFitId, section: 'pool_fit' });
+        if (poolSleeveId) sleevesPayload.push({ sleeve_id: poolSleeveId, section: 'pool_regular' });
+        if (poolSleeveOverId) sleevesPayload.push({ sleeve_id: poolSleeveOverId, section: 'pool_over' });
+      } else {
+        if (poolSleeveId) sleevesPayload.push({ sleeve_id: poolSleeveId, section: 'pool_regular' });
       }
 
       const res = await fetch(`/api/decks/${currentDeck.id}`, {
@@ -587,8 +714,8 @@ export function useDeckWorkspaceState({
           name: name.trim() || currentDeck.name,
           format: format,
           is_active: isActive,
-          storage_location_id: storageLocationId || null,
-          compartment_index: compartmentIndex,
+          storageLocationId: storageLocationId || null,
+          compartmentIndex: compartmentIndex,
           sleeves: sleevesPayload,
         })
       });
@@ -603,9 +730,18 @@ export function useDeckWorkspaceState({
         isActive: isActive,
         storageLocationId: storageLocationId || '',
         compartmentIndex: compartmentIndex,
-        mainSleeveId: mainSleeveId,
-        extraSleeveId: extraSleeveId,
-        poolSleeveId: poolSleeveId,
+        mainProtection,
+        mainSleeveFitId,
+        mainSleeveId,
+        mainSleeveOverId,
+        extraProtection,
+        extraSleeveFitId,
+        extraSleeveId,
+        extraSleeveOverId,
+        poolProtection,
+        poolSleeveFitId,
+        poolSleeveId,
+        poolSleeveOverId,
       });
 
       // Refrescar fundas y cartas tras guardar
@@ -644,11 +780,39 @@ export function useDeckWorkspaceState({
       isActive !== initialFormState.isActive ||
       storageLocationId !== initialFormState.storageLocationId ||
       compartmentIndex !== initialFormState.compartmentIndex ||
+      mainProtection !== initialFormState.mainProtection ||
+      mainSleeveFitId !== initialFormState.mainSleeveFitId ||
       mainSleeveId !== initialFormState.mainSleeveId ||
+      mainSleeveOverId !== initialFormState.mainSleeveOverId ||
+      extraProtection !== initialFormState.extraProtection ||
+      extraSleeveFitId !== initialFormState.extraSleeveFitId ||
       extraSleeveId !== initialFormState.extraSleeveId ||
-      poolSleeveId !== initialFormState.poolSleeveId
+      extraSleeveOverId !== initialFormState.extraSleeveOverId ||
+      poolProtection !== initialFormState.poolProtection ||
+      poolSleeveFitId !== initialFormState.poolSleeveFitId ||
+      poolSleeveId !== initialFormState.poolSleeveId ||
+      poolSleeveOverId !== initialFormState.poolSleeveOverId
     );
-  }, [initialFormState, name, format, isActive, storageLocationId, compartmentIndex, mainSleeveId, extraSleeveId, poolSleeveId]);
+  }, [
+    initialFormState,
+    name,
+    format,
+    isActive,
+    storageLocationId,
+    compartmentIndex,
+    mainProtection,
+    mainSleeveFitId,
+    mainSleeveId,
+    mainSleeveOverId,
+    extraProtection,
+    extraSleeveFitId,
+    extraSleeveId,
+    extraSleeveOverId,
+    poolProtection,
+    poolSleeveFitId,
+    poolSleeveId,
+    poolSleeveOverId,
+  ]);
 
   // Actualizar metadatos de una copia física (rareza, condición, proxy, notas, funda, ubicación)
   const handleUpdateUserCard = async (userCardId: string, fields: Partial<UserCard>) => {
@@ -678,13 +842,27 @@ export function useDeckWorkspaceState({
     try {
       const targetSec = selectedCardDetail?.section || 'main';
       const isExtra = isExtraDeckCardType(selectedCardDetail?.card_details?.type);
-      let targetSleeveId = mainSleeveId;
+
+      let targetProt = mainProtection;
+      let targetFitId = mainSleeveFitId;
+      let targetRegId = mainSleeveId;
+      let targetOverId = mainSleeveOverId;
+
       if (targetSec === 'extra' || (targetSec === 'side' && isExtra)) {
-        targetSleeveId = extraSleeveId;
+        targetProt = extraProtection;
+        targetFitId = extraSleeveFitId;
+        targetRegId = extraSleeveId;
+        targetOverId = extraSleeveOverId;
       } else if (targetSec === 'pool' || targetSec === 'extras') {
-        targetSleeveId = poolSleeveId;
+        targetProt = poolProtection;
+        targetFitId = poolSleeveFitId;
+        targetRegId = poolSleeveId;
+        targetOverId = poolSleeveOverId;
       }
-      const sectionSleeve = availableSleeves.find(s => s.id === targetSleeveId);
+
+      const regularSlv = availableSleeves.find(s => s.id === targetRegId);
+      const fitSlv = availableSleeves.find(s => s.id === targetFitId);
+      const overSlv = availableSleeves.find(s => s.id === targetOverId);
 
       const payload: Record<string, unknown> = {
         card_id: cardId,
@@ -697,10 +875,16 @@ export function useDeckWorkspaceState({
         deck_id: currentDeck?.id || null,
         deck_section: targetSec,
         is_proxy: isProxy,
-        sleeve_type: sectionSleeve ? 'single' : 'none',
-        sleeve_brand: sectionSleeve ? sectionSleeve.brand : '',
-        sleeve_color: sectionSleeve ? sectionSleeve.color_pattern : '',
-        sleeve_condition: sectionSleeve ? (sectionSleeve.condition || 'good') : 'good',
+        sleeve_type: targetProt,
+        sleeve_fit_id: targetFitId || null,
+        sleeve_regular_id: targetRegId || null,
+        sleeve_over_id: targetOverId || null,
+        sleeve_brand: regularSlv ? regularSlv.brand : '',
+        sleeve_color: regularSlv ? regularSlv.color_pattern : '',
+        sleeve_inner_brand: fitSlv ? fitSlv.brand : null,
+        sleeve_inner_color: fitSlv ? fitSlv.color_pattern : null,
+        sleeve_outer_brand: overSlv ? overSlv.brand : null,
+        sleeve_outer_color: overSlv ? overSlv.color_pattern : null,
       };
 
       const res = await fetch('/api/collection/cards', {
@@ -743,7 +927,16 @@ export function useDeckWorkspaceState({
     }
   };
 
-  // Asignar ubicación física individual a una carta específica
+  // Estado para modal de confirmación inteligente de reubicación física
+  const [pendingRelocation, setPendingRelocation] = useState<{
+    userCard: UserCard;
+    targetLocationId: string | null;
+    targetCompartmentIdx: number;
+    targetLocationName: string;
+  } | null>(null);
+  const [relocatingLoading, setRelocatingLoading] = useState(false);
+
+  // Asignar ubicación física individual a una carta específica (sin confirmación o post-confirmación)
   const handleUpdateCardPhysicalLocation = async (userCardId: string, locationId: string | null, compartmentIdx: number = 0) => {
     try {
       const res = await fetch('/api/collection/cards', {
@@ -767,6 +960,144 @@ export function useDeckWorkspaceState({
       console.error('Error al actualizar ubicación de carta:', err);
       toast.error('No se pudo actualizar la ubicación de la carta');
     }
+  };
+
+  // Solicitar reubicación física: Si la carta pertenece al mazo y se traslada a otra ubicación externa, abre el modal de confirmación
+  const handleRequestRelocateCard = (userCard: UserCard, locationId: string | null, compartmentIdx: number = 0) => {
+    const isAssignedToDeck = Boolean(userCard.deck_id || deckCards.some(dc => dc.card_id === userCard.card_id));
+    const targetLoc = locations.find(l => l.id === locationId);
+    const targetName = locationId === 'inbox' 
+      ? 'Bandeja Sin Clasificar (Inbox)' 
+      : targetLoc 
+      ? targetLoc.name 
+      : !locationId 
+      ? `Ubicación Base del Mazo (${currentDeck?.name || 'Deckbox'})` 
+      : 'Ubicación Externa';
+
+    // Si no está asignada al mazo o se está moviendo a la ubicación base del mazo, aplicar directamente
+    if (!isAssignedToDeck || !locationId || locationId === storageLocationId) {
+      handleUpdateCardPhysicalLocation(userCard.id, locationId, compartmentIdx);
+      return;
+    }
+
+    // Activar confirmación inteligente
+    setPendingRelocation({
+      userCard,
+      targetLocationId: locationId,
+      targetCompartmentIdx: compartmentIdx,
+      targetLocationName: targetName,
+    });
+  };
+
+  // Opción 1: Quitar de la receta del mazo y mover físicamente
+  const handleConfirmRelocateAndRemoveFromDeck = async () => {
+    if (!pendingRelocation || !currentDeck) return;
+    setRelocatingLoading(true);
+
+    const { userCard, targetLocationId: locId, targetCompartmentIdx: compIdx, targetLocationName: locName } = pendingRelocation;
+    const cardId = userCard.card_id;
+    const qtyToSubtract = userCard.quantity || 1;
+
+    try {
+      // 1. Actualizar copia física en yg_user_cards (desvincular deck_id y asignar nueva ubicación)
+      const resCard = await fetch('/api/collection/cards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: userCard.id,
+          storage_location_id: locId,
+          compartment_index: compIdx,
+          deck_id: null,
+          deck_section: null,
+          status_flag: 'collection',
+          binder_page: null,
+          binder_slot: null,
+        }),
+      });
+
+      if (!resCard.ok) throw new Error('Error al mover la copia física');
+
+      // 2. Actualizar estado local de userCards
+      setUserCards(prev => prev.map(uc => uc.id === userCard.id ? {
+        ...uc,
+        storage_location_id: locId,
+        compartment_index: compIdx,
+        deck_id: null,
+        deck_section: null,
+        status_flag: 'collection',
+      } : uc));
+
+      // 3. Restar del mazo en deck_cards
+      const existingInDeck = deckCards.find(c => c.card_id === cardId);
+      if (existingInDeck) {
+        const newCount = Math.max(0, existingInDeck.count - qtyToSubtract);
+        let updatedDeckCards: DeckCardDetail[];
+
+        if (newCount === 0) {
+          updatedDeckCards = deckCards.filter(c => c.card_id !== cardId || c.section !== existingInDeck.section);
+          if (selectedCardDetail?.card_id === cardId) {
+            setSelectedCardDetail(null);
+            setRightMode('details');
+          }
+        } else {
+          updatedDeckCards = deckCards.map(c => 
+            c.card_id === cardId && c.section === existingInDeck.section
+              ? { ...c, count: newCount }
+              : c
+          );
+        }
+
+        setDeckCards(updatedDeckCards);
+
+        // Sincronizar con API del mazo
+        if (newCount === 0) {
+          await fetch(`/api/decks/${currentDeck.id}/cards?card_id=${cardId}&section=${existingInDeck.section}`, {
+            method: 'DELETE',
+          });
+        } else {
+          await fetch(`/api/decks/${currentDeck.id}/cards`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              card_id: cardId,
+              section: existingInDeck.section,
+              count: -qtyToSubtract,
+            }),
+          });
+        }
+      }
+
+      setHasMutated(true);
+      toast.success(`Carta movida a "${locName}" y retirada del mazo`);
+      setPendingRelocation(null);
+    } catch (err) {
+      console.error('Error al desvincular y mover carta:', err);
+      toast.error('No se pudo completar la reubicación');
+    } finally {
+      setRelocatingLoading(false);
+    }
+  };
+
+  // Opción 2: Solo mover físicamente (mantener en el mazo)
+  const handleConfirmRelocateOnly = async () => {
+    if (!pendingRelocation) return;
+    setRelocatingLoading(true);
+
+    const { userCard, targetLocationId: locId, targetCompartmentIdx: compIdx, targetLocationName: locName } = pendingRelocation;
+
+    try {
+      await handleUpdateCardPhysicalLocation(userCard.id, locId, compIdx);
+      toast.success(`Ubicación actualizada a "${locName}" (permanece en la lista del mazo)`);
+      setPendingRelocation(null);
+    } catch (err) {
+      console.error('Error al reubicar carta físicamente:', err);
+    } finally {
+      setRelocatingLoading(false);
+    }
+  };
+
+  const handleCancelRelocate = () => {
+    setPendingRelocation(null);
   };
 
   // Ubicación física de la carta seleccionada
@@ -799,15 +1130,36 @@ export function useDeckWorkspaceState({
     handleSaveDeck,
     isMetadataDirty,
 
-    // Sleeves
+    // Sleeves (Multicapa)
     availableSleeves,
     setAvailableSleeves,
+    mainProtection,
+    setMainProtection,
+    mainSleeveFitId,
+    setMainSleeveFitId,
     mainSleeveId,
     setMainSleeveId,
+    mainSleeveOverId,
+    setMainSleeveOverId,
+
+    extraProtection,
+    setExtraProtection,
+    extraSleeveFitId,
+    setExtraSleeveFitId,
     extraSleeveId,
     setExtraSleeveId,
+    extraSleeveOverId,
+    setExtraSleeveOverId,
+
+    poolProtection,
+    setPoolProtection,
+    poolSleeveFitId,
+    setPoolSleeveFitId,
     poolSleeveId,
     setPoolSleeveId,
+    poolSleeveOverId,
+    setPoolSleeveOverId,
+
     isNewSleeveModalOpen,
     setIsNewSleeveModalOpen,
     targetSleeveSection,
@@ -816,6 +1168,8 @@ export function useDeckWorkspaceState({
     setSleeveModalTab,
     sleeveModalInitialId,
     setSleeveModalInitialId,
+    sleeveModalInitialCategory,
+    setSleeveModalInitialCategory,
     sleeveModalSuggestedQty,
     sleeveModalSectionTotal,
     openSleeveModal,
@@ -882,6 +1236,12 @@ export function useDeckWorkspaceState({
     handleRemoveCardFromDeck,
     handleChangeCardSection,
     handleUpdateCardPhysicalLocation,
+    handleRequestRelocateCard,
+    pendingRelocation,
+    relocatingLoading,
+    handleConfirmRelocateAndRemoveFromDeck,
+    handleConfirmRelocateOnly,
+    handleCancelRelocate,
     handleUpdateUserCard,
     handleAddPhysicalCopyForCard,
     handleDeleteUserCard,

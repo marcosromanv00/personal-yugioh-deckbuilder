@@ -31,6 +31,7 @@ interface DeckCardDetailInspectorProps {
   poolSleeveId?: string;
   onChangeCardSection: (cardId: number, currentSection: string, targetSection: string) => void;
   onUpdateCardPhysicalLocation: (userCardId: string, locationId: string | null, compartmentIdx: number) => void;
+  onRequestRelocateCard?: (userCard: UserCard, locationId: string | null, compartmentIdx: number) => void;
   onUpdateUserCard?: (userCardId: string, fields: Partial<UserCard>) => void;
   onAddPhysicalCopyForCard?: (cardId: number, isProxy?: boolean) => void;
   onDeleteUserCard?: (userCardId: string) => void;
@@ -84,6 +85,7 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
   poolSleeveId = '',
   onChangeCardSection,
   onUpdateCardPhysicalLocation,
+  onRequestRelocateCard,
   onUpdateUserCard,
   onAddPhysicalCopyForCard,
   onDeleteUserCard,
@@ -117,121 +119,161 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
   const defaultDeckSleeve = availableSleeves.find(s => s.id === targetDeckSleeveId) || null;
 
   const renderSleeveControls = (uc: UserCard) => {
-    // Buscar si uc tiene funda específica por marca/color
-    const matchedSleeve = (uc.sleeve_brand && uc.sleeve_color)
-      ? availableSleeves.find(s => s.brand === uc.sleeve_brand && s.color_pattern === uc.sleeve_color)
-      : (uc.sleeve_type !== 'none' ? defaultDeckSleeve : null);
+    const activeLevel = uc.sleeve_type || 'single';
 
-    const isInherited = !uc.sleeve_brand || (defaultDeckSleeve && uc.sleeve_brand === defaultDeckSleeve.brand && uc.sleeve_color === defaultDeckSleeve.color_pattern);
-    const activeHex = matchedSleeve?.color_hex || defaultDeckSleeve?.color_hex || '#1a1a2e';
-
-    // Determinar valor para el dropdown
-    let dropdownVal = 'none';
-    if (uc.sleeve_type !== 'none') {
-      if (isInherited && defaultDeckSleeve) {
-        dropdownVal = 'inherit';
-      } else if (matchedSleeve) {
-        dropdownVal = matchedSleeve.id;
-      } else if (defaultDeckSleeve) {
-        dropdownVal = 'inherit';
-      }
-    }
+    const fitSleeve = availableSleeves.find(s => s.id === uc.sleeve_fit_id) || (activeLevel !== 'none' && uc.sleeve_inner_brand ? availableSleeves.find(s => s.brand === uc.sleeve_inner_brand) : null);
+    const regularSleeve = availableSleeves.find(s => s.id === uc.sleeve_regular_id) || (activeLevel !== 'none' && uc.sleeve_brand ? availableSleeves.find(s => s.brand === uc.sleeve_brand && s.color_pattern === uc.sleeve_color) : defaultDeckSleeve);
+    const overSleeve = availableSleeves.find(s => s.id === uc.sleeve_over_id) || (activeLevel === 'triple' && uc.sleeve_outer_brand ? availableSleeves.find(s => s.brand === uc.sleeve_outer_brand) : null);
 
     return (
-      <div className="p-2.5 bg-zinc-100/90 dark:bg-zinc-950/90 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
+      <div className="p-2.5 bg-zinc-100/90 dark:bg-zinc-950/90 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-mono font-black uppercase text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5 text-red-500" />
-            <span>Funda de la Carta:</span>
+            <span>Nivel de Protección / Fundas:</span>
           </span>
-          {uc.sleeve_type !== 'none' ? (
-            <span className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded border ${
-              isInherited
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30'
-            }`}>
-              {isInherited ? `✨ Mazo (${sectionLabel})` : '⚙️ Personalizada'}
-            </span>
-          ) : (
-            <span className="text-[9.5px] font-mono text-zinc-400 bg-zinc-200/60 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
-              Sin Funda
-            </span>
-          )}
+          <div className="flex items-center gap-1">
+            {(
+              [
+                { id: 'none', label: 'Sin' },
+                { id: 'single', label: 'Simple' },
+                { id: 'double', label: 'Doble' },
+                { id: 'triple', label: 'Triple' },
+              ] as const
+            ).map((lvl) => (
+              <button
+                key={lvl.id}
+                type="button"
+                onClick={() => {
+                  onUpdateUserCard?.(uc.id, {
+                    sleeve_type: lvl.id,
+                    ...(lvl.id === 'none' ? { sleeve_fit_id: null, sleeve_regular_id: null, sleeve_over_id: null, sleeve_brand: '', sleeve_color: '' } : {})
+                  });
+                }}
+                className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold uppercase transition-all cursor-pointer ${
+                  activeLevel === lvl.id
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'bg-zinc-200/70 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                {lvl.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Dropdown selector de modelo de funda */}
-        <PremiumDropdown
-          value={dropdownVal}
-          onChange={(val) => {
-            if (val === 'inherit') {
-              if (defaultDeckSleeve) {
-                onUpdateUserCard?.(uc.id, {
-                  sleeve_type: uc.sleeve_type === 'none' ? 'single' : (uc.sleeve_type || 'single'),
-                  sleeve_brand: defaultDeckSleeve.brand,
-                  sleeve_color: defaultDeckSleeve.color_pattern,
-                  sleeve_condition: defaultDeckSleeve.condition || 'good',
-                });
-              } else {
-                onUpdateUserCard?.(uc.id, { sleeve_type: 'none', sleeve_brand: '', sleeve_color: '' });
-              }
-            } else if (val === 'none') {
-              onUpdateUserCard?.(uc.id, { sleeve_type: 'none', sleeve_brand: '', sleeve_color: '' });
-            } else {
-              const picked = availableSleeves.find(s => s.id === val);
-              if (picked) {
-                onUpdateUserCard?.(uc.id, {
-                  sleeve_type: uc.sleeve_type === 'none' ? 'single' : (uc.sleeve_type || 'single'),
-                  sleeve_brand: picked.brand,
-                  sleeve_color: picked.color_pattern,
-                  sleeve_condition: picked.condition || 'good',
-                });
-              }
-            }
-          }}
-          align="full"
-          size="sm"
-          options={[
-            ...(defaultDeckSleeve ? [{
-              value: 'inherit',
-              label: `✨ Heredar del Mazo (🛡️ ${defaultDeckSleeve.name} - ${defaultDeckSleeve.color_pattern})`
-            }] : []),
-            { value: 'none', label: '⚪ Sin Funda Asignada' },
-            ...availableSleeves.map(s => ({
-              value: s.id,
-              label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_available ?? s.quantity_total} disp.]`
-            }))
-          ]}
-        />
+        {activeLevel !== 'none' && (
+          <div className="space-y-2 pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60">
+            {/* Ranura 1: Inner / Fit (Visible si Doble o Triple) */}
+            {(activeLevel === 'double' || activeLevel === 'triple') && (
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                  <span>🟢 Capa 1: Fit / Inner</span>
+                </label>
+                <PremiumDropdown
+                  value={uc.sleeve_fit_id || ''}
+                  onChange={(val) => {
+                    const picked = availableSleeves.find(s => s.id === val);
+                    onUpdateUserCard?.(uc.id, {
+                      sleeve_fit_id: val || undefined,
+                      sleeve_inner_brand: picked?.brand || undefined,
+                      sleeve_inner_color: picked?.color_pattern || undefined,
+                    });
+                  }}
+                  align="full"
+                  size="sm"
+                  options={[
+                    { value: '', label: '-- Sin Inner Sleeve --' },
+                    ...availableSleeves
+                      .filter(s => s.category === 'fit' || !availableSleeves.some(x => x.category === 'fit'))
+                      .map(s => ({
+                        value: s.id,
+                        label: `🟢 ${s.name} (${s.brand}) [${s.quantity_available ?? s.quantity_total} disp.]`,
+                      }))
+                  ]}
+                />
+              </div>
+            )}
 
-        {/* Tipo de enmicado y muestra visual de color */}
-        {uc.sleeve_type !== 'none' && (
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-200/50 dark:border-zinc-800/50">
-            <div>
-              <label className="block text-[9.5px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                Tipo Enmicado:
+            {/* Ranura 2: Regular (Principal) */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-mono font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                <span>🎴 Capa {activeLevel === 'single' ? 'Única' : '2'}: Regular (Principal)</span>
               </label>
               <PremiumDropdown
-                value={uc.sleeve_type || 'single'}
-                onChange={(val) => onUpdateUserCard?.(uc.id, { sleeve_type: val as UserCard['sleeve_type'] })}
+                value={uc.sleeve_regular_id || (uc.sleeve_brand && regularSleeve ? regularSleeve.id : 'inherit')}
+                onChange={(val) => {
+                  if (val === 'inherit') {
+                    if (defaultDeckSleeve) {
+                      onUpdateUserCard?.(uc.id, {
+                        sleeve_regular_id: defaultDeckSleeve.id,
+                        sleeve_brand: defaultDeckSleeve.brand,
+                        sleeve_color: defaultDeckSleeve.color_pattern,
+                        sleeve_condition: defaultDeckSleeve.condition || 'good',
+                      });
+                    }
+                  } else {
+                    const picked = availableSleeves.find(s => s.id === val);
+                    if (picked) {
+                      onUpdateUserCard?.(uc.id, {
+                        sleeve_regular_id: picked.id,
+                        sleeve_brand: picked.brand,
+                        sleeve_color: picked.color_pattern,
+                        sleeve_condition: picked.condition || 'good',
+                      });
+                    } else {
+                      onUpdateUserCard?.(uc.id, { sleeve_regular_id: undefined, sleeve_brand: '', sleeve_color: '' });
+                    }
+                  }
+                }}
                 align="full"
                 size="sm"
-                options={SLEEVE_OPTIONS.filter(o => o.value !== 'none')}
+                options={[
+                  ...(defaultDeckSleeve ? [{
+                    value: 'inherit',
+                    label: `✨ Heredar del Mazo (🎴 ${defaultDeckSleeve.name})`
+                  }] : []),
+                  { value: '', label: '-- Sin Funda Principal --' },
+                  ...availableSleeves
+                    .filter(s => (s.category || 'regular') === 'regular' || (!s.category && s.category !== 'fit' && s.category !== 'over'))
+                    .map(s => ({
+                      value: s.id,
+                      label: `🎴 ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_available ?? s.quantity_total} disp.]`
+                    }))
+                ]}
               />
             </div>
-            <div>
-              <label className="block text-[9.5px] font-mono font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                Color y Marca:
-              </label>
-              <div className="flex items-center gap-1.5 px-2 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-xs font-mono truncate min-h-8">
-                <span
-                  className="w-3 h-3 rounded-full border border-black/20 dark:border-white/20 shrink-0 shadow-xs"
-                  style={{ backgroundColor: activeHex }}
+
+            {/* Ranura 3: Over / Oversleeve (Visible si Triple) */}
+            {activeLevel === 'triple' && (
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono font-bold text-purple-700 dark:text-purple-400 flex items-center gap-1">
+                  <span>✨ Capa 3: Over / Oversleeve (Exterior)</span>
+                </label>
+                <PremiumDropdown
+                  value={uc.sleeve_over_id || ''}
+                  onChange={(val) => {
+                    const picked = availableSleeves.find(s => s.id === val);
+                    onUpdateUserCard?.(uc.id, {
+                      sleeve_over_id: val || undefined,
+                      sleeve_outer_brand: picked?.brand || undefined,
+                      sleeve_outer_color: picked?.color_pattern || undefined,
+                    });
+                  }}
+                  align="full"
+                  size="sm"
+                  options={[
+                    { value: '', label: '-- Sin Oversleeve --' },
+                    ...availableSleeves
+                      .filter(s => s.category === 'over' || !availableSleeves.some(x => x.category === 'over'))
+                      .map(s => ({
+                        value: s.id,
+                        label: `✨ ${s.name} (${s.brand}) [${s.quantity_available ?? s.quantity_total} disp.]`,
+                      }))
+                  ]}
                 />
-                <span className="truncate font-bold text-zinc-800 dark:text-zinc-200 text-[10.5px]">
-                  {uc.sleeve_brand || defaultDeckSleeve?.brand || 'Genérica'} {uc.sleeve_color ? `- ${uc.sleeve_color}` : (defaultDeckSleeve ? `- ${defaultDeckSleeve.color_pattern}` : '')}
-                </span>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -239,7 +281,7 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
         <button
           type="button"
           onClick={() => onOpenRegisterSleeveForCard?.(uc)}
-          className="w-full mt-1.5 py-1.5 px-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-400 dark:hover:border-red-600 text-zinc-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 rounded-lg text-[10.5px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-11 sm:min-h-8 touch-manipulation"
+          className="w-full mt-1 py-1.5 px-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-400 dark:hover:border-red-600 text-zinc-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 rounded-lg text-[10.5px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-11 sm:min-h-8 touch-manipulation"
           title="Registrar o sumar el stock de esta funda física a tu inventario"
         >
           <PackagePlus className="w-3.5 h-3.5 text-red-500" />
@@ -547,7 +589,13 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
                         </label>
                         <PremiumDropdown
                           value={uc.storage_location_id || ''}
-                          onChange={(val) => onUpdateCardPhysicalLocation(uc.id, val || null, 0)}
+                          onChange={(val) => {
+                            if (onRequestRelocateCard) {
+                              onRequestRelocateCard(uc, val || null, 0);
+                            } else {
+                              onUpdateCardPhysicalLocation(uc.id, val || null, 0);
+                            }
+                          }}
                           align="full"
                           size="sm"
                           options={[
@@ -696,7 +744,13 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
                       </label>
                       <PremiumDropdown
                         value={uc.storage_location_id || ''}
-                        onChange={(val) => onUpdateCardPhysicalLocation(uc.id, val || null, 0)}
+                        onChange={(val) => {
+                          if (onRequestRelocateCard) {
+                            onRequestRelocateCard(uc, val || null, 0);
+                          } else {
+                            onUpdateCardPhysicalLocation(uc.id, val || null, 0);
+                          }
+                        }}
                         align="full"
                         size="sm"
                         options={[

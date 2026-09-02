@@ -294,19 +294,45 @@ export const CollectionCardDetailModal: React.FC<CollectionCardDetailModalProps>
                     <span className="text-zinc-400 text-[10px] block">Idioma:</span>
                     <span className="font-bold text-zinc-900 dark:text-zinc-100">{lang.flag} {lang.name}</span>
                   </div>
-                  <div>
-                    <span className="text-zinc-400 text-[10px] block">Funda (Sleeve):</span>
+                  <div className="col-span-2">
+                    <span className="text-zinc-400 text-[10px] block">Funda y Protección (Sleeves):</span>
                     <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                      <span className="font-bold text-zinc-900 dark:text-zinc-100 capitalize">
-                        {userCard.sleeve_type && userCard.sleeve_type !== 'none'
-                          ? `${userCard.sleeve_brand || ''} ${userCard.sleeve_color || ''} (${userCard.sleeve_type})`
-                          : 'Sin funda'}
-                      </span>
+                      {userCard.sleeve_type === 'triple' ? (
+                        <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                            🛡️ TRIPLE
+                          </span>
+                          <span className="text-zinc-700 dark:text-zinc-300">
+                            🟢 {userCard.sleeve_inner_brand || 'Inner Fit'} • 🎴 {userCard.sleeve_brand || 'Principal'} {userCard.sleeve_color ? `(${userCard.sleeve_color})` : ''} • ✨ {userCard.sleeve_outer_brand || 'Oversleeve'}
+                          </span>
+                        </div>
+                      ) : userCard.sleeve_type === 'double' ? (
+                        <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                            🛡️ DOBLE
+                          </span>
+                          <span className="text-zinc-700 dark:text-zinc-300">
+                            🟢 {userCard.sleeve_inner_brand || 'Inner Fit'} • 🎴 {userCard.sleeve_brand || 'Principal'} {userCard.sleeve_color ? `(${userCard.sleeve_color})` : ''}
+                          </span>
+                        </div>
+                      ) : userCard.sleeve_type === 'single' ? (
+                        <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                            🛡️ SIMPLE
+                          </span>
+                          <span className="text-zinc-700 dark:text-zinc-300">
+                            🎴 {userCard.sleeve_brand || 'Genérica'} {userCard.sleeve_color ? `(${userCard.sleeve_color})` : ''}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-zinc-400 text-xs">Sin funda asignada</span>
+                      )}
+
                       {onOpenRegisterSleeve && (
                         <button
                           type="button"
                           onClick={() => onOpenRegisterSleeve(userCard)}
-                          className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-red-100 dark:hover:bg-red-950/50 text-zinc-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 text-[9.5px] font-mono font-bold transition-colors cursor-pointer"
+                          className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-red-100 dark:hover:bg-red-950/50 text-zinc-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 text-[9.5px] font-mono font-bold transition-colors cursor-pointer ml-auto"
                           title="Registrar o sumar stock a Mis Fundas"
                         >
                           + Inventario
