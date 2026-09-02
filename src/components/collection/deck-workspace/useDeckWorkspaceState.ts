@@ -18,8 +18,18 @@ interface UseDeckWorkspaceStateProps {
   onSuccess?: () => void;
 }
 
+export const isExtraDeckCardType = (cardOrType?: string | { type?: string; card_details?: { type?: string } } | null): boolean => {
+  if (!cardOrType) return false;
+  const rawType = typeof cardOrType === 'string'
+    ? cardOrType
+    : cardOrType.card_details?.type || cardOrType.type || '';
+  const t = rawType.toLowerCase();
+  return t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link');
+};
+
 export function useDeckWorkspaceState({
   isOpen,
+  onClose,
   deck,
   decks = [],
   onSelectDeck,
@@ -30,10 +40,10 @@ export function useDeckWorkspaceState({
   const toast = useToast();
 
   // Deck Activo y Lista de Cartas
-  const [currentDeck, setCurrentDeck] = useState<Deck | null>(deck);
+  const [currentDeck, setCurrentDeck] = useState<Deck | null>(deck || null);
   const [deckCards, setDeckCards] = useState<DeckCardDetail[]>(deck?.cards || []);
   const [userCards, setUserCards] = useState<UserCard[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [hasMutated, setHasMutated] = useState(false);
 
   // Ficha Técnica Form State
@@ -48,8 +58,28 @@ export function useDeckWorkspaceState({
   const [availableSleeves, setAvailableSleeves] = useState<SleeveInventory[]>(sleeves);
   const [mainSleeveId, setMainSleeveId] = useState<string>('');
   const [extraSleeveId, setExtraSleeveId] = useState<string>('');
+  const [poolSleeveId, setPoolSleeveId] = useState<string>('');
   const [isNewSleeveModalOpen, setIsNewSleeveModalOpen] = useState(false);
-  const [targetSleeveSection, setTargetSleeveSection] = useState<'main_side' | 'extra' | null>(null);
+  const [targetSleeveSection, setTargetSleeveSection] = useState<'main_side' | 'extra' | 'pool' | null>(null);
+  const [sleeveModalTab, setSleeveModalTab] = useState<'add_stock' | 'create'>('add_stock');
+  const [sleeveModalInitialId, setSleeveModalInitialId] = useState<string | undefined>(undefined);
+  const [sleeveModalSuggestedQty, setSleeveModalSuggestedQty] = useState<number | undefined>(undefined);
+  const [sleeveModalSectionTotal, setSleeveModalSectionTotal] = useState<number | undefined>(undefined);
+
+  const openSleeveModal = (
+    section: 'main_side' | 'extra' | 'pool',
+    tab: 'add_stock' | 'create' = 'add_stock',
+    sleeveId?: string,
+    suggestedQty?: number,
+    sectionTotal?: number
+  ) => {
+    setTargetSleeveSection(section);
+    setSleeveModalTab(tab);
+    setSleeveModalInitialId(sleeveId);
+    setSleeveModalSuggestedQty(suggestedQty);
+    setSleeveModalSectionTotal(sectionTotal);
+    setIsNewSleeveModalOpen(true);
+  };
 
   // Modo del Panel Derecho: 'details' (Ficha Técnica) vs 'card' (Detalles de Carta)
   const [rightMode, setRightMode] = useState<RightDeckMode>('details');
@@ -92,6 +122,7 @@ export function useDeckWorkspaceState({
     compartmentIndex: number;
     mainSleeveId: string;
     extraSleeveId: string;
+    poolSleeveId: string;
   } | null>(null);
 
   // Mobile Tabs
@@ -146,14 +177,18 @@ export function useDeckWorkspaceState({
     // Cargar fundas asignadas al deck si existen
     let initMainSleeve = '';
     let initExtraSleeve = '';
+    let initPoolSleeve = '';
     if (deck.sleeves && Array.isArray(deck.sleeves)) {
       const mainSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'main' || ('section' in s ? s.section : s.section_type) === 'main_side');
       const extraSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'extra');
+      const poolSl = deck.sleeves.find(s => ('section' in s ? s.section : s.section_type) === 'pool' || ('section' in s ? s.section : s.section_type) === 'extras');
       initMainSleeve = mainSl?.sleeve_id || '';
       initExtraSleeve = extraSl?.sleeve_id || '';
+      initPoolSleeve = poolSl?.sleeve_id || '';
     }
     setMainSleeveId(initMainSleeve);
     setExtraSleeveId(initExtraSleeve);
+    setPoolSleeveId(initPoolSleeve);
 
     setInitialFormState({
       name: deck.name || '',
@@ -163,6 +198,7 @@ export function useDeckWorkspaceState({
       compartmentIndex: initialComp,
       mainSleeveId: initMainSleeve,
       extraSleeveId: initExtraSleeve,
+      poolSleeveId: initPoolSleeve,
     });
 
     const fetchDeckDetails = async () => {
@@ -178,6 +214,30 @@ export function useDeckWorkspaceState({
           const json = await deckRes.json();
           if (json.data) {
             setDeckCards(json.data.cards || []);
+
+            if (json.data.sleeves && Array.isArray(json.data.sleeves)) {
+              const mainSl = json.data.sleeves.find((s: { section?: string; section_type?: string; sleeve_id?: string }) =>
+                (s.section === 'main' || s.section === 'main_side' || s.section_type === 'main' || s.section_type === 'main_side')
+              );
+              const extraSl = json.data.sleeves.find((s: { section?: string; section_type?: string; sleeve_id?: string }) =>
+                (s.section === 'extra' || s.section_type === 'extra')
+              );
+              const poolSl = json.data.sleeves.find((s: { section?: string; section_type?: string; sleeve_id?: string }) =>
+                (s.section === 'pool' || s.section === 'extras' || s.section_type === 'pool' || s.section_type === 'extras')
+              );
+              const loadedMain = mainSl?.sleeve_id || '';
+              const loadedExtra = extraSl?.sleeve_id || '';
+              const loadedPool = poolSl?.sleeve_id || '';
+              setMainSleeveId(loadedMain);
+              setExtraSleeveId(loadedExtra);
+              setPoolSleeveId(loadedPool);
+              setInitialFormState(prev => prev ? {
+                ...prev,
+                mainSleeveId: loadedMain,
+                extraSleeveId: loadedExtra,
+                poolSleeveId: loadedPool,
+              } : null);
+            }
           }
         }
 
@@ -273,9 +333,21 @@ export function useDeckWorkspaceState({
     return deckCards.filter(c => c.section === 'side').reduce((sum, c) => sum + c.count, 0);
   }, [deckCards]);
 
+  const sideMainCount = useMemo(() => {
+    return deckCards.filter(c => c.section === 'side' && !isExtraDeckCardType(c)).reduce((sum, c) => sum + c.count, 0);
+  }, [deckCards]);
+
+  const sideExtraCount = useMemo(() => {
+    return deckCards.filter(c => c.section === 'side' && isExtraDeckCardType(c)).reduce((sum, c) => sum + c.count, 0);
+  }, [deckCards]);
+
   const totalPoolCount = useMemo(() => {
     return deckCards.filter(c => c.section === 'pool' || c.section === 'extras').reduce((sum, c) => sum + c.count, 0);
   }, [deckCards]);
+
+  const mainRequiredSleeves = totalMainCount + sideMainCount;
+  const extraRequiredSleeves = totalExtraCount + sideExtraCount;
+  const poolRequiredSleeves = totalPoolCount;
 
   const totalDeckCount = totalMainCount + totalExtraCount + totalSideCount + totalPoolCount;
 
@@ -497,12 +569,15 @@ export function useDeckWorkspaceState({
     setSavingDeck(true);
 
     try {
-      const sleevesPayload: { sleeve_id: string; section: 'main_side' | 'extra' }[] = [];
+      const sleevesPayload: { sleeve_id: string; section: 'main_side' | 'extra' | 'pool' }[] = [];
       if (mainSleeveId) {
         sleevesPayload.push({ sleeve_id: mainSleeveId, section: 'main_side' });
       }
       if (extraSleeveId) {
         sleevesPayload.push({ sleeve_id: extraSleeveId, section: 'extra' });
+      }
+      if (poolSleeveId) {
+        sleevesPayload.push({ sleeve_id: poolSleeveId, section: 'pool' });
       }
 
       const res = await fetch(`/api/decks/${currentDeck.id}`, {
@@ -530,7 +605,27 @@ export function useDeckWorkspaceState({
         compartmentIndex: compartmentIndex,
         mainSleeveId: mainSleeveId,
         extraSleeveId: extraSleeveId,
+        poolSleeveId: poolSleeveId,
       });
+
+      // Refrescar fundas y cartas tras guardar
+      try {
+        const [sleevesRes, cardsRes] = await Promise.all([
+          fetch('/api/collection/sleeve-inventory'),
+          fetch('/api/collection/cards'),
+        ]);
+        if (sleevesRes.ok) {
+          const json = await sleevesRes.json();
+          setAvailableSleeves(json.data || []);
+        }
+        if (cardsRes.ok) {
+          const json = await cardsRes.json();
+          setUserCards(json.data || []);
+        }
+      } catch (refreshErr) {
+        console.warn('Error al refrescar fundas post-guardado:', refreshErr);
+      }
+
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error('Error al guardar el deck:', err);
@@ -550,9 +645,10 @@ export function useDeckWorkspaceState({
       storageLocationId !== initialFormState.storageLocationId ||
       compartmentIndex !== initialFormState.compartmentIndex ||
       mainSleeveId !== initialFormState.mainSleeveId ||
-      extraSleeveId !== initialFormState.extraSleeveId
+      extraSleeveId !== initialFormState.extraSleeveId ||
+      poolSleeveId !== initialFormState.poolSleeveId
     );
-  }, [initialFormState, name, format, isActive, storageLocationId, compartmentIndex, mainSleeveId, extraSleeveId]);
+  }, [initialFormState, name, format, isActive, storageLocationId, compartmentIndex, mainSleeveId, extraSleeveId, poolSleeveId]);
 
   // Actualizar metadatos de una copia física (rareza, condición, proxy, notas, funda, ubicación)
   const handleUpdateUserCard = async (userCardId: string, fields: Partial<UserCard>) => {
@@ -696,10 +792,19 @@ export function useDeckWorkspaceState({
     setMainSleeveId,
     extraSleeveId,
     setExtraSleeveId,
+    poolSleeveId,
+    setPoolSleeveId,
     isNewSleeveModalOpen,
     setIsNewSleeveModalOpen,
     targetSleeveSection,
     setTargetSleeveSection,
+    sleeveModalTab,
+    setSleeveModalTab,
+    sleeveModalInitialId,
+    setSleeveModalInitialId,
+    sleeveModalSuggestedQty,
+    sleeveModalSectionTotal,
+    openSleeveModal,
 
     // Right Mode & Selected Card
     rightMode,
@@ -725,7 +830,12 @@ export function useDeckWorkspaceState({
     totalMainCount,
     totalExtraCount,
     totalSideCount,
+    sideMainCount,
+    sideExtraCount,
     totalPoolCount,
+    mainRequiredSleeves,
+    extraRequiredSleeves,
+    poolRequiredSleeves,
     totalDeckCount,
 
     // Search Panel

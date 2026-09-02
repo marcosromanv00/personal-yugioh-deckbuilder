@@ -6,7 +6,11 @@ import {
   Shield, 
   Plus, 
   Loader2, 
-  Check 
+  Check,
+  AlertTriangle,
+  PackagePlus,
+  CheckCircle2,
+  Package
 } from 'lucide-react';
 import { StorageLocation, SleeveInventory } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
@@ -28,13 +32,26 @@ interface DeckMetadataFormProps {
   setMainSleeveId: (s: string) => void;
   extraSleeveId: string;
   setExtraSleeveId: (s: string) => void;
+  poolSleeveId?: string;
+  setPoolSleeveId?: (s: string) => void;
   totalMainCount: number;
   totalSideCount: number;
+  sideMainCount?: number;
+  sideExtraCount?: number;
   totalExtraCount: number;
   totalPoolCount: number;
+  mainRequiredSleeves?: number;
+  extraRequiredSleeves?: number;
+  poolRequiredSleeves?: number;
   savingDeck: boolean;
   handleSaveDeck: () => void;
-  onOpenNewSleeveModal: (section: 'main_side' | 'extra') => void;
+  onOpenNewSleeveModal: (
+    section: 'main_side' | 'extra' | 'pool',
+    tab?: 'add_stock' | 'create',
+    initialSleeveId?: string,
+    suggestedQty?: number,
+    sectionTotal?: number
+  ) => void;
 }
 
 export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
@@ -54,15 +71,26 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
   setMainSleeveId,
   extraSleeveId,
   setExtraSleeveId,
+  poolSleeveId = '',
+  setPoolSleeveId,
   totalMainCount,
   totalSideCount,
+  sideMainCount = 0,
+  sideExtraCount = 0,
   totalExtraCount,
   totalPoolCount,
+  mainRequiredSleeves,
+  extraRequiredSleeves,
+  poolRequiredSleeves,
   savingDeck,
   handleSaveDeck,
   onOpenNewSleeveModal,
 }) => {
   const currentBaseLocation = locations.find(l => l.id === storageLocationId);
+
+  const mainRequired = mainRequiredSleeves ?? (totalMainCount + sideMainCount);
+  const extraRequired = extraRequiredSleeves ?? (totalExtraCount + sideExtraCount);
+  const poolRequired = poolRequiredSleeves ?? totalPoolCount;
 
   return (
     <div className="space-y-4">
@@ -190,24 +218,31 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
       <div className="p-3.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-3 shadow-2xs">
         <div className="flex items-center justify-between">
           <span className="text-[10.5px] font-mono font-black uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-purple-500" />
+            <Shield className="w-3.5 h-3.5 text-red-600 dark:text-red-500" />
             <span>Fundas Asignadas (Sleeves)</span>
           </span>
           <button
             type="button"
-            onClick={() => onOpenNewSleeveModal('main_side')}
+            onClick={() => onOpenNewSleeveModal('main_side', 'add_stock')}
             className="text-[10.5px] font-mono font-bold text-red-600 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
           >
             <Plus className="w-3 h-3" />
-            <span>Nueva Funda</span>
+            <span>Gestionar / Nueva</span>
           </button>
         </div>
 
         {/* Fundas Main / Side */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-mono text-zinc-500 font-bold block">
-            Main & Side Deck ({totalMainCount + totalSideCount} cartas):
-          </label>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono text-zinc-500 font-bold block">
+              Main & Side Deck ({mainRequired} cartas):
+            </label>
+            {sideMainCount > 0 && (
+              <span className="text-[9px] font-mono text-zinc-400">
+                {totalMainCount} Main + {sideMainCount} Side
+              </span>
+            )}
+          </div>
           <PremiumDropdown
             value={mainSleeveId}
             onChange={(val) => setMainSleeveId(val)}
@@ -217,17 +252,78 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
               { value: '', label: '-- Sin Funda Asignada --' },
               ...availableSleeves.map((s) => ({
                 value: s.id,
-                label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_total} totales]`,
+                label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_available ?? s.quantity_total} disp. / ${s.quantity_total} tot.]`,
               })),
             ]}
           />
+
+          {/* Desglose en vivo Main & Side */}
+          {(() => {
+            const selectedMainSleeve = availableSleeves.find((s) => s.id === mainSleeveId);
+            if (!selectedMainSleeve) return null;
+            const avail = selectedMainSleeve.quantity_available ?? selectedMainSleeve.quantity_total;
+            const diff = avail - mainRequired;
+            const isDeficit = diff < 0;
+            const missingCount = Math.abs(diff);
+
+            if (isDeficit) {
+              return (
+                <div className="p-2.5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-300 font-mono text-[10.5px]">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold block">Faltan {missingCount} fundas para este mazo</span>
+                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                          {avail} disponibles para {mainRequired} cartas
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenNewSleeveModal('main_side', 'add_stock', selectedMainSleeve.id, missingCount, mainRequired)}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10.5px] font-bold font-mono flex items-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0"
+                    >
+                      <PackagePlus className="w-3 h-3" />
+                      <span>+ Stock</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between gap-2 text-[10.5px] font-mono text-emerald-700 dark:text-emerald-400">
+                <div className="flex items-center gap-1.5 truncate">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span className="truncate">
+                    {mainRequired} cartas cubiertas • <b>{diff}</b> fundas libres en inventario
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenNewSleeveModal('main_side', 'add_stock', selectedMainSleeve.id, undefined, mainRequired)}
+                  className="text-[10px] text-emerald-700 dark:text-emerald-400 hover:underline font-bold shrink-0 cursor-pointer"
+                >
+                  + Stock
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Fundas Extra Deck */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-mono text-zinc-500 font-bold block">
-            Extra Deck ({totalExtraCount} cartas):
-          </label>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono text-zinc-500 font-bold block">
+              Extra Deck ({extraRequired} cartas):
+            </label>
+            {sideExtraCount > 0 && (
+              <span className="text-[9px] font-mono text-zinc-400">
+                {totalExtraCount} Extra + {sideExtraCount} Side
+              </span>
+            )}
+          </div>
           <PremiumDropdown
             value={extraSleeveId}
             onChange={(val) => setExtraSleeveId(val)}
@@ -237,11 +333,143 @@ export const DeckMetadataForm: React.FC<DeckMetadataFormProps> = ({
               { value: '', label: '-- Sin Funda Asignada --' },
               ...availableSleeves.map((s) => ({
                 value: s.id,
-                label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_total} totales]`,
+                label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_available ?? s.quantity_total} disp. / ${s.quantity_total} tot.]`,
               })),
             ]}
           />
+
+          {/* Desglose en vivo Extra Deck */}
+          {(() => {
+            const selectedExtraSleeve = availableSleeves.find((s) => s.id === extraSleeveId);
+            if (!selectedExtraSleeve) return null;
+            const avail = selectedExtraSleeve.quantity_available ?? selectedExtraSleeve.quantity_total;
+            const diff = avail - extraRequired;
+            const isDeficit = diff < 0;
+            const missingCount = Math.abs(diff);
+
+            if (isDeficit) {
+              return (
+                <div className="p-2.5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-300 font-mono text-[10.5px]">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold block">Faltan {missingCount} fundas para el Extra</span>
+                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                          {avail} disponibles para {extraRequired} cartas
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenNewSleeveModal('extra', 'add_stock', selectedExtraSleeve.id, missingCount, extraRequired)}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10.5px] font-bold font-mono flex items-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0"
+                    >
+                      <PackagePlus className="w-3 h-3" />
+                      <span>+ Stock</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between gap-2 text-[10.5px] font-mono text-emerald-700 dark:text-emerald-400">
+                <div className="flex items-center gap-1.5 truncate">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span className="truncate">
+                    {extraRequired} cartas cubiertas • <b>{diff}</b> fundas libres en inventario
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenNewSleeveModal('extra', 'add_stock', selectedExtraSleeve.id, undefined, extraRequired)}
+                  className="text-[10px] text-emerald-700 dark:text-emerald-400 hover:underline font-bold shrink-0 cursor-pointer"
+                >
+                  + Stock
+                </button>
+              </div>
+            );
+          })()}
         </div>
+
+        {/* Fundas Reserva / Pool (Opcional) */}
+        {setPoolSleeveId && (
+          <div className="space-y-1.5 pt-2 border-t border-zinc-100 dark:border-zinc-900">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-mono text-zinc-500 font-bold block">
+                Reserva / Pool ({poolRequired} cartas) <span className="font-normal opacity-70">(Opcional)</span>:
+              </label>
+            </div>
+            <PremiumDropdown
+              value={poolSleeveId}
+              onChange={(val) => setPoolSleeveId(val)}
+              align="full"
+              size="sm"
+              options={[
+                { value: '', label: '-- Sin Funda Asignada --' },
+                ...availableSleeves.map((s) => ({
+                  value: s.id,
+                  label: `🛡️ ${s.name} (${s.brand} - ${s.color_pattern}) [${s.quantity_available ?? s.quantity_total} disp. / ${s.quantity_total} tot.]`,
+                })),
+              ]}
+            />
+
+            {/* Desglose en vivo Reserva / Pool */}
+            {(() => {
+              const selectedPoolSleeve = availableSleeves.find((s) => s.id === poolSleeveId);
+              if (!selectedPoolSleeve) return null;
+              const avail = selectedPoolSleeve.quantity_available ?? selectedPoolSleeve.quantity_total;
+              const diff = avail - poolRequired;
+              const isDeficit = diff < 0;
+              const missingCount = Math.abs(diff);
+
+              if (isDeficit) {
+                return (
+                  <div className="p-2.5 bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-300 font-mono text-[10.5px]">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold block">Faltan {missingCount} fundas para la reserva</span>
+                          <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                            {avail} disponibles para {poolRequired} cartas
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onOpenNewSleeveModal('pool', 'add_stock', selectedPoolSleeve.id, missingCount, poolRequired)}
+                        className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10.5px] font-bold font-mono flex items-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0"
+                      >
+                        <PackagePlus className="w-3 h-3" />
+                        <span>+ Stock</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between gap-2 text-[10.5px] font-mono text-emerald-700 dark:text-emerald-400">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="truncate">
+                      {poolRequired} cartas cubiertas • <b>{diff}</b> fundas libres en inventario
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenNewSleeveModal('pool', 'add_stock', selectedPoolSleeve.id, undefined, poolRequired)}
+                    className="text-[10px] text-emerald-700 dark:text-emerald-400 hover:underline font-bold shrink-0 cursor-pointer"
+                  >
+                    + Stock
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Resumen Físico y Ratios */}

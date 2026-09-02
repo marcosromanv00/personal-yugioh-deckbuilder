@@ -702,6 +702,7 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
 
       <SleeveInventoryFormModal
         isOpen={isNewSleeveModalOpen}
+        availableSleeves={availableSleeves}
         onClose={() => {
           setIsNewSleeveModalOpen(false);
           setTargetSleeveSection(null);
