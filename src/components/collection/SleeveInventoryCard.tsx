@@ -10,6 +10,7 @@ interface SleeveInventoryCardProps {
   onEdit: (sleeve: SleeveInventory) => void;
   onDelete: (sleeve: SleeveInventory) => void;
   onAddStock?: (sleeve: SleeveInventory) => void;
+  onViewDetails?: (sleeve: SleeveInventory) => void;
 }
 
 const SIZE_LABELS: Record<string, string> = {
@@ -24,7 +25,13 @@ const CONDITION_CONFIG: Record<string, { label: string; color: string; bg: strin
   worn: { label: 'Desgastadas', color: 'text-red-400', bg: 'bg-red-500/15 border-red-500/30' },
 };
 
-export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve, onEdit, onDelete, onAddStock }) => {
+export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ 
+  sleeve, 
+  onEdit, 
+  onDelete, 
+  onAddStock,
+  onViewDetails 
+}) => {
   const conditionCfg = CONDITION_CONFIG[sleeve.condition] || CONDITION_CONFIG.good;
   const available = sleeve.quantity_available ?? sleeve.quantity_total;
   const availPct = sleeve.quantity_total > 0 ? (available / sleeve.quantity_total) * 100 : 100;
@@ -34,7 +41,8 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden hover:border-red-500/50 shadow-xs transition-all duration-200 flex flex-col justify-between"
+      onClick={() => onViewDetails?.(sleeve)}
+      className="group relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden hover:border-red-500/60 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between cursor-pointer"
     >
       <div>
         {/* Color swatch strip */}
@@ -47,19 +55,29 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve
           {/* Header */}
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="min-w-0">
-              <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate">{sleeve.name}</h3>
+              <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
+                {sleeve.name}
+              </h3>
               <p className="text-xs font-bold text-zinc-500 truncate font-mono">{sleeve.brand}</p>
             </div>
             <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button
-                onClick={() => onEdit(sleeve)}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(sleeve);
+                }}
                 className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer"
                 title="Editar"
               >
                 <Edit2 className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={() => onDelete(sleeve)}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(sleeve);
+                }}
                 className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-red-100 dark:hover:bg-red-950/40 hover:text-red-500 text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer"
                 title="Eliminar"
               >
@@ -139,7 +157,10 @@ export const SleeveInventoryCard: React.FC<SleeveInventoryCardProps> = ({ sleeve
           {onAddStock && (
             <button
               type="button"
-              onClick={() => onAddStock(sleeve)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddStock(sleeve);
+              }}
               className="mt-3.5 w-full py-2 px-3 bg-zinc-50 dark:bg-zinc-800/60 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 border border-zinc-200 dark:border-zinc-700/80 hover:border-red-500/40 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-h-10 touch-manipulation"
             >
               <PackagePlus className="w-3.5 h-3.5 text-red-500" />
