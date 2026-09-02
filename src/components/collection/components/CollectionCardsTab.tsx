@@ -12,7 +12,9 @@ import {
   ChevronLeft, 
   ChevronRight, 
   ChevronsLeft, 
-  ChevronsRight 
+  ChevronsRight,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
@@ -93,8 +95,26 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
   const selectedCount = selectedCardIds.length;
   const gridTopRef = useRef<HTMLDivElement>(null);
 
+  // Estado para desplegar filtros avanzados
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState<boolean>(false);
+
   // Estado para carta seleccionada en modal de detalles
   const [selectedCardForDetail, setSelectedCardForDetail] = useState<UserCard | null>(null);
+
+  // Conteo de filtros activos
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (allCollectionFilters.type) count++;
+    if (allCollectionFilters.attribute) count++;
+    if (allCollectionFilters.race) count++;
+    if (allCollectionFilters.level) count++;
+    if (allCollectionFilters.atkMin || allCollectionFilters.atkMax) count++;
+    if (allCollectionFilters.defMin || allCollectionFilters.defMax) count++;
+    if (allCollectionFilters.archetype) count++;
+    if (allCollectionFilters.rarity) count++;
+    if (allCollectionFilters.status) count++;
+    return count;
+  }, [allCollectionFilters]);
 
   // Estados de Paginación Clásica
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -147,8 +167,24 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
     return pages;
   };
 
+  const handleResetFilters = () => {
+    setAllCollectionFilters({
+      type: '',
+      attribute: '',
+      race: '',
+      level: '',
+      atkMin: '',
+      atkMax: '',
+      defMin: '',
+      defMax: '',
+      archetype: '',
+      rarity: '',
+      status: ''
+    });
+  };
+
   return (
-    <div className="space-y-6" ref={gridTopRef}>
+    <div className="space-y-4" ref={gridTopRef}>
       {/* Header Disclaimer for Favorites Mode */}
       {activeTab === 'favorites' && (
         <div className="flex items-center gap-2 p-3 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 shadow-xs">
@@ -159,136 +195,162 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
         </div>
       )}
 
-      {/* General Search Input & Selection Toggle */}
-      <div className="flex items-center gap-2.5 w-full">
-        <div className="relative flex-1">
+      {/* ═══ BARRA COMPACTA UNIFICADA DE UTILIDADES ═══ */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+        {/* Buscador de Texto */}
+        <div className="relative flex-1 min-w-48">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             placeholder="Buscar por nombre, rareza, notas o card_id:XXXXX..."
             value={allSearchQuery}
             onChange={(e) => setAllSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-2xl text-xs font-bold focus:outline-none shadow-xs transition-colors"
+            className="w-full pl-10 pr-8 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-red-500 transition-colors"
           />
-          <Search className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
-        </div>
-
-        {/* Botón Modo Selección */}
-        {setIsSelectMode && (
-          <div className="flex items-center gap-1.5 shrink-0">
+          {allSearchQuery && (
             <button
               type="button"
-              onClick={() => setIsSelectMode(p => !p)}
-              className={`px-3 py-2.5 rounded-2xl text-xs font-bold font-mono transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 select-none ${
-                isSelectMode
-                  ? 'bg-red-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800'
-              }`}
-              title={isSelectMode ? 'Desactivar selección múltiple' : 'Activar selección múltiple de cartas'}
+              onClick={() => setAllSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer p-0.5"
+              title="Limpiar búsqueda"
             >
-              <CheckSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Selección</span>
-              {selectedCount > 0 && (
-                <span className="text-[10px] bg-red-950 text-white px-1.5 py-0.2 rounded-full font-bold">
-                  {selectedCount}
-                </span>
-              )}
+              <X className="w-3.5 h-3.5" />
             </button>
+          )}
+        </div>
 
-            {isSelectMode && (
-              <>
-                <button
-                  type="button"
-                  onClick={onSelectAll}
-                  className="p-2.5 rounded-2xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 text-xs font-mono transition-colors cursor-pointer"
-                  title="Seleccionar todas las cartas de esta vista"
-                >
-                  <CheckCheck className="w-4 h-4 text-red-500" />
-                </button>
-                {selectedCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={onClearSelection}
-                    className="p-2.5 rounded-2xl bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 text-xs font-mono transition-colors cursor-pointer"
-                    title="Deseleccionar todas"
-                  >
-                    <X className="w-4 h-4 text-zinc-400" />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Ubicación Dropdown (solo en Colección Completa) */}
+          {activeTab === 'complete' && (
+            <PremiumDropdown
+              value={locationFilter}
+              onChange={(val) => {
+                setLocationFilter(val);
+                setDeckFilter('');
+              }}
+              size="sm"
+              menuWidth="min-w-52"
+              options={[
+                { value: '', label: '📍 Todas las ubicaciones' },
+                { value: 'inbox', label: '📥 Sin Clasificar (Inbox)' },
+                { value: 'in_deck', label: '⚔️ En Deck' },
+                ...locations.map((l) => ({ value: l.id, label: `📦 ${l.name}` })),
+              ]}
+            />
+          )}
 
-      {/* Location / Deck filters (only in Complete Tab) */}
-      {activeTab === 'complete' && (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
-            <span className="text-[10px] uppercase font-black tracking-wider text-zinc-500 font-mono">Ubicación:</span>
-          </div>
-          <PremiumDropdown
-            value={locationFilter}
-            onChange={(val) => {
-              setLocationFilter(val);
-              setDeckFilter('');
-            }}
-            size="sm"
-            menuWidth="min-w-56"
-            options={[
-              { value: '', label: 'Todas las ubicaciones' },
-              { value: 'inbox', label: '📥 Sin Clasificar (Inbox)' },
-              { value: 'in_deck', label: '⚔️ En Deck' },
-              ...locations.map((l) => ({ value: l.id, label: `📦 ${l.name}` })),
-            ]}
-          />
-          {locationFilter === 'in_deck' && (
+          {activeTab === 'complete' && locationFilter === 'in_deck' && (
             <PremiumDropdown
               value={deckFilter}
               onChange={(val) => setDeckFilter(val)}
               size="sm"
-              menuWidth="min-w-52"
+              menuWidth="min-w-48"
               options={[
                 { value: '', label: 'Todos los decks' },
                 ...decks.map((d) => ({ value: d.id, label: d.name })),
               ]}
             />
           )}
-          {locationFilter && (
+
+          {/* Toggle Filtros Avanzados */}
+          <button
+            type="button"
+            onClick={() => setIsAdvancedFiltersOpen((p) => !p)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs min-h-10 touch-manipulation ${
+              isAdvancedFiltersOpen || activeFilterCount > 0
+                ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/40'
+                : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-transparent'
+            }`}
+            title="Filtros avanzados de cartas"
+          >
+            <Filter className="w-3.5 h-3.5 text-red-500" />
+            <span>Filtros</span>
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold font-mono">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* Botón Modo Selección */}
+          {setIsSelectMode && (
             <button
-              onClick={() => { setLocationFilter(''); setDeckFilter(''); }}
-              className="text-[10px] font-bold text-red-600 hover:text-red-500 underline cursor-pointer font-mono"
+              type="button"
+              onClick={() => setIsSelectMode((p) => !p)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs min-h-10 touch-manipulation ${
+                isSelectMode
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-transparent'
+              }`}
+              title={isSelectMode ? 'Desactivar selección múltiple' : 'Activar selección múltiple'}
             >
-              Limpiar
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Selección</span>
+              {selectedCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-red-950 text-white text-[10px] font-bold font-mono">
+                  {selectedCount}
+                </span>
+              )}
             </button>
           )}
+
+          {isSelectMode && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onSelectAll}
+                className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-mono transition-colors cursor-pointer min-h-10 min-w-10 flex items-center justify-center touch-manipulation"
+                title="Seleccionar todas las cartas de esta vista"
+              >
+                <CheckCheck className="w-4 h-4 text-red-500" />
+              </button>
+              {selectedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={onClearSelection}
+                  className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-mono transition-colors cursor-pointer min-h-10 min-w-10 flex items-center justify-center touch-manipulation"
+                  title="Deseleccionar todas"
+                >
+                  <X className="w-4 h-4 text-zinc-400" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Panel Plegable de Filtros Avanzados */}
+      {isAdvancedFiltersOpen && (
+        <div className="p-3 sm:p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
+            <span className="text-xs font-mono font-bold uppercase text-zinc-500 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-red-500" />
+              Filtros Avanzados de Yu-Gi-Oh!
+            </span>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-mono font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Restablecer ({activeFilterCount})
+              </button>
+            )}
+          </div>
+          <CardFilters
+            filters={allCollectionFilters}
+            onFilterChange={setAllCollectionFilters}
+            onReset={handleResetFilters}
+            showRarity={true}
+            showCollectionOptions={true}
+          />
         </div>
       )}
 
-      {/* Advanced Filters Component */}
-      <CardFilters
-        filters={allCollectionFilters}
-        onFilterChange={setAllCollectionFilters}
-        onReset={() => setAllCollectionFilters({
-          type: '',
-          attribute: '',
-          race: '',
-          level: '',
-          atkMin: '',
-          atkMax: '',
-          defMin: '',
-          defMax: '',
-          archetype: '',
-          rarity: '',
-          status: ''
-        })}
-        showRarity={true}
-        showCollectionOptions={true}
-      />
-
-      {/* TOP PAGINATION INFO & CONTROLS */}
+      {/* ═══ RESUMEN & PAGINACIÓN COMPACTA ═══ */}
       {!loadingAllCards && totalCards > 0 && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-1">
           <div className="flex items-center gap-3 text-xs font-mono text-zinc-500 dark:text-zinc-400">
             <span>
               Mostrando <strong className="text-zinc-900 dark:text-zinc-100">{startItem}</strong> - <strong className="text-zinc-900 dark:text-zinc-100">{endItem}</strong> de <strong className="text-red-600 dark:text-red-400">{totalCards.toLocaleString()}</strong> cartas

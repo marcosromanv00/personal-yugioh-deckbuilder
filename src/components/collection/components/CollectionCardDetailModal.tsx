@@ -37,6 +37,7 @@ interface CollectionCardDetailModalProps {
   onDelete: (id: string) => Promise<void>;
   onOpenSplitModal?: (card?: UserCard) => void;
   onOpenContainer?: (loc: StorageLocation) => void;
+  onOpenRegisterSleeve?: (uc: UserCard) => void;
   duplicateInfo?: DuplicateMatchInfo;
 }
 
@@ -52,6 +53,7 @@ export const CollectionCardDetailModal: React.FC<CollectionCardDetailModalProps>
   onDelete,
   onOpenSplitModal,
   onOpenContainer,
+  onOpenRegisterSleeve,
   duplicateInfo,
 }) => {
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
@@ -294,9 +296,23 @@ export const CollectionCardDetailModal: React.FC<CollectionCardDetailModalProps>
                   </div>
                   <div>
                     <span className="text-zinc-400 text-[10px] block">Funda (Sleeve):</span>
-                    <span className="font-bold text-zinc-900 dark:text-zinc-100 capitalize">
-                      {userCard.sleeve_type && userCard.sleeve_type !== 'none' ? `${userCard.sleeve_color || ''} (${userCard.sleeve_type})` : 'Sin funda'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100 capitalize">
+                        {userCard.sleeve_type && userCard.sleeve_type !== 'none'
+                          ? `${userCard.sleeve_brand || ''} ${userCard.sleeve_color || ''} (${userCard.sleeve_type})`
+                          : 'Sin funda'}
+                      </span>
+                      {onOpenRegisterSleeve && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenRegisterSleeve(userCard)}
+                          className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-red-100 dark:hover:bg-red-950/50 text-zinc-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 text-[9.5px] font-mono font-bold transition-colors cursor-pointer"
+                          title="Registrar o sumar stock a Mis Fundas"
+                        >
+                          + Inventario
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-zinc-400 text-[10px] block">Copias Registradas:</span>
