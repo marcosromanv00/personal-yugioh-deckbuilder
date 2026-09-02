@@ -85,6 +85,13 @@ export async function GET(req: NextRequest) {
             image_url,
             image_url_small
           )
+        ),
+        sleeves:yg_deck_sleeves (
+          id,
+          sleeve_id,
+          section_type,
+          quantity_used,
+          sleeve_details:yg_sleeves (*)
         )
       `)
       .order('created_at', { ascending: false });

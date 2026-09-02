@@ -5,7 +5,7 @@ import { SleeveInventoryFormData } from '@/types/collection';
 const isSupabaseConfigured = () =>
   !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-// GET: List all sleeves with quantity_available computed
+// GET: List all sleeves with quantity_available and used_in_decks computed
 export async function GET() {
   try {
     if (!isSupabaseConfigured()) {
@@ -20,22 +20,43 @@ export async function GET() {
 
     if (error) throw error;
 
-    // Compute quantity_available = quantity_total - SUM(quantity_used across deck_sleeves)
+    // Fetch deck sleeves joined with decks to know which decks are using them
     const { data: deckSleeves, error: dsError } = await supabase
       .from('yg_deck_sleeves')
-      .select('sleeve_id, quantity_used');
+      .select('sleeve_id, quantity_used, deck:yg_decks(id, name)');
 
     if (dsError) throw dsError;
 
     const usedMap: Record<string, number> = {};
+    const deckUsageMap: Record<string, { deck_id: string; deck_name: string; quantity_used: number }[]> = {};
+
     for (const ds of deckSleeves || []) {
-      usedMap[ds.sleeve_id] = (usedMap[ds.sleeve_id] || 0) + (ds.quantity_used || 0);
+      const sleeveId = ds.sleeve_id;
+      const qty = ds.quantity_used || 0;
+      usedMap[sleeveId] = (usedMap[sleeveId] || 0) + qty;
+
+      if (!deckUsageMap[sleeveId]) {
+        deckUsageMap[sleeveId] = [];
+      }
+      const deckInfo = (Array.isArray(ds.deck) ? ds.deck[0] : ds.deck) as { id?: string; name?: string } | null;
+      if (deckInfo?.id) {
+        deckUsageMap[sleeveId].push({
+          deck_id: deckInfo.id,
+          deck_name: deckInfo.name || 'Mazo Sin Nombre',
+          quantity_used: qty,
+        });
+      }
     }
 
-    const enriched = (sleeves || []).map((s) => ({
-      ...s,
-      quantity_available: Math.max(0, (s.quantity_total || 0) - (usedMap[s.id] || 0)),
-    }));
+    const enriched = (sleeves || []).map((s) => {
+      const used = usedMap[s.id] || 0;
+      return {
+        ...s,
+        quantity_used: used,
+        quantity_available: Math.max(0, (s.quantity_total || 0) - used),
+        used_in_decks: deckUsageMap[s.id] || [],
+      };
+    });
 
     return NextResponse.json({ data: enriched });
   } catch (error: unknown) {
@@ -68,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json({ data: { ...data, quantity_available: data.quantity_total } });
+    return NextResponse.json({ data: { ...data, quantity_available: data.quantity_total, quantity_used: 0, used_in_decks: [] } });
   } catch (error: unknown) {
     const err = error as Error;
     console.error('Error al crear funda:', err);
@@ -76,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT: Update a sleeve
+// PUT: Update a sleeve or add stock
 export async function PUT(req: NextRequest) {
   try {
     if (!isSupabaseConfigured()) {
@@ -84,10 +105,24 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id, name, brand, color_pattern, color_hex, size_type, condition, quantity_total, notes } = body;
+    const { id, name, brand, color_pattern, color_hex, size_type, condition, quantity_total, add_quantity, notes } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID de funda es obligatorio' }, { status: 400 });
+    }
+
+    let finalQuantityTotal = quantity_total;
+
+    // Si se pasa add_quantity, obtener la cantidad actual e incrementarla
+    if (typeof add_quantity === 'number' && add_quantity > 0) {
+      const { data: currentSleeve, error: fetchErr } = await supabase
+        .from('yg_sleeves')
+        .select('quantity_total')
+        .eq('id', id)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      finalQuantityTotal = (currentSleeve?.quantity_total || 0) + add_quantity;
     }
 
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -97,7 +132,7 @@ export async function PUT(req: NextRequest) {
     if (color_hex !== undefined) payload.color_hex = color_hex;
     if (size_type !== undefined) payload.size_type = size_type;
     if (condition !== undefined) payload.condition = condition;
-    if (quantity_total !== undefined) payload.quantity_total = quantity_total;
+    if (finalQuantityTotal !== undefined) payload.quantity_total = finalQuantityTotal;
     if (notes !== undefined) payload.notes = notes;
 
     const { data, error } = await supabase
