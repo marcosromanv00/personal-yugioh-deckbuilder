@@ -8,7 +8,7 @@ import {
   PackageCheck,
   Activity,
 } from 'lucide-react';
-import { StorageLocation, UserCard, SleeveInventory, DeckCardDetail, Deck } from '@/types/collection';
+import { StorageLocation, UserCard, SleeveInventory, DeckCardDetail, Deck, SleeveCategory } from '@/types/collection';
 import { Card, DeckCard } from '@/components/deckbuilder/types';
 import { DeckMetadataForm } from './DeckMetadataForm';
 import { DeckCardDetailInspector } from './DeckCardDetailInspector';
@@ -40,12 +40,37 @@ interface DeckInspectorPanelProps {
   setCompartmentIndex?: (idx: number) => void;
   locations: StorageLocation[];
   availableSleeves: SleeveInventory[];
+
+  // Main & Side Sleeves Multicapa
+  mainProtection?: 'single' | 'double' | 'triple';
+  setMainProtection?: (p: 'single' | 'double' | 'triple') => void;
+  mainSleeveFitId?: string;
+  setMainSleeveFitId?: (s: string) => void;
   mainSleeveId: string;
   setMainSleeveId: (s: string) => void;
+  mainSleeveOverId?: string;
+  setMainSleeveOverId?: (s: string) => void;
+
+  // Extra Deck Sleeves Multicapa
+  extraProtection?: 'single' | 'double' | 'triple';
+  setExtraProtection?: (p: 'single' | 'double' | 'triple') => void;
+  extraSleeveFitId?: string;
+  setExtraSleeveFitId?: (s: string) => void;
   extraSleeveId: string;
   setExtraSleeveId: (s: string) => void;
+  extraSleeveOverId?: string;
+  setExtraSleeveOverId?: (s: string) => void;
+
+  // Pool Sleeves Multicapa
+  poolProtection?: 'single' | 'double' | 'triple';
+  setPoolProtection?: (p: 'single' | 'double' | 'triple') => void;
+  poolSleeveFitId?: string;
+  setPoolSleeveFitId?: (s: string) => void;
   poolSleeveId?: string;
   setPoolSleeveId?: (s: string) => void;
+  poolSleeveOverId?: string;
+  setPoolSleeveOverId?: (s: string) => void;
+
   totalMainCount: number;
   totalSideCount: number;
   sideMainCount?: number;
@@ -62,13 +87,15 @@ interface DeckInspectorPanelProps {
     tab?: 'add_stock' | 'create',
     initialSleeveId?: string,
     suggestedQty?: number,
-    sectionTotal?: number
+    sectionTotal?: number,
+    initialCategory?: SleeveCategory
   ) => void;
 
   // Card Details Props
   selectedPhysicalUserCards: UserCard[];
   onChangeCardSection: (cardId: number, currentSection: string, targetSection: string) => void;
   onUpdateCardPhysicalLocation: (userCardId: string, locationId: string | null, compartmentIdx: number) => void;
+  onRequestRelocateCard?: (userCard: UserCard, locationId: string | null, compartmentIdx: number) => void;
   onUpdateUserCard?: (userCardId: string, fields: Partial<UserCard>) => void;
   onAddPhysicalCopyForCard?: (cardId: number, isProxy?: boolean) => void;
   onDeleteUserCard?: (userCardId: string) => void;
@@ -107,12 +134,34 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   setCompartmentIndex,
   locations,
   availableSleeves,
+
+  mainProtection,
+  setMainProtection,
+  mainSleeveFitId,
+  setMainSleeveFitId,
   mainSleeveId,
   setMainSleeveId,
+  mainSleeveOverId,
+  setMainSleeveOverId,
+
+  extraProtection,
+  setExtraProtection,
+  extraSleeveFitId,
+  setExtraSleeveFitId,
   extraSleeveId,
   setExtraSleeveId,
+  extraSleeveOverId,
+  setExtraSleeveOverId,
+
+  poolProtection,
+  setPoolProtection,
+  poolSleeveFitId,
+  setPoolSleeveFitId,
   poolSleeveId,
   setPoolSleeveId,
+  poolSleeveOverId,
+  setPoolSleeveOverId,
+
   totalMainCount,
   totalSideCount,
   sideMainCount,
@@ -129,6 +178,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   selectedPhysicalUserCards,
   onChangeCardSection,
   onUpdateCardPhysicalLocation,
+  onRequestRelocateCard,
   onUpdateUserCard,
   onAddPhysicalCopyForCard,
   onDeleteUserCard,
@@ -190,7 +240,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('details')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
+            className={`py-1.5 px-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
               rightMode === 'details'
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -204,7 +254,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('card')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
+            className={`py-1.5 px-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
               rightMode === 'card'
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -218,7 +268,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('analysis')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
+            className={`py-1.5 px-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
               rightMode === 'analysis'
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -232,7 +282,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           <button
             type="button"
             onClick={() => setRightMode('collection')}
-            className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
+            className={`py-1.5 px-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 relative ${
               rightMode === 'collection'
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -240,7 +290,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
             title="Sugerencias de cartas individuales y motores libres de tu colección"
           >
             <PackageCheck className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">SINERGIAS</span>
+            <span className="truncate">SINERGIA</span>
           </button>
         </div>
 
@@ -272,12 +322,34 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
           setCompartmentIndex={setCompartmentIndex}
           locations={locations}
           availableSleeves={availableSleeves}
+
+          mainProtection={mainProtection}
+          setMainProtection={setMainProtection}
+          mainSleeveFitId={mainSleeveFitId}
+          setMainSleeveFitId={setMainSleeveFitId}
           mainSleeveId={mainSleeveId}
           setMainSleeveId={setMainSleeveId}
+          mainSleeveOverId={mainSleeveOverId}
+          setMainSleeveOverId={setMainSleeveOverId}
+
+          extraProtection={extraProtection}
+          setExtraProtection={setExtraProtection}
+          extraSleeveFitId={extraSleeveFitId}
+          setExtraSleeveFitId={setExtraSleeveFitId}
           extraSleeveId={extraSleeveId}
           setExtraSleeveId={setExtraSleeveId}
+          extraSleeveOverId={extraSleeveOverId}
+          setExtraSleeveOverId={setExtraSleeveOverId}
+
+          poolProtection={poolProtection}
+          setPoolProtection={setPoolProtection}
+          poolSleeveFitId={poolSleeveFitId}
+          setPoolSleeveFitId={setPoolSleeveFitId}
           poolSleeveId={poolSleeveId}
           setPoolSleeveId={setPoolSleeveId}
+          poolSleeveOverId={poolSleeveOverId}
+          setPoolSleeveOverId={setPoolSleeveOverId}
+
           totalMainCount={totalMainCount}
           totalSideCount={totalSideCount}
           sideMainCount={sideMainCount}
@@ -306,6 +378,7 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
             poolSleeveId={poolSleeveId}
             onChangeCardSection={onChangeCardSection}
             onUpdateCardPhysicalLocation={onUpdateCardPhysicalLocation}
+            onRequestRelocateCard={onRequestRelocateCard}
             onUpdateUserCard={onUpdateUserCard}
             onAddPhysicalCopyForCard={onAddPhysicalCopyForCard}
             onDeleteUserCard={onDeleteUserCard}

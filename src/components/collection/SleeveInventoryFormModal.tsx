@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Layers, Save, Loader2, AlertCircle, PlusCircle, PackagePlus, ArrowRight } from 'lucide-react';
-import { SleeveInventory, SleeveInventoryFormData, SleeveSizeType, SleeveInventoryCondition } from '@/types/collection';
+import { SleeveInventory, SleeveInventoryFormData, SleeveSizeType, SleeveInventoryCondition, SleeveCategory } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 
 interface SleeveInventoryFormModalProps {
@@ -13,10 +13,17 @@ interface SleeveInventoryFormModalProps {
   editingSleeve?: SleeveInventory | null;
   initialTab?: 'add_stock' | 'create';
   initialSleeveId?: string;
+  initialCategory?: SleeveCategory;
   availableSleeves?: SleeveInventory[];
   suggestedQuantity?: number;
   sectionTotalQuantity?: number;
 }
+
+const SLEEVE_CATEGORIES: { value: SleeveCategory; label: string; icon: string; desc: string }[] = [
+  { value: 'fit', label: 'Fit / Inner', icon: '🟢', desc: 'Capa interior (Perfect Fit)' },
+  { value: 'regular', label: 'Regular (Principal)', icon: '🎴', desc: 'Funda estándar / color / arte' },
+  { value: 'over', label: 'Over / Oversleeve', icon: '✨', desc: 'Capa exterior protectora' },
+];
 
 const SLEEVE_SIZES: { value: SleeveSizeType; label: string }[] = [
   { value: 'standard', label: 'Estándar (63.5 × 88 mm)' },
@@ -45,6 +52,7 @@ const DEFAULT_COLORS = [
 
 const EMPTY_FORM: SleeveInventoryFormData = {
   name: '',
+  category: 'regular',
   brand: 'Dragon Shield',
   color_pattern: 'Matte Black',
   color_hex: '#1a1a2e',
@@ -61,6 +69,7 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
   editingSleeve,
   initialTab = 'add_stock',
   initialSleeveId,
+  initialCategory,
   availableSleeves = [],
   suggestedQuantity,
   sectionTotalQuantity,
@@ -79,6 +88,7 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
         setActiveTab('create');
         setForm({
           name: editingSleeve.name,
+          category: editingSleeve.category || 'regular',
           brand: editingSleeve.brand,
           color_pattern: editingSleeve.color_pattern,
           color_hex: editingSleeve.color_hex || '#1a1a2e',
@@ -88,7 +98,10 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
           notes: editingSleeve.notes || '',
         });
       } else {
-        setForm(EMPTY_FORM);
+        setForm({
+          ...EMPTY_FORM,
+          category: initialCategory || 'regular',
+        });
         if (availableSleeves.length === 0) {
           setActiveTab('create');
         } else {
@@ -112,7 +125,7 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
       }
       setError('');
     }
-  }, [isOpen, editingSleeve, initialTab, initialSleeveId, availableSleeves, suggestedQuantity, sectionTotalQuantity]);
+  }, [isOpen, editingSleeve, initialTab, initialSleeveId, initialCategory, availableSleeves, suggestedQuantity, sectionTotalQuantity]);
 
   const selectedSleeve = useMemo(() => {
     return availableSleeves.find((s) => s.id === selectedSleeveId) || null;
@@ -461,6 +474,44 @@ export const SleeveInventoryFormModal: React.FC<SleeveInventoryFormModalProps> =
               {/* TAB 2: Registrar Nuevo Modelo o Editar */}
               {(editingSleeve || activeTab === 'create') && (
                 <form onSubmit={handleCreateOrEditSubmit} id="create-sleeve-form" className="space-y-4">
+                  {/* Categoría / Rol de Capa */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-black font-mono text-zinc-500 block">
+                      Categoría / Nivel de Capa *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {SLEEVE_CATEGORIES.map((cat) => {
+                        const isSelected = (form.category || 'regular') === cat.value;
+                        return (
+                          <button
+                            key={cat.value}
+                            type="button"
+                            onClick={() => update('category', cat.value)}
+                            className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer touch-manipulation min-h-14 flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-red-50/80 dark:bg-red-950/40 border-red-500 shadow-xs'
+                                : 'bg-zinc-100 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm">{cat.icon}</span>
+                              <span
+                                className={`text-[11px] font-black uppercase tracking-wider ${
+                                  isSelected ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-300'
+                                }`}
+                              >
+                                {cat.label}
+                              </span>
+                            </div>
+                            <span className="text-[9.5px] text-zinc-500 dark:text-zinc-400 font-mono leading-tight mt-1">
+                              {cat.desc}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Name */}
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase font-black font-mono text-zinc-500">Nombre / Modelo *</label>

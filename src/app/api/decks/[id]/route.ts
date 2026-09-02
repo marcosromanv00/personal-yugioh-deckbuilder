@@ -318,15 +318,8 @@ export async function PUT(
         if (!slv.sleeve_id || !secType) continue;
 
         let qtyUsed = mainSideCount;
-        if (secType === 'extra') qtyUsed = extraCount;
-        if (secType === 'pool' || secType === 'extras') qtyUsed = poolCount;
-
-        // Obtener detalles de la funda para actualizar las cartas físicas
-        const { data: sleeveData } = await supabase
-          .from('yg_sleeves')
-          .select('brand, color_pattern, condition')
-          .eq('id', slv.sleeve_id)
-          .maybeSingle();
+        if (secType.startsWith('extra')) qtyUsed = extraCount;
+        if (secType.startsWith('pool') || secType.startsWith('extras')) qtyUsed = poolCount;
 
         // Upsert en yg_deck_sleeves con el conteo real de cartas usadas
         const { data: existing } = await supabase
@@ -351,37 +344,113 @@ export async function PUT(
               quantity_used: qtyUsed,
             }]);
         }
+      }
 
-        // Sincronizar copias físicas de las cartas en esta sección
-        if (sleeveData) {
-          let targetCardIds: string[] = [];
-          if (secType === 'extra') {
-            targetCardIds = pCards
-              .filter((c) => c.deck_section === 'extra' || (c.deck_section === 'side' && isExtraCardType(c.card_details?.type)))
-              .map((c) => c.id);
-          } else if (secType === 'main_side' || secType === 'main') {
-            targetCardIds = pCards
-              .filter((c) => c.deck_section === 'main' || (c.deck_section === 'side' && !isExtraCardType(c.card_details?.type)))
-              .map((c) => c.id);
-          } else if (secType === 'pool' || secType === 'extras') {
-            targetCardIds = pCards
-              .filter((c) => c.deck_section === 'pool' || c.deck_section === 'extras')
-              .map((c) => c.id);
-          }
+      // Sincronizar copias físicas de las cartas según las capas configuradas por sección
+      const sleeveIds = sleeves.map((s: { sleeve_id?: string }) => s.sleeve_id).filter(Boolean);
+      let sleevesDataMap: Record<string, { id: string; brand: string; color_pattern: string; condition: string; category: string }> = {};
 
-          if (targetCardIds.length > 0) {
-            await supabase
-              .from('yg_user_cards')
-              .update({
-                sleeve_type: 'single',
-                sleeve_brand: sleeveData.brand,
-                sleeve_color: sleeveData.color_pattern,
-                sleeve_condition: sleeveData.condition || 'good',
-              })
-              .in('id', targetCardIds);
-          }
+      if (sleeveIds.length > 0) {
+        const { data: slData } = await supabase
+          .from('yg_sleeves')
+          .select('id, brand, color_pattern, condition, category')
+          .in('id', sleeveIds);
+
+        if (slData) {
+          sleevesDataMap = slData.reduce((acc, curr) => {
+            acc[curr.id] = curr;
+            return acc;
+          }, {} as Record<string, { id: string; brand: string; color_pattern: string; condition: string; category: string }>);
         }
       }
+
+      const syncSectionCards = async (
+        sectionPrefix: 'main' | 'extra' | 'pool',
+        targetCardIds: string[]
+      ) => {
+        if (targetCardIds.length === 0) return;
+
+        const sectionSleeves = sleeves.filter((s: { section?: string; section_type?: string; sleeve_id?: string }) => {
+          const sec = s.section || s.section_type || '';
+          return sec.startsWith(sectionPrefix);
+        });
+
+        if (sectionSleeves.length === 0) {
+          await supabase
+            .from('yg_user_cards')
+            .update({
+              sleeve_type: 'none',
+              sleeve_brand: null,
+              sleeve_color: null,
+              sleeve_fit_id: null,
+              sleeve_regular_id: null,
+              sleeve_over_id: null,
+              sleeve_inner_brand: null,
+              sleeve_inner_color: null,
+              sleeve_outer_brand: null,
+              sleeve_outer_color: null,
+            })
+            .in('id', targetCardIds);
+          return;
+        }
+
+        let fitSleeve: { id: string; brand: string; color_pattern: string; condition: string } | null = null;
+        let regularSleeve: { id: string; brand: string; color_pattern: string; condition: string } | null = null;
+        let overSleeve: { id: string; brand: string; color_pattern: string; condition: string } | null = null;
+
+        for (const slv of sectionSleeves) {
+          const sec = slv.section || slv.section_type || '';
+          const sData = sleevesDataMap[slv.sleeve_id];
+          if (!sData) continue;
+
+          if (sec.endsWith('_fit') || sData.category === 'fit') {
+            fitSleeve = sData;
+          } else if (sec.endsWith('_over') || sData.category === 'over') {
+            overSleeve = sData;
+          } else {
+            regularSleeve = sData;
+          }
+        }
+
+        const layersCount = (fitSleeve ? 1 : 0) + (regularSleeve ? 1 : 0) + (overSleeve ? 1 : 0);
+        const calculatedSleeveType: 'none' | 'single' | 'double' | 'triple' =
+          layersCount === 3 ? 'triple' : layersCount === 2 ? 'double' : layersCount === 1 ? 'single' : 'none';
+
+        const mainDisplaySleeve = regularSleeve || overSleeve || fitSleeve;
+
+        await supabase
+          .from('yg_user_cards')
+          .update({
+            sleeve_type: calculatedSleeveType,
+            sleeve_brand: mainDisplaySleeve?.brand || null,
+            sleeve_color: mainDisplaySleeve?.color_pattern || null,
+            sleeve_condition: mainDisplaySleeve?.condition || 'good',
+            sleeve_fit_id: fitSleeve?.id || null,
+            sleeve_regular_id: regularSleeve?.id || null,
+            sleeve_over_id: overSleeve?.id || null,
+            sleeve_inner_brand: fitSleeve?.brand || null,
+            sleeve_inner_color: fitSleeve?.color_pattern || null,
+            sleeve_outer_brand: overSleeve?.brand || null,
+            sleeve_outer_color: overSleeve?.color_pattern || null,
+          })
+          .in('id', targetCardIds);
+      };
+
+      const extraCardIds = pCards
+        .filter((c) => c.deck_section === 'extra' || (c.deck_section === 'side' && isExtraCardType(c.card_details?.type)))
+        .map((c) => c.id);
+      const mainCardIds = pCards
+        .filter((c) => c.deck_section === 'main' || (c.deck_section === 'side' && !isExtraCardType(c.card_details?.type)))
+        .map((c) => c.id);
+      const poolCardIds = pCards
+        .filter((c) => c.deck_section === 'pool' || c.deck_section === 'extras')
+        .map((c) => c.id);
+
+      await Promise.all([
+        syncSectionCards('extra', extraCardIds),
+        syncSectionCards('main', mainCardIds),
+        syncSectionCards('pool', poolCardIds),
+      ]);
     }
 
     return NextResponse.json({ success: true, data: updatedDeck });

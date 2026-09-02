@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     const body: SleeveInventoryFormData = await req.json();
 
-    const { name, brand, color_pattern, color_hex, size_type, condition, quantity_total, notes } = body;
+    const { name, category = 'regular', brand, color_pattern, color_hex, size_type, condition, quantity_total, notes } = body;
 
     if (!name || !brand) {
       return NextResponse.json({ error: 'Nombre y marca son obligatorios' }, { status: 400 });
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('yg_sleeves')
-      .insert([{ name, brand, color_pattern, color_hex, size_type, condition, quantity_total, notes }])
+      .insert([{ name, category, brand, color_pattern, color_hex, size_type, condition, quantity_total, notes }])
       .select('*')
       .single();
 
@@ -105,7 +105,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id, name, brand, color_pattern, color_hex, size_type, condition, quantity_total, add_quantity, notes } = body;
+    const { id, name, category, brand, color_pattern, color_hex, size_type, condition, quantity_total, add_quantity, notes } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID de funda es obligatorio' }, { status: 400 });
@@ -127,6 +127,7 @@ export async function PUT(req: NextRequest) {
 
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (name !== undefined) payload.name = name;
+    if (category !== undefined) payload.category = category;
     if (brand !== undefined) payload.brand = brand;
     if (color_pattern !== undefined) payload.color_pattern = color_pattern;
     if (color_hex !== undefined) payload.color_hex = color_hex;

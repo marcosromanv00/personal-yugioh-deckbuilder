@@ -48,6 +48,7 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
   onAddSleeveClick,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'fit' | 'regular' | 'over'>('all');
   const [sizeFilter, setSizeFilter] = useState<'all' | SleeveSizeType>('all');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'in_use' | 'out_of_stock'>('all');
   const [conditionFilter, setConditionFilter] = useState<'all' | SleeveInventoryCondition>('all');
@@ -67,10 +68,13 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
         sleeve.color_pattern.toLowerCase().includes(q) ||
         (sleeve.notes && sleeve.notes.toLowerCase().includes(q));
 
-      // 2. Filtro de tamaño
+      // 2. Filtro de Categoría
+      const matchesCategory = categoryFilter === 'all' || (sleeve.category || 'regular') === categoryFilter;
+
+      // 3. Filtro de tamaño
       const matchesSize = sizeFilter === 'all' || sleeve.size_type === sizeFilter;
 
-      // 3. Filtro de disponibilidad
+      // 4. Filtro de disponibilidad
       const available = sleeve.quantity_available ?? Math.max(0, (sleeve.quantity_total || 0) - (sleeve.quantity_used || 0));
       let matchesAvailability = true;
       if (availabilityFilter === 'available') {
@@ -81,12 +85,12 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
         matchesAvailability = available === 0;
       }
 
-      // 4. Filtro de condición
+      // 5. Filtro de condición
       const matchesCondition = conditionFilter === 'all' || sleeve.condition === conditionFilter;
 
-      return matchesSearch && matchesSize && matchesAvailability && matchesCondition;
+      return matchesSearch && matchesCategory && matchesSize && matchesAvailability && matchesCondition;
     });
-  }, [sleeves, searchQuery, sizeFilter, availabilityFilter, conditionFilter]);
+  }, [sleeves, searchQuery, categoryFilter, sizeFilter, availabilityFilter, conditionFilter]);
 
   // Contadores globales de inventario de fundas
   const totalSleevesCount = useMemo(() => {
@@ -97,10 +101,11 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
     return sleeves.reduce((acc, s) => acc + (s.quantity_used || 0), 0);
   }, [sleeves]);
 
-  const hasActiveFilters = searchQuery !== '' || sizeFilter !== 'all' || availabilityFilter !== 'all' || conditionFilter !== 'all';
+  const hasActiveFilters = searchQuery !== '' || categoryFilter !== 'all' || sizeFilter !== 'all' || availabilityFilter !== 'all' || conditionFilter !== 'all';
 
   const handleResetFilters = () => {
     setSearchQuery('');
+    setCategoryFilter('all');
     setSizeFilter('all');
     setAvailabilityFilter('all');
     setConditionFilter('all');
@@ -165,6 +170,20 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Filtro de Categoría / Rol */}
+          <PremiumDropdown
+            value={categoryFilter}
+            onChange={(val) => setCategoryFilter(val as 'all' | 'fit' | 'regular' | 'over')}
+            size="sm"
+            menuWidth="min-w-44"
+            options={[
+              { value: 'all', label: 'Capas: Todas' },
+              { value: 'fit', label: '🟢 Fit (Inner)' },
+              { value: 'regular', label: '🎴 Regular (Principal)' },
+              { value: 'over', label: '✨ Over (Oversleeve)' },
+            ]}
+          />
 
           {/* Filtro de Disponibilidad */}
           <PremiumDropdown
