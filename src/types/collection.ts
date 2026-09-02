@@ -50,6 +50,7 @@ export type CardCondition = 'Near Mint' | 'Lightly Played' | 'Moderately Played'
 export type CardStatusFlag = 'collection' | 'trade_sale' | 'bulk' | 'workshop' | 'in_deck' | 'memory_deck';
 export type SleeveType = 'none' | 'single' | 'double' | 'triple';
 export type SleeveCondition = 'new' | 'good' | 'worn' | 'damaged';
+export type SleeveCategory = 'fit' | 'regular' | 'over';
 
 export interface UserCard {
   id: string;
@@ -69,6 +70,16 @@ export interface UserCard {
   sleeve_brand?: string;
   sleeve_color?: string;
   sleeve_condition?: SleeveCondition;
+  sleeve_fit_id?: string | null;
+  sleeve_regular_id?: string | null;
+  sleeve_over_id?: string | null;
+  sleeve_inner_brand?: string;
+  sleeve_inner_color?: string;
+  sleeve_outer_brand?: string;
+  sleeve_outer_color?: string;
+  sleeve_fit_details?: SleeveInventory;
+  sleeve_regular_details?: SleeveInventory;
+  sleeve_over_details?: SleeveInventory;
   is_proxy?: boolean;
   is_favorite?: boolean;
   is_grayscale_shared?: boolean;
@@ -203,6 +214,7 @@ export type DeckSleeveSection = 'main_side' | 'extra' | 'pool';
 export interface SleeveInventory {
   id: string;
   name: string;
+  category: SleeveCategory;
   brand: string;
   color_pattern: string;
   color_hex: string;
@@ -224,7 +236,7 @@ export interface DeckSleeve {
   id: string;
   deck_id: string;
   sleeve_id: string;
-  section_type: DeckSleeveSection;
+  section_type: string;
   quantity_used: number;
   created_at: string;
   sleeve_details?: SleeveInventory;
@@ -232,6 +244,7 @@ export interface DeckSleeve {
 
 export interface SleeveInventoryFormData {
   name: string;
+  category?: SleeveCategory;
   brand: string;
   color_pattern: string;
   color_hex: string;

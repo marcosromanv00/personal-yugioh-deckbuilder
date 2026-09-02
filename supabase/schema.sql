@@ -136,6 +136,13 @@ CREATE TABLE IF NOT EXISTS yg_user_cards (
     sleeve_brand VARCHAR(100),
     sleeve_color VARCHAR(100),
     sleeve_condition VARCHAR(50) DEFAULT 'good' CONSTRAINT chk_sleeve_condition CHECK (sleeve_condition IN ('new', 'good', 'worn', 'damaged')),
+    sleeve_fit_id UUID REFERENCES yg_sleeves(id) ON DELETE SET NULL,
+    sleeve_regular_id UUID REFERENCES yg_sleeves(id) ON DELETE SET NULL,
+    sleeve_over_id UUID REFERENCES yg_sleeves(id) ON DELETE SET NULL,
+    sleeve_inner_brand VARCHAR(100),
+    sleeve_inner_color VARCHAR(100),
+    sleeve_outer_brand VARCHAR(100),
+    sleeve_outer_color VARCHAR(100),
     is_proxy BOOLEAN DEFAULT false,
     sale_price NUMERIC(10,2),
     notes TEXT,
@@ -186,6 +193,7 @@ CREATE INDEX IF NOT EXISTS idx_yg_user_cards_status ON yg_user_cards (status_fla
 CREATE TABLE IF NOT EXISTS yg_sleeves (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'regular' CONSTRAINT chk_sleeve_category CHECK (category IN ('fit', 'regular', 'over')),
     brand VARCHAR(100) NOT NULL DEFAULT 'Dragon Shield',
     color_pattern VARCHAR(150) NOT NULL DEFAULT 'Matte Black',
     color_hex VARCHAR(7) DEFAULT '#1a1a2e',
@@ -199,13 +207,14 @@ CREATE TABLE IF NOT EXISTS yg_sleeves (
 
 CREATE INDEX IF NOT EXISTS idx_yg_sleeves_brand ON yg_sleeves (brand);
 CREATE INDEX IF NOT EXISTS idx_yg_sleeves_condition ON yg_sleeves (condition);
+CREATE INDEX IF NOT EXISTS idx_yg_sleeves_category ON yg_sleeves (category);
 
 -- 14. yg_deck_sleeves: Relación entre decks y fundas asignadas
 CREATE TABLE IF NOT EXISTS yg_deck_sleeves (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     deck_id UUID NOT NULL REFERENCES yg_decks(id) ON DELETE CASCADE,
     sleeve_id UUID NOT NULL REFERENCES yg_sleeves(id) ON DELETE RESTRICT,
-    section_type VARCHAR(20) NOT NULL CONSTRAINT chk_deck_sleeve_section CHECK (section_type IN ('main_side', 'extra')),
+    section_type VARCHAR(50) NOT NULL,
     quantity_used INTEGER NOT NULL DEFAULT 0 CONSTRAINT chk_deck_sleeve_qty CHECK (quantity_used >= 0),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     UNIQUE (deck_id, section_type)
