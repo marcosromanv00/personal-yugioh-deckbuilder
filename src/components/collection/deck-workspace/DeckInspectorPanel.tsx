@@ -110,6 +110,8 @@ interface DeckInspectorPanelProps {
   savedDecks?: Deck[];
   onAddCardToDeck?: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
   onOpenRegisterSleeveForCard?: (userCard: UserCard) => void;
+  onStageAssignCopy?: (cardId: number, section: string, copy: UserCard) => void;
+  onStageUnassignCopy?: (cardId: number, section: string, userCardId: string) => void;
 }
 
 export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
@@ -191,6 +193,8 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
   savedDecks = [],
   onAddCardToDeck,
   onOpenRegisterSleeveForCard,
+  onStageAssignCopy,
+  onStageUnassignCopy,
 }) => {
   const currentBaseLocation = locations.find(l => l.id === storageLocationId);
   const [isExordioModalOpen, setIsExordioModalOpen] = useState(false);
@@ -384,6 +388,8 @@ export const DeckInspectorPanel: React.FC<DeckInspectorPanelProps> = ({
             onDeleteUserCard={onDeleteUserCard}
             onRemoveCardFromDeck={onRemoveCardFromDeck}
             onOpenRegisterSleeveForCard={onOpenRegisterSleeveForCard}
+            onStageAssignCopy={onStageAssignCopy}
+            onStageUnassignCopy={onStageUnassignCopy}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400 dark:text-zinc-500 space-y-2">
