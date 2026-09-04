@@ -55,26 +55,31 @@ export function enrichDeckCardsWithPhysicalCopies(
       source_status: 'existing' as const,
     }));
 
-    // Cards not matched by userCards get staged placeholders to fill remaining slots
+    // DB loaded copies without specific user_card_id are still 'existing' by user canonical rule
     const unmatchedCount = Math.max(0, dc.count - physical_copies.length);
-    const stagedPlaceholders: DeckCardPhysicalCopy[] = Array.from({ length: unmatchedCount }, () => ({
-      source_status: 'staged' as const,
+    const existingPlaceholders: DeckCardPhysicalCopy[] = Array.from({ length: unmatchedCount }, () => ({
+      source_status: 'existing' as const,
     }));
 
-    const allCopies = [...physical_copies, ...stagedPlaceholders];
+    const allCopies = [...physical_copies, ...existingPlaceholders];
     return {
       ...dc,
       physical_copies: allCopies,
-      pending_count: stagedPlaceholders.length,
+      pending_count: 0,
     };
   });
 }
 
+export function countStagedCopies(card: DeckCardDetail): number {
+  return (card.physical_copies || []).filter((cp) => cp.source_status === 'staged').length;
+}
+
+export function hasStagedCopies(card: DeckCardDetail): boolean {
+  return countStagedCopies(card) > 0;
+}
+
 function countStaged(cards: DeckCardDetail[]): number {
-  return cards.reduce(
-    (s, c) => s + (c.physical_copies?.filter((cp) => cp.source_status === 'staged').length ?? 0),
-    0
-  );
+  return cards.reduce((s, c) => s + countStagedCopies(c), 0);
 }
 
 function countExisting(cards: DeckCardDetail[]): number {
@@ -157,64 +162,4 @@ export function buildDeckSavePayload(params: BuildDeckSavePayloadParams): SaveDe
   };
 }
 
-export function assignCopyReducer(
-  deckCards: DeckCardDetail[],
-  cardId: number,
-  section: string,
-  copy: UserCard,
-  deckId?: string
-): DeckCardDetail[] {
-  const secNorm = section === 'pool' || section === 'extras' ? 'extras' : section;
-  return deckCards.map((c) => {
-    const cSecNorm = c.section === 'pool' || c.section === 'extras' ? 'extras' : c.section;
-    if (c.card_id === cardId && cSecNorm === secNorm) {
-      const currentCopies = c.physical_copies || [];
-      if (currentCopies.some((cp) => cp.user_card_id === copy.id)) return c;
-      // Promote one staged placeholder to an existing copy, or append a new existing copy
-      const stagedIdx = currentCopies.findIndex((cp) => cp.source_status === 'staged');
-      const newCopy: DeckCardPhysicalCopy = {
-        user_card_id: copy.id,
-        storage_location_id: copy.storage_location_id,
-        rarity: copy.rarity,
-        condition: copy.condition,
-        is_proxy: copy.is_proxy,
-        is_in_active_deck: true,
-        active_deck_id: deckId,
-        compartment_index: copy.compartment_index,
-        binder_page: copy.binder_page,
-        binder_slot: copy.binder_slot,
-        source_status: 'existing' as const,
-      };
-      let updatedCopies: DeckCardPhysicalCopy[];
-      if (stagedIdx >= 0) {
-        // Replace the first staged placeholder with the real copy
-        updatedCopies = [...currentCopies];
-        updatedCopies[stagedIdx] = newCopy;
-      } else {
-        updatedCopies = [...currentCopies, newCopy];
-      }
-      const stagedCount = updatedCopies.filter((cp) => cp.source_status === 'staged').length;
-      return { ...c, physical_copies: updatedCopies, pending_count: stagedCount };
-    }
-    return c;
-  });
-}
-
-export function unassignCopyReducer(
-  deckCards: DeckCardDetail[],
-  cardId: number,
-  section: string,
-  userCardId: string
-): DeckCardDetail[] {
-  const secNorm = section === 'pool' || section === 'extras' ? 'extras' : section;
-  return deckCards.map((c) => {
-    const cSecNorm = c.section === 'pool' || c.section === 'extras' ? 'extras' : c.section;
-    if (c.card_id === cardId && cSecNorm === secNorm) {
-      const currentCopies = c.physical_copies || [];
-      const updatedCopies = currentCopies.filter((cp) => cp.user_card_id !== userCardId);
-      const stagedCount = updatedCopies.filter((cp) => cp.source_status === 'staged').length;
-      return { ...c, physical_copies: updatedCopies, pending_count: stagedCount };
-    }
-    return c;
-  });
-}
+export { assignCopyReducer, unassignCopyReducer } from './deckWorkspaceReducers.utils';

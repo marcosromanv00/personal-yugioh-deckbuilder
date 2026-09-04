@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { UserCard, Deck, DeckCardDetail, DeckCardPhysicalCopy } from '@/types/collection';
 import { useToast } from '@/components/ui/ToastProvider';
-import { calculateSectionBalances, buildDeckSavePayload, assignCopyReducer, unassignCopyReducer } from './deckWorkspacePhysical.utils';
+import { calculateSectionBalances, buildDeckSavePayload, assignCopyReducer, unassignCopyReducer, hasStagedCopies } from './deckWorkspacePhysical.utils';
 
 interface UseDeckPhysicalSyncProps {
   currentDeck: Deck | null;
@@ -76,13 +76,13 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
     if (!assignDrawerSection) return [];
     return deckCards.filter((c) => {
       const matchSec = assignDrawerSection === 'pool' ? c.section === 'pool' || c.section === 'extras' : c.section === assignDrawerSection;
-      return matchSec && Math.max(0, c.count - (c.physical_copies?.length || 0)) > 0;
+      return matchSec && hasStagedCopies(c);
     });
   }, [deckCards, assignDrawerSection]);
 
   // Todas las cartas pendientes para el modal de sincronización
   const allPendingCards = useMemo(() => {
-    return deckCards.filter((c) => Math.max(0, c.count - (c.physical_copies?.length || 0)) > 0);
+    return deckCards.filter(hasStagedCopies);
   }, [deckCards]);
 
   // Copias desvinculadas para el modal de sincronización
