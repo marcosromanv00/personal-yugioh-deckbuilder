@@ -1,4 +1,4 @@
-import { StorageLocation, UserCard, SleeveInventory, Deck, DeckCardDetail } from '@/types/collection';
+import { StorageLocation, UserCard, SleeveInventory, Deck } from '@/types/collection';
 
 export interface UniversalDeckWorkspaceModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ export interface UniversalDeckWorkspaceModalProps {
   sleeves?: SleeveInventory[];
   allUserCards?: UserCard[];
   onSuccess?: () => void;
+  handleDeleteDeck?: (id: string) => Promise<boolean | void>;
 }
 
 export type DeckSectionFilter = 'all' | 'main' | 'extra' | 'side' | 'pool';

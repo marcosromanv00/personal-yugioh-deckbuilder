@@ -505,6 +505,52 @@ export async function DELETE(
       return NextResponse.json({ success: true });
     }
 
+    // 1. Desvincular cartas físicas de yg_user_cards a estado colección general
+    await supabase
+      .from('yg_user_cards')
+      .update({
+        deck_id: null,
+        deck_section: null,
+        status_flag: 'collection',
+      })
+      .eq('deck_id', deckId);
+
+    // 2. Liberar el carril en contenedores yg_storage_locations si estaba asignado
+    try {
+      const { data: locs } = await supabase
+        .from('yg_storage_locations')
+        .select('id, compartments')
+        .not('compartments', 'is', null);
+
+      if (locs && locs.length > 0) {
+        for (const loc of locs) {
+          const comps = loc.compartments as { count?: number; names?: string[]; deck_ids?: (string | null)[] } | null;
+          if (comps?.deck_ids && comps.deck_ids.includes(deckId)) {
+            const updatedDeckIds = comps.deck_ids.map(dId => (dId === deckId ? null : dId));
+            await supabase
+              .from('yg_storage_locations')
+              .update({ compartments: { ...comps, deck_ids: updatedDeckIds } })
+              .eq('id', loc.id);
+          }
+        }
+      }
+    } catch (locErr) {
+      console.warn('Advertencia al desvincular deck de contenedor:', locErr);
+    }
+
+    // 3. Eliminar fundas asignadas al deck
+    await supabase
+      .from('yg_deck_sleeves')
+      .delete()
+      .eq('deck_id', deckId);
+
+    // 4. Eliminar asociación de cartas de receta
+    await supabase
+      .from('yg_deck_cards')
+      .delete()
+      .eq('deck_id', deckId);
+
+    // 5. Eliminar el registro del deck
     const { error } = await supabase
       .from('yg_decks')
       .delete()

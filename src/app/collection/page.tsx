@@ -399,6 +399,7 @@ export default function CollectionPage() {
                   setDecks={state.setDecks}
                   onDeckClick={handleOpenDeck}
                   onRefreshData={state.fetchCollectionDataSilently}
+                  handleDeleteDeck={state.handleDeleteDeck}
                 />
               ) : (
                 <CollectionCardsTab
@@ -529,6 +530,7 @@ export default function CollectionPage() {
         sleeves={state.sleeves}
         allUserCards={state.allCollectionCards}
         onSuccess={state.fetchCollectionDataSilently}
+        handleDeleteDeck={state.handleDeleteDeck}
       />
 
       {/* Modal de Separar Copia Individual en Colección Principal */}

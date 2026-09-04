@@ -11,7 +11,6 @@ import {
   ChevronDown,
   FileText,
   Wand2,
-  Sparkles,
 } from 'lucide-react';
 
 interface DeckActionsDropdownProps {
@@ -24,6 +23,8 @@ interface DeckActionsDropdownProps {
   onSyncMeta: () => void;
   hasCards: boolean;
   isSyncing: boolean;
+  isSavedDeck?: boolean;
+  onDeleteDeck?: () => void;
 }
 
 export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
@@ -36,6 +37,8 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
   onSyncMeta,
   hasCards,
   isSyncing,
+  isSavedDeck,
+  onDeleteDeck,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -161,11 +164,27 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
               }
             }}
             disabled={!hasCards}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
           >
             <Trash2 className="w-4 h-4" />
-            <span>Limpiar Todo el Deck</span>
+            <span>Limpiar Mesa de Trabajo</span>
           </button>
+
+          {isSavedDeck && onDeleteDeck && (
+            <button
+              onClick={() => {
+                onDeleteDeck();
+                setIsOpen(false);
+              }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors text-left cursor-pointer border-t border-zinc-100 dark:border-zinc-900 mt-1 pt-2"
+            >
+              <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+              <div className="flex-1">
+                <span>Eliminar Baraja Guardada</span>
+                <p className="text-[10px] text-red-500/80 font-normal">Borrar definitivamente de la BD</p>
+              </div>
+            </button>
+          )}
         </div>
       )}
     </div>

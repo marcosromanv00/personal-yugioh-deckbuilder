@@ -100,3 +100,6 @@ Para mantener el proyecto pulido para su venta, queda terminantemente prohibido 
    - **Prevención de Ghost Clicks**: Nunca dispares acciones críticas simultáneamente en `onTouchEnd` y `onClick` sin usar un flag de interacción (`isTouchRef`) que consuma el toque y prevenga dobles ejecuciones.
    - **Grids Adaptativos**: En el constructor, la cuadrícula de cartas debe ser `grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10` para garantizar visibilidad de nombres y números.
    - **Invariante Desktop**: Queda terminantemente prohibido alterar el layout de 3 columnas de escritorio (`lg:`, `xl:`) al realizar adaptaciones móviles.
+
+6. **Ejecución de Comandos en Terminal (PowerShell / Windows)**:
+   - **Prohibición del operador `&&`**: En PowerShell de Windows, queda terminantemente prohibido encadenar comandos utilizando `&&`. Ejecuta siempre cada comando (`git add`, `git commit`, `tsc`, `lint`, `build`, etc.) de forma individual, atómica y secuencial.

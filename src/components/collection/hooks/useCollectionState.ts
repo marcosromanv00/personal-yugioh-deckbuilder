@@ -600,6 +600,24 @@ export function useCollectionState() {
     }
   };
 
+  // Borrar baraja
+  const handleDeleteDeck = useCallback(async (deckId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/decks?id=${deckId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setDecks(prev => prev.filter(d => d.id !== deckId));
+        await fetchCollectionDataSilently();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error al eliminar deck:', err);
+      return false;
+    }
+  }, [fetchCollectionDataSilently]);
+
   // Duplicar contenedor
   const handleCopyStorage = async (loc: StorageLocation) => {
     try {
@@ -785,6 +803,7 @@ export function useCollectionState() {
     handleEditContainerClick,
     handleSaveStorage,
     handleDeleteStorage,
+    handleDeleteDeck,
     handleCopyStorage,
     handleOpenContainer,
     handleOpenInbox,

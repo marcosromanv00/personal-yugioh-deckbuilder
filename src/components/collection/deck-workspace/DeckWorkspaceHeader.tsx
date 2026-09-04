@@ -10,7 +10,8 @@ import {
   ExternalLink,
   Search,
   Layers,
-  Info
+  Info,
+  Trash2,
 } from 'lucide-react';
 import { Deck } from '@/types/collection';
 import { MobileDeckTab } from './types';
@@ -32,6 +33,7 @@ interface DeckWorkspaceHeaderProps {
   onNavigateNext: () => void;
   mobileTab: MobileDeckTab;
   setMobileTab: (tab: MobileDeckTab) => void;
+  onDeleteDeck?: () => void;
 }
 
 export const DeckWorkspaceHeader: React.FC<DeckWorkspaceHeaderProps> = ({
@@ -51,6 +53,7 @@ export const DeckWorkspaceHeader: React.FC<DeckWorkspaceHeaderProps> = ({
   onNavigateNext,
   mobileTab,
   setMobileTab,
+  onDeleteDeck,
 }) => {
   return (
     <header className="px-3 sm:px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/90 flex flex-col gap-2 shrink-0 z-30">
@@ -117,6 +120,18 @@ export const DeckWorkspaceHeader: React.FC<DeckWorkspaceHeaderProps> = ({
               <ExternalLink className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Abrir en Taller</span>
             </Link>
+          )}
+
+          {onDeleteDeck && (
+            <button
+              type="button"
+              onClick={onDeleteDeck}
+              className="p-2 rounded-xl text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer min-h-11 min-w-11 flex items-center justify-center touch-manipulation"
+              title="Eliminar baraja"
+              aria-label="Eliminar baraja"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
 
           <button
