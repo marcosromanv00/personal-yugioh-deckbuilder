@@ -42,6 +42,8 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
   });
 
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [isDeletingDeck, setIsDeletingDeck] = useState(false);
   const [registerSleeveUserCard, setRegisterSleeveUserCard] = useState<UserCard | null>(null);
   const [isRegisterSleeveModalOpen, setIsRegisterSleeveModalOpen] = useState(false);
 
@@ -66,6 +68,20 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
       setIsConfirmCloseOpen(true);
     } else {
       onClose(hasMutated ?? state.hasMutated);
+    }
+  };
+
+  const handleExecuteDeleteDeck = async () => {
+    if (!state.currentDeck || !props.handleDeleteDeck) return;
+    setIsDeletingDeck(true);
+    try {
+      const ok = await props.handleDeleteDeck(state.currentDeck.id);
+      if (ok !== false) {
+        setIsConfirmDeleteOpen(false);
+        onClose(true);
+      }
+    } finally {
+      setIsDeletingDeck(false);
     }
   };
 
@@ -102,6 +118,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           onNavigateNext={state.handleNavigateNext}
           mobileTab={state.mobileTab}
           setMobileTab={state.setMobileTab}
+          onDeleteDeck={props.handleDeleteDeck ? () => setIsConfirmDeleteOpen(true) : undefined}
         />
 
         {/* ═══ CUERPO PRINCIPAL DE 3 PANELES ═══ */}
@@ -410,6 +427,19 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             onClose(true);
           }}
           onClose={() => setIsConfirmCloseOpen(false)}
+        />
+
+        {/* Diálogo de Confirmación para Eliminar Baraja Completa */}
+        <ConfirmDialog
+          isOpen={isConfirmDeleteOpen}
+          title="¿Eliminar esta baraja?"
+          description={`¿Estás seguro de que deseas eliminar la baraja "${state.name || state.currentDeck.name}"? Las cartas físicas que contiene permanecerán intactas en tu colección general.`}
+          confirmLabel="Eliminar Baraja"
+          cancelLabel="Cancelar"
+          variant="danger"
+          isLoading={isDeletingDeck}
+          onConfirm={handleExecuteDeleteDeck}
+          onClose={() => setIsConfirmDeleteOpen(false)}
         />
 
       </motion.div>

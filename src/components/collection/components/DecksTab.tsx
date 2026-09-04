@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Layers, 
@@ -12,14 +12,15 @@ import {
   List, 
   ArrowUpRight,
   Shield,
-  RotateCcw
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RecommendedDecksGallery } from './RecommendedDecksGallery';
 import { DecksTabSkeleton } from './DecksTabSkeleton';
 import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
-import { Deck, StorageLocation, SleeveInventory, UserCard, DeckSleeve } from '@/types/collection';
+import { Deck, StorageLocation, SleeveInventory, UserCard, DeckCardDetail } from '@/types/collection';
 
 type SleeveSummaryItem = {
   sleeve_id: string;
@@ -77,6 +78,7 @@ interface DecksTabProps {
   setDecks: React.Dispatch<React.SetStateAction<Deck[]>>;
   onDeckClick: (deck: Deck) => void;
   onRefreshData?: () => void;
+  handleDeleteDeck?: (id: string) => Promise<boolean | void>;
 }
 
 export const DecksTab: React.FC<DecksTabProps> = ({
@@ -88,25 +90,29 @@ export const DecksTab: React.FC<DecksTabProps> = ({
   setDecks,
   onDeckClick,
   onRefreshData,
+  handleDeleteDeck,
 }) => {
   const [subCategory, setSubCategory] = useState<'my_decks' | 'recommended'>('my_decks');
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState<'all' | 'Master Duel' | 'TCG' | 'Duel Links'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'recipe'>('all');
+  const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Persistencia de Vista (Cuadrícula o Lista)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('exordio_decks_view_mode');
-      if (saved === 'grid' || saved === 'list') {
-        setViewMode(saved);
+  // Persistencia de Vista (Cuadrícula o Lista) con inicializador perezoso
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('exordio_decks_view_mode');
+        if (saved === 'grid' || saved === 'list') {
+          return saved;
+        }
+      } catch {
+        // noop
       }
-    } catch {
-      // noop
     }
-  }, []);
+    return 'grid';
+  });
 
   const handleViewModeChange = (mode: 'grid' | 'list') => {
     setViewMode(mode);
@@ -116,10 +122,6 @@ export const DecksTab: React.FC<DecksTabProps> = ({
       // noop
     }
   };
-
-  if (loading) {
-    return <DecksTabSkeleton viewMode={viewMode} />;
-  }
 
   const filteredDecks = useMemo(() => {
     return decks.filter(deck => {
@@ -138,6 +140,10 @@ export const DecksTab: React.FC<DecksTabProps> = ({
       return matchesSearch && matchesFormat && matchesStatus;
     });
   }, [decks, searchQuery, formatFilter, statusFilter]);
+
+  if (loading) {
+    return <DecksTabSkeleton viewMode={viewMode} />;
+  }
 
   const toggleDeckActive = async (e: React.MouseEvent, deck: Deck) => {
     e.stopPropagation();
@@ -328,7 +334,7 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                     laneName = storedIn.compartments.names[laneIdx];
                   }
                 }
-                const totalCards = deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0;
+                const totalCards = deck.cards?.reduce((acc: number, c: DeckCardDetail) => acc + c.count, 0) || 0;
                 const isActive = deck.is_active !== false;
                 const formatStr = deck.format || 'TCG';
                 const sleeveSummary = getDeckSleevesSummary(deck, sleeves);
@@ -457,9 +463,25 @@ export const DecksTab: React.FC<DecksTabProps> = ({
 
                     {/* Footer */}
                     <div className="mt-4 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                      <span className="text-[10px] text-zinc-400 font-mono">
-                        ID: {deck.id.slice(0, 6)}...
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-zinc-400 font-mono">
+                          ID: {deck.id.slice(0, 6)}...
+                        </span>
+                        {handleDeleteDeck && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeckToDelete(deck);
+                            }}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                            title="Eliminar baraja"
+                            aria-label="Eliminar baraja"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       <span className="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                         <span>Ver</span>
                         <ArrowUpRight className="w-3.5 h-3.5" />
@@ -475,7 +497,7 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                 const storedIn = locations.find(
                   l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
                 );
-                const totalCards = deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0;
+                const totalCards = deck.cards?.reduce((acc: number, c: DeckCardDetail) => acc + c.count, 0) || 0;
                 const isActive = deck.is_active !== false;
                 const sleeveSummary = getDeckSleevesSummary(deck, sleeves);
 
@@ -554,7 +576,7 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                       <button
                         type="button"
                         onClick={(e) => toggleDeckActive(e, deck)}
-                        className={`text-[10px] font-mono font-bold px-2 py-1 rounded-lg border transition-colors ${
+                        className={`text-[10px] font-mono font-bold px-2 py-1 rounded-lg border transition-colors cursor-pointer ${
                           isActive
                             ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
                             : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'
@@ -562,6 +584,20 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                       >
                         {isActive ? 'Activo' : 'Receta'}
                       </button>
+                      {handleDeleteDeck && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeckToDelete(deck);
+                          }}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                          title="Eliminar baraja"
+                          aria-label="Eliminar baraja"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <span className="text-xs font-bold text-red-600 dark:text-red-400 group-hover:translate-x-0.5 transition-transform">
                         →
                       </span>
@@ -573,6 +609,28 @@ export const DecksTab: React.FC<DecksTabProps> = ({
           )}
         </div>
       )}
+
+      {/* Modal de Confirmación para Eliminar Baraja */}
+      <ConfirmDialog
+        isOpen={Boolean(deckToDelete)}
+        title="¿Eliminar baraja?"
+        description={`¿Estás seguro de que deseas eliminar la baraja "${deckToDelete?.name}"? Las cartas físicas asociadas permanecerán intactas en tu colección general.`}
+        confirmLabel="Eliminar Baraja"
+        cancelLabel="Cancelar"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={async () => {
+          if (!deckToDelete || !handleDeleteDeck) return;
+          setIsDeleting(true);
+          try {
+            await handleDeleteDeck(deckToDelete.id);
+            setDeckToDelete(null);
+          } finally {
+            setIsDeleting(false);
+          }
+        }}
+        onClose={() => setDeckToDelete(null)}
+      />
     </div>
   );
 };
