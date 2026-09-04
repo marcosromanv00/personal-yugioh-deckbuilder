@@ -502,12 +502,20 @@ export default function CollectionPage() {
 
       <SleeveInventoryFormModal
         isOpen={state.isSleeveFormOpen}
+        availableSleeves={state.sleeves}
+        initialTab={state.sleeveFormTab}
+        initialSleeveId={state.sleeveFormInitialId}
+        initialCategory={state.sleeveFormInitialCategory}
+        editingSleeve={state.editingSleeve}
         onClose={() => {
           state.setIsSleeveFormOpen(false);
           state.setEditingSleeve(null);
+          state.setSleeveFormInitialId(undefined);
+          state.setSleeveFormInitialCategory(undefined);
         }}
-        onSuccess={state.fetchSleeves}
-        editingSleeve={state.editingSleeve}
+        onSuccess={async () => {
+          await state.fetchSleeves();
+        }}
       />
 
       <UniversalDeckWorkspaceModal
