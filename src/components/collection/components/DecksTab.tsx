@@ -15,10 +15,58 @@ import {
   RotateCcw
 } from 'lucide-react';
 import Link from 'next/link';
-import { Deck, StorageLocation, SleeveInventory, UserCard } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { RecommendedDecksGallery } from './RecommendedDecksGallery';
 import { DecksTabSkeleton } from './DecksTabSkeleton';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
+import { Deck, StorageLocation, SleeveInventory, UserCard, DeckSleeve } from '@/types/collection';
+
+type SleeveSummaryItem = {
+  sleeve_id: string;
+  section?: string;
+  section_type?: string;
+  sleeve_details?: SleeveInventory;
+};
+
+const getDeckSleevesSummary = (deck: Deck, availableSleeves: SleeveInventory[]) => {
+  if (!deck.sleeves || !Array.isArray(deck.sleeves) || deck.sleeves.length === 0) {
+    return null;
+  }
+
+  const findSleeve = (sleeveId?: string, details?: SleeveInventory) => {
+    if (details) return details;
+    if (!sleeveId) return null;
+    return availableSleeves.find(s => s.id === sleeveId) || null;
+  };
+
+  const sleeveList = deck.sleeves as SleeveSummaryItem[];
+
+  const mainRegular = sleeveList.find((s) => 
+    (s.section_type === 'main_side_regular' || s.section_type === 'main_regular' || s.section_type === 'main_side' || s.section === 'main_side_regular' || s.section === 'main')
+  );
+  const extraRegular = sleeveList.find((s) => 
+    (s.section_type === 'extra_regular' || s.section_type === 'extra' || s.section === 'extra_regular' || s.section === 'extra')
+  );
+  const poolRegular = sleeveList.find((s) => 
+    (s.section_type === 'pool_regular' || s.section_type === 'pool' || s.section_type === 'extras' || s.section === 'pool_regular' || s.section === 'pool')
+  );
+
+  const mainSlv = mainRegular ? findSleeve(mainRegular.sleeve_id, mainRegular.sleeve_details) : null;
+  const extraSlv = extraRegular ? findSleeve(extraRegular.sleeve_id, extraRegular.sleeve_details) : null;
+  const poolSlv = poolRegular ? findSleeve(poolRegular.sleeve_id, poolRegular.sleeve_details) : null;
+
+  const hasFit = sleeveList.some((s) => (s.section_type || s.section || '').endsWith('_fit'));
+  const hasOver = sleeveList.some((s) => (s.section_type || s.section || '').endsWith('_over'));
+  const layerType = (hasFit && hasOver) ? 'Triple' : (hasFit || hasOver) ? 'Doble' : 'Simple';
+
+  return {
+    mainSlv,
+    extraSlv,
+    poolSlv,
+    layerType,
+    totalAssigned: [mainSlv, extraSlv, poolSlv].filter(Boolean).length
+  };
+};
 
 interface DecksTabProps {
   loading?: boolean;
@@ -283,6 +331,7 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                 const totalCards = deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0;
                 const isActive = deck.is_active !== false;
                 const formatStr = deck.format || 'TCG';
+                const sleeveSummary = getDeckSleevesSummary(deck, sleeves);
 
                 return (
                   <motion.div
@@ -329,8 +378,8 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                         )}
                       </div>
 
-                      {/* Info de Cartas y Almacenamiento */}
-                      <div className="pt-2.5 border-t border-zinc-100 dark:border-zinc-800 space-y-1.5 text-xs font-mono">
+                      {/* Info de Cartas, Almacenamiento y Fundas */}
+                      <div className="pt-2.5 border-t border-zinc-100 dark:border-zinc-800 space-y-2 text-xs font-mono">
                         <div className="flex items-center justify-between text-zinc-500">
                           <span>Cartas:</span>
                           <span className="text-zinc-900 dark:text-zinc-100 font-bold">{totalCards}</span>
@@ -348,6 +397,58 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                           ) : (
                             <span className="text-amber-600 dark:text-amber-400 text-[11px] font-bold">
                               Sin asignar
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Desglose de Fundas del Deck */}
+                        <div className="flex items-start justify-between text-zinc-500 pt-1.5 border-t border-zinc-100/60 dark:border-zinc-800/60">
+                          <span className="shrink-0 flex items-center gap-1">
+                            <Shield className="w-3 h-3 text-red-500" />
+                            <span>Fundas:</span>
+                          </span>
+                          {sleeveSummary && sleeveSummary.totalAssigned > 0 ? (
+                            <div className="flex flex-wrap items-center justify-end gap-1 max-w-[70%]">
+                              {sleeveSummary.mainSlv && (
+                                <OverflowTooltip
+                                  text={`Main/Side: ${sleeveSummary.mainSlv.name} (${sleeveSummary.mainSlv.brand} - ${sleeveSummary.mainSlv.color_pattern}) [${sleeveSummary.layerType}]`}
+                                  className="text-[9.5px] font-mono font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/90 border border-zinc-200 dark:border-zinc-700/60 px-1.5 py-0.5 rounded-md"
+                                >
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+                                    style={{ backgroundColor: sleeveSummary.mainSlv.color_hex || '#e11d48' }}
+                                  />
+                                  <span className="truncate max-w-20">Main: {sleeveSummary.mainSlv.color_pattern || sleeveSummary.mainSlv.brand}</span>
+                                </OverflowTooltip>
+                              )}
+                              {sleeveSummary.extraSlv && (
+                                <OverflowTooltip
+                                  text={`Extra Deck: ${sleeveSummary.extraSlv.name} (${sleeveSummary.extraSlv.brand} - ${sleeveSummary.extraSlv.color_pattern})`}
+                                  className="text-[9.5px] font-mono font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-1.5 py-0.5 rounded-md"
+                                >
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+                                    style={{ backgroundColor: sleeveSummary.extraSlv.color_hex || '#a855f7' }}
+                                  />
+                                  <span className="truncate max-w-20">Extra: {sleeveSummary.extraSlv.color_pattern || sleeveSummary.extraSlv.brand}</span>
+                                </OverflowTooltip>
+                              )}
+                              {sleeveSummary.poolSlv && (
+                                <OverflowTooltip
+                                  text={`Reserva/Pool: ${sleeveSummary.poolSlv.name} (${sleeveSummary.poolSlv.brand} - ${sleeveSummary.poolSlv.color_pattern})`}
+                                  className="text-[9.5px] font-mono font-bold text-cyan-700 dark:text-cyan-300 flex items-center gap-1 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/50 px-1.5 py-0.5 rounded-md"
+                                >
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+                                    style={{ backgroundColor: sleeveSummary.poolSlv.color_hex || '#06b6d4' }}
+                                  />
+                                  <span className="truncate max-w-20">Pool: {sleeveSummary.poolSlv.color_pattern || sleeveSummary.poolSlv.brand}</span>
+                                </OverflowTooltip>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-zinc-400 dark:text-zinc-600 text-[10.5px] italic">
+                              Sin fundas
                             </span>
                           )}
                         </div>
@@ -376,6 +477,7 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                 );
                 const totalCards = deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0;
                 const isActive = deck.is_active !== false;
+                const sleeveSummary = getDeckSleevesSummary(deck, sleeves);
 
                 return (
                   <div
@@ -400,14 +502,50 @@ export const DecksTab: React.FC<DecksTabProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 flex-1 min-w-0 px-1 sm:px-4">
+                    <div className="flex items-center gap-2 flex-1 min-w-0 px-1 sm:px-2">
                       {storedIn ? (
-                        <span className="text-[11px] font-mono font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1 truncate">
+                        <span className="text-[11px] font-mono font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1 truncate max-w-36">
                           📦 {storedIn.name}
                         </span>
                       ) : (
                         <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 italic">
                           Sin almacenar
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Columna de Fundas en Vista Lista */}
+                    <div className="flex items-center gap-1.5 min-w-0 sm:w-1/4">
+                      {sleeveSummary && sleeveSummary.totalAssigned > 0 ? (
+                        <div className="flex items-center gap-1 flex-wrap truncate">
+                          {sleeveSummary.mainSlv && (
+                            <OverflowTooltip
+                              text={`Main: ${sleeveSummary.mainSlv.name} (${sleeveSummary.mainSlv.brand})`}
+                              className="text-[9.5px] font-mono font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700"
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+                                style={{ backgroundColor: sleeveSummary.mainSlv.color_hex || '#e11d48' }}
+                              />
+                              <span className="truncate max-w-16 sm:max-w-20">{sleeveSummary.mainSlv.color_pattern || sleeveSummary.mainSlv.brand}</span>
+                            </OverflowTooltip>
+                          )}
+                          {sleeveSummary.extraSlv && (
+                            <OverflowTooltip
+                              text={`Extra: ${sleeveSummary.extraSlv.name} (${sleeveSummary.extraSlv.brand})`}
+                              className="text-[9.5px] font-mono font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1 bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/40"
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+                                style={{ backgroundColor: sleeveSummary.extraSlv.color_hex || '#a855f7' }}
+                              />
+                              <span className="truncate max-w-16 sm:max-w-20">{sleeveSummary.extraSlv.color_pattern || sleeveSummary.extraSlv.brand}</span>
+                            </OverflowTooltip>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-600 italic">
+                          Sin fundas
                         </span>
                       )}
                     </div>

@@ -4,6 +4,7 @@ import React from 'react';
 import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { MobileDeckTab } from './types';
 import { isExtraDeckCardType } from './useDeckWorkspaceState';
+import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
 
 interface DeckSectionGridProps {
   cards: DeckCardDetail[];
@@ -25,6 +26,8 @@ interface DeckSectionGridProps {
   emptySubMessage: string;
   badgeLabel?: string;
   badgeColorClass?: string;
+  handleDragCardStart?: (e: React.DragEvent, cardData: { id: number; name: string; type?: string; image_url?: string; archetype?: string; fromSection?: 'main' | 'extra' | 'side' | 'pool' | 'extras' }) => void;
+  handleDropCardOnSection?: (e: React.DragEvent, targetSection: 'main' | 'extra' | 'side' | 'pool' | 'extras') => void;
 }
 
 export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
@@ -47,18 +50,51 @@ export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
   emptySubMessage,
   badgeLabel,
   badgeColorClass = 'bg-zinc-900/90 text-zinc-200 border-zinc-700/50',
+  handleDragCardStart,
+  handleDropCardOnSection,
 }) => {
+  const [isDragOver, setIsDragOver] = React.useState(false);
+
   if (cards.length === 0) {
     return (
-      <div className="py-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800/80 rounded-2xl flex flex-col items-center justify-center text-center text-zinc-400">
+      <div 
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!isDragOver) setIsDragOver(true);
+        }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={(e) => {
+          setIsDragOver(false);
+          handleDropCardOnSection?.(e, sectionKey);
+        }}
+        className={`py-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-200 ${
+          isDragOver
+            ? 'border-red-500 bg-red-500/10 text-red-500 scale-[1.01] shadow-md'
+            : 'border-zinc-200 dark:border-zinc-800/80 text-zinc-400'
+        }`}
+      >
         <p className="text-xs font-bold">{emptyMessage}</p>
         <p className="text-[10.5px] mt-0.5">{emptySubMessage}</p>
+        <p className="text-[9px] font-mono mt-1 opacity-70">Arrastra cartas aquí para añadirlas a {sectionName}</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1.5 sm:gap-2">
+    <div 
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!isDragOver) setIsDragOver(true);
+      }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={(e) => {
+        setIsDragOver(false);
+        handleDropCardOnSection?.(e, sectionKey);
+      }}
+      className={`grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1.5 sm:gap-2 p-1.5 rounded-2xl transition-all duration-200 ${
+        isDragOver ? 'ring-2 ring-red-500 bg-red-500/5' : ''
+      }`}
+    >
       {cards.map((cardDetail, idx) => {
         const isSelected = selectedCardDetail?.card_id === cardDetail.card_id && selectedCardDetail.section === cardDetail.section;
         const physicalCards = userCards.filter(uc => uc.card_id === cardDetail.card_id);
@@ -80,16 +116,28 @@ export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
           : null;
 
         const deckSleeve = availableSleeves.find(s => s.id === targetDeckSleeveId) || null;
-        const activeSleeve = physicalCards[0]?.sleeve_type === 'none' ? null : (customSleeve || deckSleeve);
+        const activeSleeve = customSleeve || deckSleeve;
+        const locationText = cardLoc ? cardLoc.name : (storageLocationId ? (currentBaseLocation?.name || 'En Deckbox') : 'Sin clasificar');
 
         return (
           <div
             key={`${sectionKey}-${cardDetail.card_id}-${idx}`}
+            draggable={!isMobile}
+            onDragStart={!isMobile ? (e) => {
+              handleDragCardStart?.(e, {
+                id: cardDetail.card_id,
+                name: cardDetail.card_details?.name || '',
+                type: cardDetail.card_details?.type,
+                image_url: cardDetail.card_details?.image_url_small || cardDetail.card_details?.image_url,
+                archetype: cardDetail.card_details?.archetype,
+                fromSection: cardDetail.section as 'main' | 'extra' | 'side' | 'pool' | 'extras',
+              });
+            } : undefined}
             onClick={() => {
               onSelectCard(cardDetail);
               if (isMobile) setMobileTab('right');
             }}
-            className={`relative aspect-3/4.4 bg-white dark:bg-zinc-900 rounded-xl border p-1 flex flex-col justify-between overflow-hidden cursor-pointer transition-all shadow-2xs group ${
+            className={`relative aspect-3/4.4 bg-white dark:bg-zinc-900 rounded-xl border p-1 flex flex-col justify-between overflow-hidden cursor-pointer transition-all shadow-2xs group select-none ${
               isSelected
                 ? 'border-red-500 ring-2 ring-red-500/40 shadow-md scale-102'
                 : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700'
@@ -115,17 +163,21 @@ export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
                 </div>
               )}
             </div>
-            <div className="mt-1 px-0.5 text-center min-w-0">
-              <p className="text-[9.5px] font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-500 transition-colors">
-                {cardDetail.card_details?.name}
-              </p>
-              <div className="mt-0.5">
+            <div className="mt-1 px-0.5 text-center min-w-0 w-full flex flex-col items-center">
+              <OverflowTooltip 
+                text={cardDetail.card_details?.name || 'Carta'} 
+                className="text-[9.5px] font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors"
+                containerClassName="w-full"
+              />
+              <div className="mt-0.5 w-full flex justify-center">
                 {hasPhysical ? (
-                  <span className="text-[8px] font-mono text-zinc-500 dark:text-zinc-400 truncate block">
-                    📍 {cardLoc ? cardLoc.name : (storageLocationId ? (currentBaseLocation?.name || 'En Deckbox') : 'Sin clasificar')}
-                  </span>
+                  <OverflowTooltip
+                    text={`📍 ${locationText}`}
+                    className="text-[8px] font-mono text-zinc-500 dark:text-zinc-400 block"
+                    containerClassName="w-full"
+                  />
                 ) : (
-                  <span className="text-[8px] font-mono text-amber-600 dark:text-amber-400 font-bold block">
+                  <span className="text-[8px] font-mono text-amber-600 dark:text-amber-400 font-bold block truncate">
                     ⚠️ Solo Receta
                   </span>
                 )}

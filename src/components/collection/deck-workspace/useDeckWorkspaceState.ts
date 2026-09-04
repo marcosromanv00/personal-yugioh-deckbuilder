@@ -91,6 +91,8 @@ export function useDeckWorkspaceState({
   // Deck Activo y Lista de Cartas
   const [currentDeck, setCurrentDeck] = useState<Deck | null>(deck || null);
   const [deckCards, setDeckCards] = useState<DeckCardDetail[]>(deck?.cards || []);
+  const [initialDeckCards, setInitialDeckCards] = useState<DeckCardDetail[]>(deck?.cards || []);
+  const [savingDeckCards, setSavingDeckCards] = useState(false);
   const [userCards, setUserCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMutated, setHasMutated] = useState(false);
@@ -249,6 +251,7 @@ export function useDeckWorkspaceState({
     setSearchFilter('');
     if (deck.cards && Array.isArray(deck.cards)) {
       setDeckCards(deck.cards);
+      setInitialDeckCards(deck.cards);
     }
 
     // Cargar fundas asignadas al deck si existen (soporte multicapa)
@@ -301,6 +304,7 @@ export function useDeckWorkspaceState({
           const json = await deckRes.json();
           if (json.data) {
             setDeckCards(json.data.cards || []);
+            setInitialDeckCards(json.data.cards || []);
 
             if (json.data.sleeves && Array.isArray(json.data.sleeves)) {
               const loadedParsed = parseSleevesList(json.data.sleeves);
@@ -497,18 +501,17 @@ export function useDeckWorkspaceState({
 
     return result;
   }, [deckCards, sectionFilter, searchFilter, sortBy]);
-
   // Subgrupos por sección
   const mainCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'main'), [filteredCenterCards]);
   const extraCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'extra'), [filteredCenterCards]);
   const sideCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'side'), [filteredCenterCards]);
   const poolCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'pool' || c.section === 'extras'), [filteredCenterCards]);
 
-  // Acciones de Gestión de Cartas en el Deck
-  const handleAddCardToDeck = async (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'pool') => {
+  // Acciones de Gestión de Cartas en el Deck (Solo mutación local hasta confirmación del usuario)
+  const handleAddCardToDeck = (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'pool' | 'extras') => {
     if (!currentDeck) return;
 
-    let sectionToUse: 'main' | 'extra' | 'side' | 'pool' = targetSection || 'main';
+    let sectionToUse: 'main' | 'extra' | 'side' | 'pool' | 'extras' = targetSection || 'main';
     if (!targetSection) {
       const typeLower = (card.type || '').toLowerCase();
       if (
@@ -521,142 +524,181 @@ export function useDeckWorkspaceState({
       }
     }
 
-    const sectionNormalized = sectionToUse === 'pool' ? 'extras' : sectionToUse;
+    const sectionNormalized = (sectionToUse === 'pool' || sectionToUse === 'extras') ? 'extras' : sectionToUse;
 
-    try {
-      const existing = deckCards.find(c => c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized));
-      let updatedCards: DeckCardDetail[];
+    const existing = deckCards.find(c => c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized || (sectionNormalized === 'extras' && (c.section === 'pool' || c.section === 'extras'))));
+    let updatedCards: DeckCardDetail[];
 
-      if (existing) {
-        updatedCards = deckCards.map(c => 
-          c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized)
-            ? { ...c, count: c.count + 1 }
-            : c
-        );
-      } else {
-        const newDetail: DeckCardDetail = {
-          card_id: card.id,
-          count: 1,
-          section: sectionNormalized,
-          card_details: {
-            name: card.name,
-            type: card.type,
-            desc: card.desc,
-            atk: card.atk ?? undefined,
-            def: card.def ?? undefined,
-            level: card.level ?? undefined,
-            race: card.race ?? undefined,
-            attribute: card.attribute ?? undefined,
-            archetype: card.archetype,
-            image_url: card.image_url,
-            image_url_small: card.image_url_small,
-          },
-        };
-        updatedCards = [...deckCards, newDetail];
-      }
-
-      setDeckCards(updatedCards);
-      setHasMutated(true);
-      toast.success(`Añadida copia de ${card.name} a ${sectionToUse.toUpperCase()}`);
-
-      await fetch(`/api/decks/${currentDeck.id}/cards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          card_id: card.id,
-          section: sectionNormalized,
-          count: 1,
-        })
-      });
-    } catch (err) {
-      console.error('Error al añadir carta al deck:', err);
-      toast.error('No se pudo añadir la carta al deck');
+    if (existing) {
+      updatedCards = deckCards.map(c => 
+        c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized || (sectionNormalized === 'extras' && (c.section === 'pool' || c.section === 'extras')))
+          ? { ...c, count: c.count + 1 }
+          : c
+      );
+    } else {
+      const newDetail: DeckCardDetail = {
+        card_id: card.id,
+        count: 1,
+        section: sectionNormalized,
+        card_details: {
+          name: card.name,
+          type: card.type,
+          desc: card.desc,
+          atk: card.atk ?? undefined,
+          def: card.def ?? undefined,
+          level: card.level ?? undefined,
+          race: card.race ?? undefined,
+          attribute: card.attribute ?? undefined,
+          archetype: card.archetype,
+          image_url: card.image_url,
+          image_url_small: card.image_url_small,
+        },
+      };
+      updatedCards = [...deckCards, newDetail];
     }
+
+    setDeckCards(updatedCards);
+    setHasMutated(true);
+    const displaySec = sectionNormalized === 'extras' ? 'RESERVA / POOL' : sectionNormalized.toUpperCase();
+    toast.success(`+1 ${card.name} en ${displaySec} (Cambios pendientes)`);
   };
 
-  const handleRemoveCardFromDeck = async (cardId: number, section: 'main' | 'extra' | 'side' | 'pool') => {
+  const handleRemoveCardFromDeck = (cardId: number, section: 'main' | 'extra' | 'side' | 'pool' | 'extras') => {
     if (!currentDeck) return;
 
-    const sectionNormalized = section === 'pool' ? 'extras' : section;
+    const sectionNormalized = (section === 'pool' || section === 'extras') ? 'extras' : section;
 
-    try {
-      const existing = deckCards.find(c => c.card_id === cardId && (c.section === section || c.section === sectionNormalized));
-      if (!existing) return;
+    const existing = deckCards.find(c => c.card_id === cardId && (c.section === section || c.section === sectionNormalized));
+    if (!existing) return;
 
-      let updatedCards: DeckCardDetail[];
-      if (existing.count > 1) {
-        updatedCards = deckCards.map(c => 
-          c.card_id === cardId && (c.section === section || c.section === sectionNormalized)
-            ? { ...c, count: c.count - 1 }
-            : c
-        );
-      } else {
-        updatedCards = deckCards.filter(c => !(c.card_id === cardId && (c.section === section || c.section === sectionNormalized)));
-        if (selectedCardDetail?.card_id === cardId && (selectedCardDetail.section === section || selectedCardDetail.section === sectionNormalized)) {
-          setSelectedCardDetail(null);
-          setRightMode('details');
-        }
+    let updatedCards: DeckCardDetail[];
+    if (existing.count > 1) {
+      updatedCards = deckCards.map(c => 
+        c.card_id === cardId && (c.section === section || c.section === sectionNormalized)
+          ? { ...c, count: c.count - 1 }
+          : c
+      );
+    } else {
+      updatedCards = deckCards.filter(c => !(c.card_id === cardId && (c.section === section || c.section === sectionNormalized)));
+      if (selectedCardDetail?.card_id === cardId && (selectedCardDetail.section === section || selectedCardDetail.section === sectionNormalized)) {
+        setSelectedCardDetail(null);
+        setRightMode('details');
       }
-
-      setDeckCards(updatedCards);
-      setHasMutated(true);
-      toast.success('Carta retirada del deck');
-
-      await fetch(`/api/decks/${currentDeck.id}/cards`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          card_id: cardId,
-          section: sectionNormalized,
-        })
-      });
-    } catch (err) {
-      console.error('Error al remover carta del deck:', err);
-      toast.error('No se pudo retirar la carta');
     }
+
+    setDeckCards(updatedCards);
+    setHasMutated(true);
+    toast.info('Carta retirada (Cambios pendientes)');
   };
 
-  const handleChangeCardSection = async (cardId: number, currentSection: string, targetSection: string) => {
-    if (!currentDeck || currentSection === targetSection) return;
+  const handleChangeCardSection = (cardId: number, currentSection: string, targetSection: string) => {
+    if (!currentDeck) return;
 
-    const fromSec = currentSection === 'pool' ? 'extras' : currentSection;
-    const toSec = targetSection === 'pool' ? 'extras' : targetSection;
+    const fromSec = (currentSection === 'pool' || currentSection === 'extras') ? 'extras' : currentSection;
+    const toSec = (targetSection === 'pool' || targetSection === 'extras') ? 'extras' : targetSection;
 
-    try {
-      const card = deckCards.find(c => c.card_id === cardId && (c.section === currentSection || c.section === fromSec));
-      if (!card) return;
+    if (fromSec === toSec) return;
 
-      const remainingCards = deckCards.filter(c => !(c.card_id === cardId && (c.section === currentSection || c.section === fromSec)));
-      const targetExisting = remainingCards.find(c => c.card_id === cardId && (c.section === targetSection || c.section === toSec));
+    const card = deckCards.find(c => c.card_id === cardId && (c.section === currentSection || c.section === fromSec));
+    if (!card) return;
 
-      let updatedCards: DeckCardDetail[];
-      if (targetExisting) {
-        updatedCards = remainingCards.map(c => 
-          c.card_id === cardId && (c.section === targetSection || c.section === toSec)
-            ? { ...c, count: c.count + card.count }
-            : c
-        );
-      } else {
-        updatedCards = [...remainingCards, { ...card, section: toSec as 'main' | 'extra' | 'side' | 'pool' }];
+    const remainingCards = deckCards.filter(c => !(c.card_id === cardId && (c.section === currentSection || c.section === fromSec)));
+    const targetExisting = remainingCards.find(c => c.card_id === cardId && (c.section === targetSection || c.section === toSec));
+
+    let updatedCards: DeckCardDetail[];
+    if (targetExisting) {
+      updatedCards = remainingCards.map(c => 
+        c.card_id === cardId && (c.section === targetSection || c.section === toSec)
+          ? { ...c, count: c.count + card.count }
+          : c
+      );
+    } else {
+      updatedCards = [...remainingCards, { ...card, section: toSec as 'main' | 'extra' | 'side' | 'pool' | 'extras' }];
+    }
+
+    setDeckCards(updatedCards);
+    setSelectedCardDetail(prev => prev ? { ...prev, section: toSec as 'main' | 'extra' | 'side' | 'pool' | 'extras' } : null);
+    setHasMutated(true);
+    const displayTarget = toSec === 'extras' ? 'RESERVA / POOL' : toSec.toUpperCase();
+    toast.success(`Carta movida a ${displayTarget} (Cambios pendientes)`);
+  };
+
+  // Drag and drop entre paneles y secciones
+  const handleDragCardStart = (
+    e: React.DragEvent,
+    cardData: {
+      id: number;
+      name: string;
+      type?: string;
+      image_url?: string;
+      archetype?: string;
+      fromSection?: 'main' | 'extra' | 'side' | 'pool' | 'extras';
+    }
+  ) => {
+    const payload = JSON.stringify({
+      id: cardData.id,
+      name: cardData.name,
+      type: cardData.type || 'Monster',
+      image_url: cardData.image_url || '',
+      archetype: cardData.archetype,
+      fromSection: cardData.fromSection,
+    });
+    e.dataTransfer.setData('application/json', payload);
+    e.dataTransfer.setData('text/plain', String(cardData.id));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDropCardOnSection = async (
+    e: React.DragEvent,
+    targetSection: 'main' | 'extra' | 'side' | 'pool' | 'extras'
+  ) => {
+    e.preventDefault();
+    const jsonStr = e.dataTransfer.getData('application/json');
+    if (jsonStr) {
+      try {
+        const cardObj = JSON.parse(jsonStr);
+        if (cardObj && cardObj.id) {
+          const fromSec = cardObj.fromSection;
+          const toSec = (targetSection === 'pool' || targetSection === 'extras') ? 'extras' : targetSection;
+          const fromSecNorm = (fromSec === 'pool' || fromSec === 'extras') ? 'extras' : fromSec;
+
+          if (fromSecNorm) {
+            if (fromSecNorm !== toSec) {
+              await handleChangeCardSection(cardObj.id, fromSec, targetSection);
+            }
+          } else {
+            // Dragged from Search or Collection
+            const fullCard: Card = {
+              id: cardObj.id,
+              name: cardObj.name,
+              type: cardObj.type,
+              desc: '',
+              image_url: cardObj.image_url,
+              image_url_small: cardObj.image_url,
+              archetype: cardObj.archetype,
+            };
+            await handleAddCardToDeck(fullCard, targetSection);
+          }
+          return;
+        }
+      } catch (err) {
+        console.error('Error al procesar carta soltada:', err);
       }
+    }
 
-      setDeckCards(updatedCards);
-      setSelectedCardDetail(prev => prev ? { ...prev, section: toSec as 'main' | 'extra' | 'side' | 'pool' } : null);
-      setHasMutated(true);
-      toast.success(`Carta movida a ${targetSection.toUpperCase()}`);
-
-      await fetch(`/api/decks/${currentDeck.id}/cards/move`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          card_id: cardId,
-          from_section: fromSec,
-          to_section: toSec,
-        })
-      });
-    } catch (err) {
-      console.error('Error al mover sección de carta:', err);
-      toast.error('No se pudo mover la carta de sección');
+    const rawId = e.dataTransfer.getData('text/plain');
+    if (rawId) {
+      const cardId = parseInt(rawId);
+      if (!isNaN(cardId)) {
+        const fullCard: Card = {
+          id: cardId,
+          name: `Carta #${cardId}`,
+          type: 'Monster',
+          desc: '',
+          image_url: `https://images.ygoprodeck.com/images/cards/${cardId}.jpg`,
+        };
+        await handleAddCardToDeck(fullCard, targetSection);
+      }
     }
   };
 
@@ -785,9 +827,6 @@ export function useDeckWorkspaceState({
       mainSleeveId !== initialFormState.mainSleeveId ||
       mainSleeveOverId !== initialFormState.mainSleeveOverId ||
       extraProtection !== initialFormState.extraProtection ||
-      extraSleeveFitId !== initialFormState.extraSleeveFitId ||
-      extraSleeveId !== initialFormState.extraSleeveId ||
-      extraSleeveOverId !== initialFormState.extraSleeveOverId ||
       poolProtection !== initialFormState.poolProtection ||
       poolSleeveFitId !== initialFormState.poolSleeveFitId ||
       poolSleeveId !== initialFormState.poolSleeveId ||
@@ -813,6 +852,64 @@ export function useDeckWorkspaceState({
     poolSleeveId,
     poolSleeveOverId,
   ]);
+
+  // Detectar si la lista de cartas del mazo tiene cambios sin guardar
+  const isDeckListDirty = useMemo(() => {
+    const serialize = (cards: DeckCardDetail[]) =>
+      cards.map(c => ({
+        id: c.card_id,
+        count: c.count,
+        section: (c.section === 'pool' || c.section === 'extras') ? 'extras' : c.section,
+      })).sort((a, b) => a.id - b.id || a.section.localeCompare(b.section));
+
+    return JSON.stringify(serialize(deckCards)) !== JSON.stringify(serialize(initialDeckCards));
+  }, [deckCards, initialDeckCards]);
+
+  const handleSaveDeckCards = async () => {
+    if (!currentDeck) return;
+    setSavingDeckCards(true);
+    try {
+      const payloadCards = deckCards.map(c => ({
+        id: c.card_id,
+        count: c.count,
+        section: (c.section === 'pool' || c.section === 'extras') ? 'extras' : c.section,
+        name: c.card_details?.name,
+        type: c.card_details?.type,
+        image_url: c.card_details?.image_url,
+      }));
+
+      const res = await fetch('/api/decks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: currentDeck.id,
+          storage_location_id: storageLocationId || null,
+          compartment_index: compartmentIndex,
+          cards: payloadCards,
+        })
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || 'Error al guardar la lista de cartas');
+      }
+
+      setInitialDeckCards(deckCards);
+      setHasMutated(true);
+      toast.success('¡Lista de cartas del mazo guardada correctamente!');
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error('Error al guardar lista de cartas:', error);
+      toast.error(error.message || 'Error al guardar las cartas del deck');
+    } finally {
+      setSavingDeckCards(false);
+    }
+  };
+
+  const handleDiscardDeckCards = () => {
+    setDeckCards(initialDeckCards);
+    toast.info('Cambios en la lista de cartas descartados');
+  };
 
   // Actualizar metadatos de una copia física (rareza, condición, proxy, notas, funda, ubicación)
   const handleUpdateUserCard = async (userCardId: string, fields: Partial<UserCard>) => {
@@ -1129,6 +1226,10 @@ export function useDeckWorkspaceState({
     savingDeck,
     handleSaveDeck,
     isMetadataDirty,
+    isDeckListDirty,
+    savingDeckCards,
+    handleSaveDeckCards,
+    handleDiscardDeckCards,
 
     // Sleeves (Multicapa)
     availableSleeves,
@@ -1235,6 +1336,8 @@ export function useDeckWorkspaceState({
     handleAddCardToDeck,
     handleRemoveCardFromDeck,
     handleChangeCardSection,
+    handleDragCardStart,
+    handleDropCardOnSection,
     handleUpdateCardPhysicalLocation,
     handleRequestRelocateCard,
     pendingRelocation,
