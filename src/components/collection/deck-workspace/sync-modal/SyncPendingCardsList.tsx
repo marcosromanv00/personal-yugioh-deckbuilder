@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronUp, CheckCircle2, PackagePlus } from 'lucide-react';
 import { DeckCardDetail } from '@/types/collection';
 import { SyncCardFormDrawer, NewCardRegistrationForm } from './SyncCardFormDrawer';
+import { SyncCollapsibleSection } from './SyncCollapsibleSection';
 
 interface SyncPendingCardsListProps {
   pendingCards: DeckCardDetail[];
@@ -83,31 +83,40 @@ const CardRow: React.FC<CardRowProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <button
-              type="button"
-              onClick={() => setActions((prev) => ({ ...prev, [card.card_id]: 'register' }))}
-              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${action === 'register' ? 'bg-emerald-600 text-white' : 'text-zinc-500'}`}
-            >
-              Registrar
-            </button>
-            <button
-              type="button"
-              onClick={() => setActions((prev) => ({ ...prev, [card.card_id]: 'ignore' }))}
-              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${action === 'ignore' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}
-            >
-              Ignorar
-            </button>
-          </div>
+          {staged > 0 ? (
+            <>
+              <div className="flex bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setActions((prev) => ({ ...prev, [card.card_id]: 'register' }))}
+                  className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${action === 'register' ? 'bg-emerald-600 text-white' : 'text-zinc-500'}`}
+                >
+                  Registrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActions((prev) => ({ ...prev, [card.card_id]: 'ignore' }))}
+                  className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${action === 'ignore' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}
+                >
+                  Ignorar
+                </button>
+              </div>
 
-          {action === 'register' && staged > 0 && (
-            <button
-              type="button"
-              onClick={() => setExpandedCardId(isExpanded ? null : card.card_id)}
-              className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-white cursor-pointer"
-            >
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
+              {action === 'register' && (
+                <button
+                  type="button"
+                  onClick={() => setExpandedCardId(isExpanded ? null : card.card_id)}
+                  className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-white cursor-pointer"
+                >
+                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              )}
+            </>
+          ) : (
+            <span className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              Registrada
+            </span>
           )}
         </div>
       </div>
@@ -119,62 +128,6 @@ const CardRow: React.FC<CardRowProps> = ({
           onChange={(fields) => onUpdateForm(card.card_id, fields)}
         />
       )}
-    </div>
-  );
-};
-
-// ─── Collapsible Section ─────────────────────────────────────────────────────
-
-interface CollapsibleSectionProps {
-  title: string;
-  count: number;
-  defaultOpen: boolean;
-  accentClass: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}
-
-const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
-  title, count, defaultOpen, accentClass, icon, children,
-}) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <div className="space-y-1.5">
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full flex items-center justify-between gap-2 group cursor-pointer"
-      >
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] ${accentClass}`}>{icon}</span>
-          <h4 className="text-xs font-black uppercase tracking-wider text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition-colors">
-            {title}
-          </h4>
-          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${accentClass}`}>
-            {count}
-          </span>
-        </div>
-        <span className="text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
-          {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </span>
-      </button>
-
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="overflow-hidden"
-          >
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
-              {children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -194,7 +147,7 @@ export const SyncPendingCardsList: React.FC<SyncPendingCardsListProps> = ({
   return (
     <div className="space-y-4">
       {unregisteredCards.length > 0 && (
-        <CollapsibleSection
+        <SyncCollapsibleSection
           title="Sin Registrar en Inventario"
           count={unregisteredCards.length}
           defaultOpen={true}
@@ -202,13 +155,13 @@ export const SyncPendingCardsList: React.FC<SyncPendingCardsListProps> = ({
           icon={<PackagePlus className="w-3.5 h-3.5 inline" />}
         >
           {unregisteredCards.map((card) => (
-            <CardRow key={card.card_id} card={card} {...sharedProps} />
+            <CardRow key={`${card.section}-${card.card_id}`} card={card} {...sharedProps} />
           ))}
-        </CollapsibleSection>
+        </SyncCollapsibleSection>
       )}
 
       {registeredCards.length > 0 && (
-        <CollapsibleSection
+        <SyncCollapsibleSection
           title="Cartas ya Registradas"
           count={registeredCards.length}
           defaultOpen={false}
@@ -216,9 +169,9 @@ export const SyncPendingCardsList: React.FC<SyncPendingCardsListProps> = ({
           icon={<CheckCircle2 className="w-3.5 h-3.5 inline" />}
         >
           {registeredCards.map((card) => (
-            <CardRow key={card.card_id} card={card} {...sharedProps} />
+            <CardRow key={`${card.section}-${card.card_id}`} card={card} {...sharedProps} />
           ))}
-        </CollapsibleSection>
+        </SyncCollapsibleSection>
       )}
     </div>
   );

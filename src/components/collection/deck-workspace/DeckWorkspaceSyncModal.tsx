@@ -7,6 +7,7 @@ import { StorageLocation, UserCard, DeckCardDetail } from '@/types/collection';
 import { NewCardRegistrationForm } from './sync-modal/SyncCardFormDrawer';
 import { SyncRemovedCardsSection } from './sync-modal/SyncRemovedCardsSection';
 import { SyncPendingCardsList } from './sync-modal/SyncPendingCardsList';
+import { hasStagedCopies, countStagedCopies } from './deckWorkspacePhysical.utils';
 
 interface DeckWorkspaceSyncModalProps {
   isOpen: boolean;
@@ -17,52 +18,33 @@ interface DeckWorkspaceSyncModalProps {
   unassignedUserCards: UserCard[];
   locations: StorageLocation[];
   onConfirmSave: (data: {
-    inventoryCardsToAdd: Array<{
-      id: number;
-      count: number;
-      rarity: string;
-      condition: string;
-      is_proxy: boolean;
-      section: string;
-    }>;
+    inventoryCardsToAdd: Array<{ id: number; count: number; rarity: string; condition: string; is_proxy: boolean; section: string }>;
   }) => Promise<void>;
   isSaving: boolean;
 }
 
 export const DeckWorkspaceSyncModal: React.FC<DeckWorkspaceSyncModalProps> = ({
-  isOpen,
-  onClose,
-  isActiveDeck,
-  onToggleActiveDeck,
-  pendingCards,
-  unassignedUserCards,
-  onConfirmSave,
-  isSaving,
+  isOpen, onClose, isActiveDeck, onToggleActiveDeck, pendingCards, unassignedUserCards, onConfirmSave, isSaving,
 }) => {
-  const [expandedCardId, setExpandedCardId] = useState<number | null>(pendingCards[0]?.card_id || null);
+  const firstUnregistered = pendingCards.find(hasStagedCopies);
+  const [expandedCardId, setExpandedCardId] = useState<number | null>(firstUnregistered?.card_id || pendingCards[0]?.card_id || null);
   const [actions, setActions] = useState<Record<number, 'register' | 'ignore'>>(() => {
     const initial: Record<number, 'register' | 'ignore'> = {};
-    pendingCards.forEach((c) => {
-      initial[c.card_id] = 'register';
-    });
+    pendingCards.forEach((c) => { initial[c.card_id] = 'register'; });
     return initial;
   });
 
   const [cardForms, setCardForms] = useState<Record<number, NewCardRegistrationForm>>(() => {
     const initial: Record<number, NewCardRegistrationForm> = {};
     pendingCards.forEach((c) => {
-      initial[c.card_id] = {
-        rarity: 'Common',
-        condition: 'Near Mint',
-        is_proxy: false,
-      };
+      initial[c.card_id] = { rarity: 'Common', condition: 'Near Mint', is_proxy: false };
     });
     return initial;
   });
 
   if (!isOpen) return null;
 
-  const hasIgnoredInActive = isActiveDeck && pendingCards.some((c) => actions[c.card_id] === 'ignore');
+  const hasIgnoredInActive = isActiveDeck && pendingCards.some((c) => hasStagedCopies(c) && actions[c.card_id] === 'ignore');
 
   const handleUpdateForm = (cardId: number, fields: Partial<NewCardRegistrationForm>) => {
     setCardForms((prev) => ({
@@ -86,7 +68,7 @@ export const DeckWorkspaceSyncModal: React.FC<DeckWorkspaceSyncModalProps> = ({
     pendingCards.forEach((card) => {
       if (actions[card.card_id] === 'register') {
         const form = cardForms[card.card_id] || { rarity: 'Common', condition: 'Near Mint', is_proxy: false };
-        const needed = card.physical_copies?.filter((cp) => cp.source_status === 'staged').length ?? 1;
+        const needed = countStagedCopies(card);
         if (needed > 0) {
           inventoryCardsToAdd.push({
             id: card.card_id,

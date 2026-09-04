@@ -251,13 +251,12 @@ export async function POST(req: NextRequest) {
       const inventoryPayload = [];
       for (const c of inventory_cards_to_add) {
         const matchingDeckCard = (cards || []).find((dc: InputDeckCard) => dc.id === c.id);
-        const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
-          ? matchingDeckCard.section
-          : null;
+        const rawSec = c.section || matchingDeckCard?.section;
+        const section = (rawSec === 'pool' || rawSec === 'extras')
+          ? 'extras'
+          : (rawSec && ['main', 'extra', 'side'].includes(rawSec) ? rawSec : null);
 
-        const targetCount = c.count || 1;
-        const alreadyInInventory = existingCounts[c.id] || 0;
-        const qtyToInsert = Math.max(0, targetCount - alreadyInInventory);
+        const qtyToInsert = c.count || 1;
 
         if (qtyToInsert > 0) {
           inventoryPayload.push({
@@ -267,14 +266,14 @@ export async function POST(req: NextRequest) {
             deck_id: deck.id,
             deck_section: section,
             quantity: qtyToInsert,
-            rarity: matchingDeckCard?.rarity || c.rarity || 'Common',
-            condition: 'Near Mint',
+            rarity: c.rarity || matchingDeckCard?.rarity || 'Common',
+            condition: c.condition || 'Near Mint',
             language: 'en',
             status_flag: isActiveVal ? 'in_deck' : 'collection',
+            is_proxy: Boolean(c.is_proxy),
             sleeve_type: 'none',
             notes: `Registrado automáticamente desde deck "${name}"`
           });
-          existingCounts[c.id] = alreadyInInventory + qtyToInsert;
         }
       }
 
@@ -585,13 +584,12 @@ export async function PUT(req: NextRequest) {
 
       for (const c of inventory_cards_to_add) {
         const matchingDeckCard = (cards || []).find((dc: { id: number; section: string }) => dc.id === c.id);
-        const section = matchingDeckCard?.section && ['main', 'extra', 'side'].includes(matchingDeckCard.section)
-          ? matchingDeckCard.section
-          : null;
+        const rawSec = (c as { section?: string })?.section || matchingDeckCard?.section;
+        const section = (rawSec === 'pool' || rawSec === 'extras')
+          ? 'extras'
+          : (rawSec && ['main', 'extra', 'side'].includes(rawSec) ? rawSec : null);
 
-        const targetCount = c.count || 1;
-        const alreadyInInventory = existingCounts[c.id] || 0;
-        const qtyToInsert = Math.max(0, targetCount - alreadyInInventory);
+        const qtyToInsert = (c as { count?: number }).count || 1;
 
         if (qtyToInsert > 0) {
           // Determinar si ya hay una funda asignada para esta sección en el deck

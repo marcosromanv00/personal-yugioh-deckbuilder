@@ -14,6 +14,7 @@ import { DeckInspectorPanel } from './deck-workspace/DeckInspectorPanel';
 import { Card } from '@/components/deckbuilder/types';
 import { SleeveInventory, UserCard } from '@/types/collection';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/ToastProvider';
 import { RelocateDeckCardModal } from './deck-workspace/RelocateDeckCardModal';
 import { AssignPendingDrawer } from './deck-workspace/AssignPendingDrawer';
 import { DeckWorkspaceSyncModal } from './deck-workspace/DeckWorkspaceSyncModal';
@@ -31,6 +32,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
   } = props;
 
   const panelResize = usePanelResize(422, 384);
+  const toast = useToast();
 
   const state = useDeckWorkspaceState({
     isOpen,
@@ -129,6 +131,25 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           {/* ─── PANEL IZQUIERDO: BUSCADOR & IMPORTADOR BULK ─── */}
           <div 
             style={!state.isMobile ? { width: `${panelResize.leftPanelWidth}px` } : {}}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const jsonStr = e.dataTransfer.getData('application/json');
+              if (jsonStr) {
+                try {
+                  const cardObj = JSON.parse(jsonStr);
+                  if (cardObj?.id && cardObj?.fromSection) {
+                    state.handleRemoveCardFromDeck(cardObj.id, cardObj.fromSection);
+                    toast.info(`Carta retirada del mazo: ${cardObj.name || `#${cardObj.id}`}`);
+                  }
+                } catch (err) {
+                  console.error('Error al retirar carta mediante arrastre:', err);
+                }
+              }
+            }}
             className={`${state.mobileTab === 'left' ? 'flex w-full' : 'hidden'} lg:flex shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/60 flex-col h-full overflow-hidden z-20`}
           >
             <div className="flex-1 overflow-hidden flex flex-col">
@@ -439,7 +460,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           onClose={() => state.setIsSyncModalOpen(false)}
           isActiveDeck={state.isActive}
           onToggleActiveDeck={state.setIsActive}
-          pendingCards={state.allPendingCards}
+          pendingCards={state.deckCards}
           unassignedUserCards={state.unassignedUserCards}
           locations={locations}
           onConfirmSave={state.executeAtomicSave}
