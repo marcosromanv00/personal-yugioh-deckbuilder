@@ -463,6 +463,10 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           pendingCards={state.deckCards}
           unassignedUserCards={state.unassignedUserCards}
           locations={locations}
+          availableSleeves={state.availableSleeves}
+          userCards={state.userCards}
+          mainSleeveId={state.mainSleeveId}
+          extraSleeveId={state.extraSleeveId}
           onConfirmSave={state.executeAtomicSave}
           isSaving={state.isSavingSync}
         />

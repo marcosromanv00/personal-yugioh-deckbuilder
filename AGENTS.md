@@ -91,8 +91,9 @@ Para mantener el proyecto pulido para su venta, queda terminantemente prohibido 
 4. **Congruencia Estricta con el Tema Global de UI**:
    - **Paleta Canónica**: El sistema visual utiliza una base neutra (`zinc`/`slate`) con acentos primarios en **rojo (`red-600` / `red-500`)** y acentos secundarios neutros (`zinc-800` / `zinc-200`). Queda estrictamente prohibido introducir paletas ajenas o disonantes (ej. morados, púrpuras, rosas) a menos que correspondan a mecánicas de juego específicas (ej. cartas Fusion/Synchro).
    - **Prohibición de Glassmorphism**: No utilices fondos translúcidos con `backdrop-blur` difuminado cuando el resto de la interfaz emplee superficies sólidas y limpias (`bg-white` en claro, `bg-zinc-900`/`bg-zinc-950` en oscuro con bordes `border-zinc-200`/`border-zinc-800`).
-   - **Dropdowns & Popovers Robustos (Sin Overflow Clipping)**:
+   - **Dropdowns & Popovers Robustos (Sin Overflow Clipping & Z-Index de Alta Prioridad)**:
      - Nunca encapsules menús desplegables flotantes dentro de contenedores con `overflow-hidden` o `overflow-x-auto` sin asegurar que el menú tenga visibilidad total (usar `overflow-visible` en filas de filtros o portales flotantes).
+     - **Z-Index Prioritario**: Todo dropdown flotante (`PremiumDropdown`) y su elemento contenedor activo debe contar con un nivel de elevación (`z-50` / `z-60` o portal flotante) para garantizar que nunca sea solapado por filas hermanas, modales secundarios o barras de desplazamiento.
      - Prohibido el uso de `<select>` HTML vanilla sin estilizar en modales y paneles clave; utiliza siempre el componente unificado `PremiumDropdown`.
 
 5. **Ergonomía Táctil y Compatibilidad Móvil Invariante**:

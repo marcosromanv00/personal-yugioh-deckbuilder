@@ -121,7 +121,7 @@ export const PremiumDropdown = <T extends string | number>({
       : 'top-full mt-1.5 origin-top';
 
   return (
-    <div className={`relative inline-block text-left ${isOpen ? 'z-40' : 'z-10'} ${align === 'full' ? 'w-full' : ''} ${className}`} ref={containerRef}>
+    <div className={`relative inline-block text-left ${isOpen ? 'z-60' : 'z-10'} ${align === 'full' ? 'w-full' : ''} ${className}`} ref={containerRef}>
       {/* Botón Trigger del Dropdown */}
       <button
         type="button"
@@ -165,7 +165,7 @@ export const PremiumDropdown = <T extends string | number>({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: computedDirection === 'up' ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.12, ease: 'easeOut' }}
-            className={`absolute z-50 ${positionClass} ${alignClass} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl shadow-black/50 p-1.5 space-y-0.5 ${maxMenuHeight} overflow-y-auto scrollbar-thin font-sans ${menuClassName}`}
+            className={`absolute z-70 ${positionClass} ${alignClass} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl shadow-black/50 p-1.5 space-y-0.5 ${maxMenuHeight} overflow-y-auto scrollbar-thin font-sans ${menuClassName}`}
           >
             {options.map((option) => {
               const isSelected = option.value === value;

@@ -247,6 +247,12 @@ export interface SaveDeckWorkspacePayload {
   }>;
   assigned_user_card_ids?: string[];
   unassigned_user_card_ids?: string[];
+  deleted_user_card_ids?: string[];
+  relocated_user_cards?: Array<{
+    id: string;
+    storage_location_id: string | null;
+    compartment_index?: number | null;
+  }>;
   inventory_cards_to_add?: Array<{
     id: number;
     count: number;
@@ -254,6 +260,8 @@ export interface SaveDeckWorkspacePayload {
     condition: string;
     is_proxy: boolean;
     section: string;
+    sleeve_id?: string | null;
+    sleeve_type?: string;
   }>;
   sleeves?: Array<{
     sleeve_id: string;

@@ -22,13 +22,19 @@ export const SyncCollapsibleSection: React.FC<SyncCollapsibleSectionProps> = ({
   children,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isAnimationComplete, setIsAnimationComplete] = useState(defaultOpen);
+
+  const handleToggle = () => {
+    setIsAnimationComplete(false);
+    setIsOpen((prev) => !prev);
+  };
 
   return (
     <div className="space-y-1.5">
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="w-full flex items-center justify-between gap-2 group cursor-pointer"
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between gap-2 group cursor-pointer select-none"
       >
         <div className="flex items-center gap-2">
           <span className={`text-[10px] ${accentClass}`}>{icon}</span>
@@ -50,10 +56,11 @@ export const SyncCollapsibleSection: React.FC<SyncCollapsibleSectionProps> = ({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="overflow-hidden"
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            onAnimationComplete={() => setIsAnimationComplete(isOpen)}
+            className={isOpen && isAnimationComplete ? 'overflow-visible' : 'overflow-hidden'}
           >
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden">
+            <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-visible">
               {children}
             </div>
           </motion.div>

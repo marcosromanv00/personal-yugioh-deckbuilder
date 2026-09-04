@@ -95,6 +95,9 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
   // Guardado atómico
   const executeAtomicSave = async ({
     inventoryCardsToAdd = [],
+    deletedUserCardIds = [],
+    relocatedUserCards = [],
+    additionalAssignedIds = [],
   }: {
     inventoryCardsToAdd?: Array<{
       id: number;
@@ -103,12 +106,22 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
       condition: string;
       is_proxy: boolean;
       section: string;
+      sleeve_id?: string | null;
+      sleeve_type?: string;
     }>;
+    deletedUserCardIds?: string[];
+    relocatedUserCards?: Array<{
+      id: string;
+      storage_location_id: string | null;
+      compartment_index?: number | null;
+    }>;
+    additionalAssignedIds?: string[];
   }) => {
     if (!currentDeck) return;
     setIsSavingSync(true);
 
     try {
+      const allAssignedIds = Array.from(new Set([...assignedUserCardIds, ...additionalAssignedIds]));
       const payload = buildDeckSavePayload({
         deckId: currentDeck.id,
         name: name.trim() || currentDeck.name,
@@ -118,8 +131,10 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
         compartmentIndex,
         sleevesPayload,
         deckCards,
-        assignedUserCardIds,
+        assignedUserCardIds: allAssignedIds,
         unassignedUserCardIds,
+        deletedUserCardIds,
+        relocatedUserCards,
         inventoryCardsToAdd,
       });
 
