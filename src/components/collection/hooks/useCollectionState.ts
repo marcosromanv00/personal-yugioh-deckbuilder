@@ -3,6 +3,7 @@ import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInvento
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 import { computeCrossContainerDuplicateMap } from '@/lib/collectionSuggestions';
+import { invalidateContainerCardsCache } from '@/lib/cache/containerCardsCache';
 
 /**
  * Hook personalizado useCollectionState
@@ -18,7 +19,17 @@ export function useCollectionState() {
   const [loading, setLoading] = useState(true);
 
   // Tab activo y listado de cartas de la colección completa
-  const [activeTab, setActiveTab] = useState<'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation'>('containers');
+  const [activeTab, setActiveTab] = useState<'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const validTabs = ['containers', 'suggestions', 'sleeves', 'decks', 'complete', 'favorites', 'valuation'];
+      if (tabParam && validTabs.includes(tabParam)) {
+        return tabParam as 'containers' | 'suggestions' | 'sleeves' | 'decks' | 'complete' | 'favorites' | 'valuation';
+      }
+    }
+    return 'containers';
+  });
 
   // Helper para sincronizar parámetros en URL sin recargar
   const updateUrlParams = useCallback((newParams: Record<string, string | null>) => {
@@ -38,18 +49,6 @@ export function useCollectionState() {
     setActiveTab(tab);
     updateUrlParams({ tab: tab === 'containers' ? null : tab });
   }, [updateUrlParams]);
-
-  // Sincronización inicial del tab desde la URL al recargar la página
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab');
-      const validTabs = ['containers', 'suggestions', 'sleeves', 'decks', 'complete', 'favorites', 'valuation'];
-      if (tabParam && validTabs.includes(tabParam)) {
-        setActiveTab(tabParam as typeof activeTab);
-      }
-    }
-  }, []);
   const [masterCollectionCards, setMasterCollectionCards] = useState<UserCard[]>([]);
   const [allCollectionCards, setAllCollectionCards] = useState<UserCard[]>([]);
   const [loadingAllCards, setLoadingAllCards] = useState(false);
@@ -124,31 +123,56 @@ export function useCollectionState() {
   const [isSplitModalOpen, setIsSplitModalOpen] = useState<boolean>(false);
   const [cardToSplit, setCardToSplit] = useState<UserCard | null>(null);
 
-  // 1. Obtener contenedores, inbox, decks e inventario maestro en segundo plano (silencioso)
-  const fetchCollectionDataSilently = useCallback(async () => {
+  // Prefetching en segundo plano de la colección completa
+  const isPrefetchingFullRef = useRef(false);
+  const prefetchFullCollection = useCallback(async () => {
+    if (masterCollectionCards.length > 0 || isPrefetchingFullRef.current) return;
+    isPrefetchingFullRef.current = true;
     try {
-      const locRes = await fetch('/api/collection/storage');
-      if (locRes.ok) {
-        const locJson = await locRes.json();
+      const res = await fetch('/api/collection/cards');
+      if (res.ok) {
+        const json = await res.json();
+        setMasterCollectionCards(json.data || []);
+      }
+    } catch (err) {
+      console.warn('Error al precargar colección completa:', err);
+    } finally {
+      isPrefetchingFullRef.current = false;
+    }
+  }, [masterCollectionCards.length]);
+
+  // 1. Obtener contenedores, inbox y decks en paralelo (carga ligera)
+  const fetchCollectionDataSilently = useCallback(async (includeCards = false) => {
+    try {
+      const promises: Promise<Response>[] = [
+        fetch('/api/collection/storage'),
+        fetch('/api/collection/inbox'),
+        fetch('/api/decks'),
+      ];
+      if (includeCards) {
+        promises.push(fetch('/api/collection/cards'));
+      }
+
+      const results = await Promise.allSettled(promises);
+      const [locRes, inboxRes, decksRes, cardsRes] = results;
+
+      if (locRes && locRes.status === 'fulfilled' && locRes.value.ok) {
+        const locJson = await locRes.value.json();
         setLocations(locJson.data || []);
       }
 
-      const inboxRes = await fetch('/api/collection/inbox');
-      if (inboxRes.ok) {
-        const inboxJson = await inboxRes.json();
+      if (inboxRes && inboxRes.status === 'fulfilled' && inboxRes.value.ok) {
+        const inboxJson = await inboxRes.value.json();
         setInboxCards(inboxJson.data || []);
       }
 
-      const decksRes = await fetch('/api/decks');
-      if (decksRes.ok) {
-        const decksJson = await decksRes.json();
+      if (decksRes && decksRes.status === 'fulfilled' && decksRes.value.ok) {
+        const decksJson = await decksRes.value.json();
         setDecks(decksJson.data || []);
       }
 
-      // Sincronizar siempre el inventario maestro completo para KPIs, Duplicados, Arquetipos y Valoración
-      const cardsRes = await fetch('/api/collection/cards');
-      if (cardsRes.ok) {
-        const cardsJson = await cardsRes.json();
+      if (cardsRes && cardsRes.status === 'fulfilled' && cardsRes.value.ok) {
+        const cardsJson = await cardsRes.value.json();
         const allMaster: UserCard[] = cardsJson.data || [];
         setMasterCollectionCards(allMaster);
       }
@@ -253,7 +277,7 @@ export function useCollectionState() {
     }
   }, []);
 
-  // Carga reactiva de cartas y fundas
+  // Carga reactiva de cartas y fundas según tab activo
   useEffect(() => {
     if (activeTab === 'complete' || activeTab === 'favorites') {
       const timer = setTimeout(() => {
@@ -266,27 +290,19 @@ export function useCollectionState() {
         fetchSleeves();
       });
     }
-  }, [activeTab, allSearchQuery, allCollectionFilters, locationFilter, deckFilter, fetchAllCards, fetchSleeves]);
+    if (activeTab === 'valuation' || activeTab === 'suggestions') {
+      queueMicrotask(() => {
+        prefetchFullCollection();
+      });
+    }
+  }, [activeTab, allSearchQuery, allCollectionFilters, locationFilter, deckFilter, fetchAllCards, fetchSleeves, prefetchFullCollection]);
 
-  // Carga silenciosa inicial de todas las cartas y datos maestros
+  // Carga silenciosa inicial ligera: solo metadatos de almacenamiento, inbox y decks
   useEffect(() => {
     queueMicrotask(() => {
       fetchCollectionDataSilently();
-      fetchAllCards('', {
-        type: '',
-        attribute: '',
-        race: '',
-        level: '',
-        atkMin: '',
-        atkMax: '',
-        defMin: '',
-        defMax: '',
-        archetype: '',
-        rarity: '',
-        status: ''
-      });
     });
-  }, [fetchCollectionDataSilently, fetchAllCards]);
+  }, [fetchCollectionDataSilently]);
 
   // Handler para abrir modal de consolidación directa de una carta
   const handleOpenConsolidateForCard = useCallback((cardId: number) => {
@@ -677,6 +693,7 @@ export function useCollectionState() {
     setSelectedLocation(null);
     updateUrlParams({ location_id: null });
     if (hasMutated) {
+      invalidateContainerCardsCache();
       fetchCollectionDataSilently();
     }
   }, [updateUrlParams, fetchCollectionDataSilently]);
@@ -689,12 +706,16 @@ export function useCollectionState() {
       const locId = params.get('location_id') || params.get('container_id');
       if (locId) {
         if (locId === 'inbox') {
-          handleOpenInbox();
+          queueMicrotask(() => {
+            handleOpenInbox();
+          });
           initialLocCheckedRef.current = true;
         } else if (locations.length > 0) {
           const found = locations.find(l => l.id === locId);
           if (found) {
-            handleOpenContainer(found);
+            queueMicrotask(() => {
+              handleOpenContainer(found);
+            });
             initialLocCheckedRef.current = true;
           }
         }
@@ -840,6 +861,7 @@ export function useCollectionState() {
 
     // Master Collection Cards (siempre completo, no alterado por búsquedas locales)
     masterCollectionCards,
+    prefetchFullCollection,
 
     // Consolidation Modal Directo
     isConsolidateOpen,

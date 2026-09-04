@@ -27,6 +27,7 @@ interface StorageContainerCardProps {
   onDelete: (id: string) => void;
   onDropDeck?: (deckId: string, locationId: string | null) => void;
   onDeckClick?: (deck: Deck) => void;
+  onPrefetch?: (location: StorageLocation) => void;
 }
 
 export const getContainerIcon = (type: string, className = "w-5 h-5") => {
@@ -69,7 +70,8 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
   onCopy,
   onDelete,
   onDropDeck,
-  onDeckClick
+  onDeckClick,
+  onPrefetch,
 }) => {
   const occupied = location.occupied_cards || 0;
   const capacity = location.capacity || 1;
@@ -111,6 +113,8 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
       whileHover={{ y: -3 }}
       transition={{ duration: 0.15 }}
       onClick={() => onClick(location)}
+      onMouseEnter={() => onPrefetch?.(location)}
+      onFocus={() => onPrefetch?.(location)}
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -287,8 +291,8 @@ export const StorageContainerListRow: React.FC<StorageContainerCardProps> = ({
   onEdit,
   onCopy,
   onDelete,
-  onDropDeck,
-  onDeckClick
+  onDeckClick,
+  onPrefetch,
 }) => {
   const occupied = location.occupied_cards || 0;
   const capacity = location.capacity || 1;
@@ -301,6 +305,8 @@ export const StorageContainerListRow: React.FC<StorageContainerCardProps> = ({
   return (
     <div
       onClick={() => onClick(location)}
+      onMouseEnter={() => onPrefetch?.(location)}
+      onFocus={() => onPrefetch?.(location)}
       className="group flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-red-500/50 hover:shadow-xs transition-all cursor-pointer"
     >
       {/* Columna Izquierda: Icono + Nombre + Badge */}

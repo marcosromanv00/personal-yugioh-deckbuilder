@@ -37,10 +37,15 @@ export async function GET(req: NextRequest) {
       const step = 1000;
       let hasMore = true;
 
+      const includeDesc = searchParams.get('include_desc') === 'true';
+      const cardSelect = includeDesc
+        ? '*, card_details:yg_cards(*), deck_details:yg_decks(name)'
+        : '*, card_details:yg_cards(id, name, type, atk, def, level, race, attribute, archetype, image_url, image_url_small, ban_master_duel, ban_tcg, ban_ocg, ban_duel_links), deck_details:yg_decks(name)';
+
       while (hasMore) {
         let chunkQuery = supabase
           .from('yg_user_cards')
-          .select('*, card_details:yg_cards(*), deck_details:yg_decks(name)')
+          .select(cardSelect)
           .order('created_at', { ascending: true })
           .range(from, from + step - 1);
 

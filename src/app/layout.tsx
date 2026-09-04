@@ -39,10 +39,7 @@ export const viewport: Viewport = {
 
 import { IdealEnvironmentProvider } from "@/context/IdealEnvironmentContext";
 import { AIChatProvider } from "@/context/AIChatContext";
-import { GlobalAIChatDrawer } from "@/components/chat/GlobalAIChatDrawer";
-import { IdealSyncLoaderModal } from "@/components/collection/IdealSyncLoaderModal";
-import { IdealReportModal } from "@/components/collection/IdealReportModal";
-import { PhysicalStagingAssistantModal } from "@/components/collection/PhysicalStagingAssistantModal";
+import { GlobalModals } from "@/components/layout/GlobalModals";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -56,10 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <IdealEnvironmentProvider>
               <AIChatProvider>
                 {children}
-                <GlobalAIChatDrawer />
-                <IdealSyncLoaderModal />
-                <IdealReportModal />
-                <PhysicalStagingAssistantModal />
+                <GlobalModals />
               </AIChatProvider>
             </IdealEnvironmentProvider>
           </ToastProvider>

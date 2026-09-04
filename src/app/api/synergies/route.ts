@@ -6,6 +6,9 @@ import {
   getArchetypesForCard,
   SynergyRole 
 } from '@/lib/constants/archetypeSynergies';
+import { SimpleLRUCache } from '@/lib/cache/lruCache';
+
+const synergiesCache = new SimpleLRUCache<string, Record<string, unknown>>(200, 300000);
 
 interface CreateSynergyBody {
   archetype: string;
@@ -20,6 +23,17 @@ interface CreateSynergyBody {
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
+    const cacheKey = req.nextUrl.search || 'all';
+
+    const cachedData = synergiesCache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=180, stale-while-revalidate=360',
+        },
+      });
+    }
+
     const archetypeParam = searchParams.get('archetype');
     const cardNameParam = searchParams.get('card_name');
 
@@ -134,10 +148,17 @@ export async function GET(req: NextRequest) {
     const synergiesList = Array.from(resultMap.values());
     synergiesList.sort((a, b) => b.weight - a.weight);
 
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       total: synergiesList.length,
       synergies: synergiesList
+    };
+    synergiesCache.set(cacheKey, responsePayload);
+
+    return NextResponse.json(responsePayload, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=180, stale-while-revalidate=360',
+      },
     });
   } catch (error) {
     console.error('Error in GET /api/synergies:', error);
@@ -207,6 +228,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fallback simulado exitoso
+    synergiesCache.clear();
     return NextResponse.json({
       success: true,
       message: `Sinergia para "${card_name}" en "${archetype}" registrada exitosamente (Modo Memoria / Local).`,

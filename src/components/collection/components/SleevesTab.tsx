@@ -2,20 +2,16 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  RefreshCw, 
   Search, 
   Plus, 
   Shield, 
-  Filter, 
-  RotateCcw,
-  Sparkles,
-  PackageCheck,
-  PackageOpen
+  RotateCcw
 } from 'lucide-react';
 import { SleeveInventory, SleeveSizeType, SleeveInventoryCondition, UserCard, Deck, StorageLocation } from '@/types/collection';
 import { SleeveInventoryCard, AddSleeveCard } from '../SleeveInventoryCard';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { SleeveDetailModal } from './SleeveDetailModal';
+import { SleevesTabSkeleton } from './SleevesTabSkeleton';
 
 interface SleevesTabProps {
   loadingSleeves: boolean;
@@ -126,12 +122,7 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
   };
 
   if (loadingSleeves) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <RefreshCw className="w-6 h-6 text-red-500 animate-spin mb-2" />
-        <p className="text-xs font-mono text-zinc-500">Cargando inventario de fundas...</p>
-      </div>
-    );
+    return <SleevesTabSkeleton />;
   }
 
   return (

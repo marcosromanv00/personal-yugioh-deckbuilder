@@ -1,6 +1,7 @@
 import React from 'react';
 import { DeckCard, HoverCardBase } from '../types';
 import { TouchableCard } from './TouchableCard';
+import { CardImage } from '@/components/ui/CardImage';
 
 interface DragCardPayload {
   id: number;
@@ -278,14 +279,13 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
                     }`}
                     style={sleeveColorHex ? { borderColor: sleeveColorHex, borderWidth: '2.5px', borderStyle: 'solid' } : undefined}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={c.image_url}
+                    <CardImage
+                      src={c.image_url_small || c.image_url}
                       alt={c.name}
                       className={`w-full h-full object-contain transition-all duration-300 ${
                         isProxy ? 'brightness-90 contrast-110' : ''
                       }`}
-                      onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
+                      loading="lazy"
                     />
                     {getBanlistBadge(c)}
 
@@ -354,14 +354,13 @@ export const DeckSection: React.FC<DeckSectionProps> = ({
                   }`}
                   style={sleeveColorHex ? { borderColor: sleeveColorHex, borderWidth: '2.5px', borderStyle: 'solid' } : undefined}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={c.image_url}
+                  <CardImage
+                    src={c.image_url_small || c.image_url}
                     alt={c.name}
                     className={`w-full h-full object-contain transition-all duration-300 ${
                       c.is_grayscale_shared ? 'grayscale contrast-125 opacity-75' : ''
                     }`}
-                    onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
+                    loading="lazy"
                   />
                   {getBanlistBadge(c)}
                   {renderCardFanCount(c)}

@@ -14,6 +14,7 @@ import {
 import { findDispersedCardsAcrossLocations } from '@/lib/collectionUtils';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 import { computeCrossContainerDuplicateMap } from '@/lib/collectionSuggestions';
+import { getCachedContainerCards, setCachedContainerCards } from '@/lib/cache/containerCardsCache';
 import { GridCardGroup, DeckInContainer, RightPanelMode, AISubView, DetailsCopiesMode, MobileTab, ContainerHistoryAction } from './types';
 
 interface UseContainerWorkspaceStateProps {
@@ -245,6 +246,9 @@ export const useContainerWorkspaceState = ({
         const json = await res.json();
         const data: UserCard[] = json.data || [];
         setCards(data);
+        if (containerId) {
+          setCachedContainerCards(containerId, data);
+        }
         if (selectedUserCardIdRef.current) {
           const fresh = data.find(c => c.id === selectedUserCardIdRef.current);
           if (fresh) setSelectedUserCard(fresh);
@@ -484,6 +488,16 @@ export const useContainerWorkspaceState = ({
 
     const loadInitialCards = async () => {
       try {
+        const cached = containerId ? getCachedContainerCards(containerId) : undefined;
+        if (cached && isMounted) {
+          setCards(cached);
+          setLoading(false);
+          if (selectedUserCardIdRef.current) {
+            const fresh = cached.find(c => c.id === selectedUserCardIdRef.current);
+            if (fresh) setSelectedUserCard(fresh);
+          }
+        }
+
         if (isIdealMode && syncData?.idealCards) {
           const physicalLocId = (location as { physical_storage_location_id?: string } | null)?.physical_storage_location_id;
           const targetId = location?.id;
@@ -514,6 +528,9 @@ export const useContainerWorkspaceState = ({
           const json = await res.json();
           const data: UserCard[] = json.data || [];
           setCards(data);
+          if (containerId) {
+            setCachedContainerCards(containerId, data);
+          }
           if (selectedUserCardIdRef.current) {
             const fresh = data.find(c => c.id === selectedUserCardIdRef.current);
             if (fresh) setSelectedUserCard(fresh);

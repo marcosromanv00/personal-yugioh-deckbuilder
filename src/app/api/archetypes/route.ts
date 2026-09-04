@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { SimpleLRUCache } from '@/lib/cache/lruCache';
+
+const archetypesCache = new SimpleLRUCache<string, ArchetypeItem[]>(20, 600000); // 10 min TTL
 
 interface ArchetypeItem {
   name: string;
@@ -14,6 +17,19 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const format = searchParams.get('format') || 'Master Duel';
+
+    // 0. Comprobar caché en memoria
+    const cached = archetypesCache.get(format);
+    if (cached) {
+      return NextResponse.json(
+        { success: true, archetypes: cached, cached: true },
+        {
+          headers: {
+            'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+          },
+        }
+      );
+    }
 
     const isSupabaseConfigured = 
       process.env.NEXT_PUBLIC_SUPABASE_URL && 
@@ -150,10 +166,19 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    return NextResponse.json({
-      success: true,
-      archetypes
-    });
+    archetypesCache.set(format, archetypes);
+
+    return NextResponse.json(
+      {
+        success: true,
+        archetypes,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+        },
+      }
+    );
 
   } catch (error: unknown) {
     const errorObj = error as Error;

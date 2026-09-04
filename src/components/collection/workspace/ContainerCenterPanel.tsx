@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
 import { Card } from '@/components/deckbuilder/types';
 import { ContainerCenterHeader } from './ContainerCenterHeader';
 import { ContainerGridView } from './ContainerGridView';
 import { ContainerBinderView } from './ContainerBinderView';
+import { ContainerWorkspaceSkeleton } from './ContainerWorkspaceSkeleton';
 import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 import { GridCardGroup, DeckInContainer, MobileTab } from './types';
 
@@ -261,10 +262,7 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
       {/* Contenido Visual: Grid estándar vs Binder Book */}
       <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
         {loading ? (
-          <div className="h-full flex flex-col items-center justify-center py-20 text-zinc-500">
-            <Loader2 className="w-8 h-8 animate-spin text-red-500 mb-2" />
-            <p className="text-xs font-mono">Cargando cartas del contenedor...</p>
-          </div>
+          <ContainerWorkspaceSkeleton containerType={containerType} />
         ) : containerType === 'binder' ? (
           <ContainerBinderView
             cols={cols}
