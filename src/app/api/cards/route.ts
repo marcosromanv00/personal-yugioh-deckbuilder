@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { SimpleLRUCache } from '@/lib/cache/lruCache';
+
+const cardsCache = new SimpleLRUCache<string, Record<string, unknown>>(500, 300000); // 5 min TTL
 
 const YGOPRODECK_API_URL = 'https://db.ygoprodeck.com/api/v7/cardinfo.php';
 
@@ -94,6 +97,17 @@ interface YGOPRODeckCard {
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
+    const cacheKey = req.nextUrl.search;
+
+    // Comprobar micro-caché LRU
+    const cachedData = cardsCache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=180, stale-while-revalidate=360',
+        },
+      });
+    }
     const id = searchParams.get('id') || '';
     const query = searchParams.get('q') || '';
     const archetype = searchParams.get('archetype') || '';
@@ -201,7 +215,13 @@ export async function GET(req: NextRequest) {
         }
 
         if (!error && data && data.length > 0) {
-          return NextResponse.json({ data });
+          const responsePayload = { data };
+          cardsCache.set(cacheKey, responsePayload);
+          return NextResponse.json(responsePayload, {
+            headers: {
+              'Cache-Control': 'public, s-maxage=180, stale-while-revalidate=360',
+            },
+          });
         }
       } catch (dbError) {
         console.warn('Fallo al consultar Supabase, reintentando con API externa de YGOPRODeck:', dbError);
@@ -321,7 +341,13 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ data: mappedCards });
+    const responsePayload = { data: mappedCards };
+    cardsCache.set(cacheKey, responsePayload);
+    return NextResponse.json(responsePayload, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=180, stale-while-revalidate=360',
+      },
+    });
 
   } catch (error: unknown) {
     const errorObj = error as Error;
