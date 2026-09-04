@@ -81,8 +81,10 @@ export default function CollectionPage() {
       if (deckId) {
         const found = state.decks.find(d => d.id === deckId);
         if (found) {
-          setSelectedDeck(found);
-          setIsDeckDetailsOpen(true);
+          queueMicrotask(() => {
+            setSelectedDeck(found);
+            setIsDeckDetailsOpen(true);
+          });
           initialDeckCheckedRef.current = true;
         }
       }
@@ -285,6 +287,7 @@ export default function CollectionPage() {
           inboxCount={state.inboxCards.length}
           onOpenInbox={state.handleOpenInbox}
           onNewContainerClick={state.handleNewContainerClick}
+          onPrefetchFullCollection={state.prefetchFullCollection}
         />
 
         {/* CONTENIDO PRINCIPAL DE LA VISTA SELECCIONADA */}

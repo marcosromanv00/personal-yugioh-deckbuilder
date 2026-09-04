@@ -12,6 +12,7 @@ import {
 import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { DeckSectionGrid } from './DeckSectionGrid';
+import { DeckWorkspaceSkeleton } from './DeckWorkspaceSkeleton';
 import { DeckSectionFilter, RightDeckMode, MobileDeckTab } from './types';
 
 interface DeckCenterPanelProps {
@@ -50,9 +51,11 @@ interface DeckCenterPanelProps {
   savingDeckCards?: boolean;
   onSaveDeckCards?: () => void;
   onDiscardDeckCards?: () => void;
+  loading?: boolean;
 }
 
 export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
+  loading = false,
   mobileTab,
   searchFilter,
   setSearchFilter,
@@ -187,7 +190,9 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
 
       {/* Contenedor Principal con Scroll */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
-        {filteredCenterCards.length === 0 ? (
+        {loading ? (
+          <DeckWorkspaceSkeleton />
+        ) : filteredCenterCards.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl bg-zinc-50/50 dark:bg-zinc-900/20">
             <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mb-3">
               <Search className="w-6 h-6" />

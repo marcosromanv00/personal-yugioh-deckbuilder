@@ -35,6 +35,7 @@ interface CollectionSidebarProps {
   inboxCount: number;
   onOpenInbox?: () => void;
   onNewContainerClick?: () => void;
+  onPrefetchFullCollection?: () => void;
 }
 
 interface SidebarNavItem {
@@ -61,6 +62,7 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
   inboxCount,
   onOpenInbox,
   onNewContainerClick,
+  onPrefetchFullCollection,
 }) => {
   const physicalNavItems: SidebarNavItem[] = [
     {
@@ -130,6 +132,8 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
           const Icon = item.icon;
           const isActive = activeTab === item.id;
 
+          const isHeavyTab = item.id === 'complete' || item.id === 'favorites' || item.id === 'valuation' || item.id === 'suggestions';
+
           return (
             <button
               key={item.id}
@@ -137,6 +141,12 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
               onClick={() => {
                 setActiveTab(item.id);
                 setIsMobileOpen(false);
+              }}
+              onMouseEnter={() => {
+                if (isHeavyTab) onPrefetchFullCollection?.();
+              }}
+              onFocus={() => {
+                if (isHeavyTab) onPrefetchFullCollection?.();
               }}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs font-bold ${
                 isActive

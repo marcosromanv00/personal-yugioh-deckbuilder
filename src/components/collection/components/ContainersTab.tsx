@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   RotateCcw, 
   Box, 
@@ -9,10 +9,10 @@ import {
   Filter, 
   LayoutGrid, 
   List, 
-  X,
   Layers
 } from 'lucide-react';
 import { StorageLocation, Deck } from '@/types/collection';
+import { prefetchContainerCards } from '@/lib/cache/containerCardsCache';
 import { 
   StorageContainerCard, 
   StorageContainerListRow, 
@@ -62,19 +62,20 @@ export const ContainersTab: React.FC<ContainersTabProps> = ({
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Persistencia de modo de vista
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('exordio_containers_view_mode');
-      if (saved === 'grid' || saved === 'list') {
-        setViewMode(saved);
+  // Persistencia de modo de vista con inicializador perezoso
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('exordio_containers_view_mode');
+        if (saved === 'grid' || saved === 'list') {
+          return saved;
+        }
+      } catch {
+        // noop
       }
-    } catch {
-      // Ignorar errores de acceso a localStorage en SSR
     }
-  }, []);
+    return 'grid';
+  });
 
   const handleViewModeChange = (mode: 'grid' | 'list') => {
     setViewMode(mode);
@@ -389,6 +390,7 @@ export const ContainersTab: React.FC<ContainersTabProps> = ({
               onDelete={handleDeleteStorage}
               onDropDeck={handleDropDeck}
               onDeckClick={onDeckClick}
+              onPrefetch={(l) => prefetchContainerCards(l.id)}
             />
           ))}
 
@@ -419,6 +421,7 @@ export const ContainersTab: React.FC<ContainersTabProps> = ({
               onDelete={handleDeleteStorage}
               onDropDeck={handleDropDeck}
               onDeckClick={onDeckClick}
+              onPrefetch={(l) => prefetchContainerCards(l.id)}
             />
           ))}
 

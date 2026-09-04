@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Search, 
-  MapPin, 
   Heart, 
   Trash, 
   CheckSquare, 
@@ -16,7 +15,7 @@ import {
   Filter,
   RotateCcw
 } from 'lucide-react';
-import { UserCard, StorageLocation, Deck } from '@/types/collection';
+import { UserCard, StorageLocation, Deck, CardStatusFlag } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
 import { getSleeveColorHex } from '@/lib/sleeves';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
@@ -25,6 +24,7 @@ import { DuplicateCardAlertPopover } from '../DuplicateCardAlertPopover';
 import { DuplicateMatchInfo } from '@/lib/collectionSuggestions';
 import { CardImage } from '@/components/ui/CardImage';
 import { CollectionCardDetailModal } from './CollectionCardDetailModal';
+import { CollectionCardsTabSkeleton } from './CollectionCardsTabSkeleton';
 
 interface CollectionCardsTabProps {
   activeTab: 'containers' | 'suggestions' | 'complete' | 'favorites' | 'sleeves' | 'decks';
@@ -120,10 +120,13 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(60);
 
-  // Reiniciar a la primera página cuando cambian los filtros o el término de búsqueda
-  useEffect(() => {
+  // Reiniciar a la primera página cuando cambian los filtros sin useEffect (React 19 Zero-Effect)
+  const [prevFilterHash, setPrevFilterHash] = useState(() => `${allSearchQuery}|${locationFilter}|${deckFilter}|${JSON.stringify(allCollectionFilters)}`);
+  const currentFilterHash = `${allSearchQuery}|${locationFilter}|${deckFilter}|${JSON.stringify(allCollectionFilters)}`;
+  if (currentFilterHash !== prevFilterHash) {
+    setPrevFilterHash(currentFilterHash);
     setCurrentPage(1);
-  }, [allSearchQuery, locationFilter, deckFilter, allCollectionFilters]);
+  }
 
   const totalCards = allCollectionCards.length;
   const totalPages = Math.ceil(totalCards / pageSize) || 1;
@@ -454,21 +457,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
 
       {/* SKELETONS DURING LOADING */}
       {loadingAllCards ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-2.5 sm:gap-3">
-          {Array.from({ length: 24 }).map((_, idx) => (
-            <div
-              key={`card-skeleton-${idx}`}
-              className="bg-white dark:bg-zinc-900 rounded-2xl p-2 sm:p-2.5 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between animate-pulse shadow-xs"
-            >
-              <div className="aspect-[3/4.4] w-full rounded-xl bg-zinc-200 dark:bg-zinc-800 mb-2" />
-              <div className="space-y-1.5">
-                <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-3/4" />
-                <div className="h-2 bg-zinc-100 dark:bg-zinc-800/60 rounded w-1/2" />
-                <div className="h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full w-full mt-1" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <CollectionCardsTabSkeleton />
       ) : totalCards === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-zinc-900 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-sm font-medium shadow-xs">
           <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xl mx-auto mb-3">
@@ -761,7 +750,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
         }}
         onUpdateStatus={async (id, status) => {
           await handleUpdateCardStatus(id, status);
-          setSelectedCardForDetail(prev => prev ? { ...prev, status_flag: status as any } : null);
+          setSelectedCardForDetail(prev => prev ? { ...prev, status_flag: status as CardStatusFlag } : null);
         }}
         onMoveLocation={async (id, newLocId) => {
           if (onMoveCard) {

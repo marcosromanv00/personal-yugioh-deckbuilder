@@ -216,6 +216,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             savingDeckCards={state.savingDeckCards}
             onSaveDeckCards={state.handleSaveDeckCards}
             onDiscardDeckCards={state.handleDiscardDeckCards}
+            loading={state.loading}
           />
 
           {/* DIVIDER REDIMENSIONABLE DERECHO */}
@@ -323,7 +324,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           userCard={registerSleeveUserCard}
           cardDetail={state.selectedCardDetail}
           availableSleeves={state.availableSleeves}
-          onSleeveUpdatedOrCreated={async (updatedSleeve) => {
+          onSleeveUpdatedOrCreated={async () => {
             const [sRes, cRes] = await Promise.all([
               fetch('/api/collection/sleeve-inventory'),
               fetch('/api/collection/cards')
@@ -337,7 +338,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
               state.setUserCards(cJson.data || []);
             }
           }}
-          onOpenCreateSleeveModal={(prefill) => {
+          onOpenCreateSleeveModal={() => {
             state.openSleeveModal('main_side', 'create', undefined, 1, 1);
           }}
         />
