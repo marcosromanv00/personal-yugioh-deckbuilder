@@ -51,4 +51,5 @@ next-env.d.ts
 # Code quality audit & refactor plans (not for version control)
 /.audit/
 
-.vercel
+# Local agent artifacts (git ignored)
+/.dev/agents/artifacts/
