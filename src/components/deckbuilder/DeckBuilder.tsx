@@ -157,6 +157,8 @@ export default function DeckBuilder() {
   const { theme, toggleTheme } = useTheme();
   const { openChatDrawer } = useAIChat();
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isDeleteActiveDeckConfirmOpen, setIsDeleteActiveDeckConfirmOpen] = useState(false);
+  const [isDeletingActiveDeck, setIsDeletingActiveDeck] = useState(false);
   const [isYdkUploadOpen, setIsYdkUploadOpen] = useState(false);
   const [isAICopilotOpen, setIsAICopilotOpen] = useState(false);
   const [isUnsavedConfirmOpen, setIsUnsavedConfirmOpen] = useState(false);
@@ -778,6 +780,8 @@ export default function DeckBuilder() {
               onSyncMeta={() => state.triggerSync()}
               hasCards={state.deckCards.length > 0}
               isSyncing={state.isSyncing}
+              isSavedDeck={Boolean(state.deckId)}
+              onDeleteDeck={() => setIsDeleteActiveDeckConfirmOpen(true)}
             />
 
             {/* Switcher de Ambiente Colección Ideal (Icono minimalista) */}
@@ -1306,6 +1310,20 @@ export default function DeckBuilder() {
                     <Trash2 className="w-4 h-4 shrink-0" />
                     <span>Limpiar Todo el Deck</span>
                   </button>
+
+                  {Boolean(state.deckId) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        setIsDeleteActiveDeckConfirmOpen(true);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 p-2.5 bg-red-600 hover:bg-red-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-11 shadow-sm shadow-red-600/20"
+                    >
+                      <Trash2 className="w-4 h-4 shrink-0" />
+                      <span>Eliminar Baraja Guardada</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* 2. ANÁLISIS & TÁCTICA */}
@@ -1585,6 +1603,36 @@ export default function DeckBuilder() {
           toast.info('Deck limpiado');
         }}
         onClose={() => setIsClearConfirmOpen(false)}
+      />
+
+      {/* CONFIRM DELETE ACTIVE SAVED DECK DIALOG */}
+      <ConfirmDialog
+        isOpen={isDeleteActiveDeckConfirmOpen}
+        title="¿Eliminar baraja de la base de datos?"
+        description={`¿Estás seguro de que deseas eliminar permanentemente la baraja "${state.deckName}" de tu base de datos? Las cartas físicas que contiene permanecerán intactas en tu colección general.`}
+        confirmLabel="Eliminar Baraja"
+        cancelLabel="Cancelar"
+        variant="danger"
+        isLoading={isDeletingActiveDeck}
+        onConfirm={async () => {
+          if (!state.deckId) return;
+          setIsDeletingActiveDeck(true);
+          try {
+            const ok = await state.handleDeleteDeck(state.deckId);
+            if (ok !== false) {
+              setIsDeleteActiveDeckConfirmOpen(false);
+              toast.success(`Baraja "${state.deckName}" eliminada con éxito.`);
+            } else {
+              toast.error('No se pudo eliminar la baraja.');
+            }
+          } catch (e) {
+            console.error('Error al eliminar deck activo:', e);
+            toast.error('Error al eliminar la baraja.');
+          } finally {
+            setIsDeletingActiveDeck(false);
+          }
+        }}
+        onClose={() => setIsDeleteActiveDeckConfirmOpen(false)}
       />
 
       {/* CONFIRM UNSAVED PROGRESS SAFETY DIALOG */}

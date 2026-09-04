@@ -1696,8 +1696,7 @@ export function useDeckBuilderState() {
     }
   };
 
-  const handleDeleteDeck = async (id: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta baraja?')) return;
+  const handleDeleteDeck = async (id: string): Promise<boolean> => {
     try {
       const res = await fetch(`/api/decks?id=${id}`, {
         method: 'DELETE'
@@ -1709,9 +1708,12 @@ export function useDeckBuilderState() {
           setDeckCards([]);
           setLastSavedSnapshot('');
         }
+        return true;
       }
+      return false;
     } catch (e) {
       console.error(e);
+      return false;
     }
   };
 

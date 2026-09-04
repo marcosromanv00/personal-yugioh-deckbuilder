@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderOpen, Loader2, Trash, X } from 'lucide-react';
 import { Deck, DeckCardDetail } from '@/types/collection';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface LoadDeckModalProps {
   isOpen: boolean;
@@ -9,7 +10,7 @@ interface LoadDeckModalProps {
   loadingDecks: boolean;
   savedDecks: Deck[];
   handleLoadDeck: (selected: Deck) => void;
-  handleDeleteDeck: (id: string) => Promise<void>;
+  handleDeleteDeck: (id: string) => Promise<boolean | void>;
 }
 
 /**
@@ -25,6 +26,9 @@ export const LoadDeckModal: React.FC<LoadDeckModalProps> = ({
   handleLoadDeck,
   handleDeleteDeck,
 }) => {
+  const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -94,9 +98,9 @@ export const LoadDeckModal: React.FC<LoadDeckModalProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteDeck(deck.id)}
+                        onClick={() => setDeckToDelete(deck)}
                         className="w-11 h-11 sm:w-9 sm:h-9 flex items-center justify-center bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all cursor-pointer touch-manipulation"
-                        title="Eliminar deck"
+                        title="Eliminar baraja"
                       >
                         <Trash className="w-4 h-4" />
                       </button>
@@ -116,6 +120,28 @@ export const LoadDeckModal: React.FC<LoadDeckModalProps> = ({
                 Cerrar
               </button>
             </div>
+
+            {/* Diálogo de Confirmación */}
+            <ConfirmDialog
+              isOpen={Boolean(deckToDelete)}
+              title="¿Eliminar baraja de la base de datos?"
+              description={`¿Estás seguro de que deseas eliminar permanentemente la baraja "${deckToDelete?.name}"? Las cartas físicas que contiene permanecerán intactas en tu colección general.`}
+              confirmLabel="Eliminar Baraja"
+              cancelLabel="Cancelar"
+              variant="danger"
+              isLoading={isDeleting}
+              onConfirm={async () => {
+                if (!deckToDelete) return;
+                setIsDeleting(true);
+                try {
+                  await handleDeleteDeck(deckToDelete.id);
+                  setDeckToDelete(null);
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+              onClose={() => setDeckToDelete(null)}
+            />
           </motion.div>
         </div>
       )}
