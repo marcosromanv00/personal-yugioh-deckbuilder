@@ -147,6 +147,7 @@ export function useDeckBuilderState() {
   const [pendingParsedYdkCards, setPendingParsedYdkCards] = useState<import('../components/YdkCollectionLinkModal').YdkImportParsedCard[]>([]);
   const [savedDecks, setSavedDecks] = useState<Deck[]>([]);
 
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
   const [loadingDecks, setLoadingDecks] = useState(false);
   const [locations, setLocations] = useState<StorageLocation[]>([]);
   const [allUserCards, setAllUserCards] = useState<UserCard[]>([]);
@@ -386,7 +387,7 @@ export function useDeckBuilderState() {
           setAllUserCards(rawCards);
           const counts: Record<number, number> = {};
           const proxies: Record<number, number> = {};
-          rawCards.forEach((uc: import('@/types/collection').UserCard) => {
+          rawCards.forEach((uc: UserCard) => {
             counts[uc.card_id] = (counts[uc.card_id] || 0) + (uc.quantity || 1);
             if (uc.is_proxy) {
               proxies[uc.card_id] = (proxies[uc.card_id] || 0) + (uc.quantity || 1);
@@ -469,6 +470,12 @@ export function useDeckBuilderState() {
   };
 
   const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: 'global' | 'collection' | 'staged', favs: boolean, limitVal: number) => {
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
+
     setIsSearching(true);
     try {
       if (scope === 'collection') {
@@ -488,7 +495,7 @@ export function useDeckBuilderState() {
         if (adv.archetype) url += `&archetype=${encodeURIComponent(adv.archetype)}`;
         if (favs) url += `&favorites=true`;
 
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
         if (res.ok) {
           const json = await res.json();
           const rawList = json.data || [];
@@ -599,7 +606,7 @@ export function useDeckBuilderState() {
         if (adv.defMax) url += `&defMax=${encodeURIComponent(adv.defMax)}`;
         if (adv.archetype) url += `&archetype=${encodeURIComponent(adv.archetype)}`;
 
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
         if (res.ok) {
           const json = await res.json();
           let cards: Card[] = json.data || [];
@@ -614,12 +621,17 @@ export function useDeckBuilderState() {
           setSearchResults(cards);
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      if ((e as Error)?.name === 'AbortError') {
+        return;
+      }
       console.error('Error buscando cartas:', e);
     } finally {
-      setIsSearching(false);
+      if (searchAbortControllerRef.current === controller) {
+        setIsSearching(false);
+      }
     }
-  }, [favoriteCardIds, setIsSearching, setSearchResults]);
+  }, [favoriteCardIds, setIsSearching, setSearchResults, allUserCards]);
 
     const pushHistory = (currentCards: DeckCard[]) => {
       setHistoryStack(prev => [...prev.slice(-14), currentCards]);

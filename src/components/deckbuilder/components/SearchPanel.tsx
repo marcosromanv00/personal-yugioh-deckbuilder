@@ -2,9 +2,19 @@ import React, { useState } from 'react';
 import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles, FileText, Upload, Check, AlertCircle, Camera } from 'lucide-react';
 import { CardFilters, FilterState } from '../CardFilters';
 import { Card, HoverCardBase } from '../types';
+import dynamic from 'next/dynamic';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
-import { CardCodeScannerModal, YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
+import type { YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
 import { CardImage } from '@/components/ui/CardImage';
+
+const CardCodeScannerModal = dynamic(
+  () => import('@/components/scanner/CardCodeScannerModal').then(m => m.CardCodeScannerModal),
+  { ssr: false }
+);
+
+const preloadScanner = () => {
+  void import('@/components/scanner/CardCodeScannerModal');
+};
 
 export interface ParsedBulkItem {
   id: string;
@@ -698,6 +708,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsScannerOpen(true)}
+                      onMouseEnter={preloadScanner}
+                      onFocus={preloadScanner}
                       className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer"
                       title="Escanear código de 8 dígitos con cámara"
                     >
@@ -1091,13 +1103,15 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       )}
 
       {/* MODAL DE ESCANEO DE CÓDIGOS OCR */}
-      <CardCodeScannerModal
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onCardRegistered={handleScannerCardRegistered}
-        title="Escanear Código de Carta"
-        subtitle="Apunta al código numérico de 8 dígitos de la esquina inferior"
-      />
+      {isScannerOpen && (
+        <CardCodeScannerModal
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          onCardRegistered={handleScannerCardRegistered}
+          title="Escanear Código de Carta"
+          subtitle="Apunta al código numérico de 8 dígitos de la esquina inferior"
+        />
+      )}
     </section>
   );
 };

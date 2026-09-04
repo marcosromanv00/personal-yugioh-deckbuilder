@@ -25,8 +25,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import dynamic from 'next/dynamic';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
-import { YdkUploadModal } from '@/components/collection/YdkUploadModal';
 import { EnvironmentSwitcher } from '@/components/collection/EnvironmentSwitcher';
 import { useAIChat } from '@/context/AIChatContext';
 
@@ -39,11 +39,6 @@ import { useDeckBuilderState } from './hooks/useDeckBuilderState';
 import { SearchPanel } from './components/SearchPanel';
 import { DeckSection } from './components/DeckSection';
 import { MetaAnalysisPanel } from './components/MetaAnalysisPanel';
-import { SaveDeckModal } from './components/SaveDeckModal';
-import { UnregisteredCardsModal } from './components/UnregisteredCardsModal';
-import { LoadDeckModal } from './components/LoadDeckModal';
-import { CardPreviewModal } from './components/CardPreviewModal';
-import { YdkCollectionLinkModal } from './components/YdkCollectionLinkModal';
 import { ArchetypeBreakdownDrawer } from './components/ArchetypeBreakdownDrawer';
 import { ReplacementDrawer } from './components/ReplacementDrawer';
 import { MobileNav, type MobileTab } from './components/MobileNav';
@@ -52,9 +47,18 @@ import { DeckActionsDropdown } from './components/DeckActionsDropdown';
 import { SortDropdown } from './components/SortDropdown';
 import { DeckCard, Card, HoverCardBase } from './types';
 import { getSleeveColorHex } from '@/lib/sleeves';
-import { ExordioAnalyticsDashboard } from './exordio/ExordioAnalyticsDashboard';
-import { AICopilotModal } from './ai/AICopilotModal';
 
+// Code-split dynamic modals (loaded on demand to keep initial bundle lightweight)
+const SaveDeckModal = dynamic(() => import('./components/SaveDeckModal').then(m => m.SaveDeckModal), { ssr: false });
+const LoadDeckModal = dynamic(() => import('./components/LoadDeckModal').then(m => m.LoadDeckModal), { ssr: false });
+const UnregisteredCardsModal = dynamic(() => import('./components/UnregisteredCardsModal').then(m => m.UnregisteredCardsModal), { ssr: false });
+const CardPreviewModal = dynamic(() => import('./components/CardPreviewModal').then(m => m.CardPreviewModal), { ssr: false });
+const YdkCollectionLinkModal = dynamic(() => import('./components/YdkCollectionLinkModal').then(m => m.YdkCollectionLinkModal), { ssr: false });
+const ExordioAnalyticsDashboard = dynamic(() => import('./exordio/ExordioAnalyticsDashboard').then(m => m.ExordioAnalyticsDashboard), { ssr: false });
+const AICopilotModal = dynamic(() => import('./ai/AICopilotModal').then(m => m.AICopilotModal), { ssr: false });
+const YdkUploadModal = dynamic(() => import('@/components/collection/YdkUploadModal').then(m => m.YdkUploadModal), { ssr: false });
+
+const preloadSaveModal = () => { void import('./components/SaveDeckModal'); };
 
 /**
  * DeckBuilder Main Component
@@ -740,6 +744,8 @@ export default function DeckBuilder() {
                 <button
                   type="button"
                   onClick={handleQuickSaveClick}
+                  onMouseEnter={preloadSaveModal}
+                  onFocus={preloadSaveModal}
                   disabled={!canSave}
                   className={`flex items-center justify-center p-2.5 rounded-xl min-h-11 min-w-11 touch-manipulation transition-all ${
                     canSave
@@ -1493,47 +1499,6 @@ export default function DeckBuilder() {
         />
       )}
 
-      {/* SAVE DECK MODAL */}
-      <SaveDeckModal
-        isOpen={state.isSaveModalOpen}
-        onClose={() => state.setIsSaveModalOpen(false)}
-        deckName={state.deckName}
-        setDeckName={state.setDeckName}
-        deckDescription={state.deckDescription}
-        setDeckDescription={state.setDeckDescription}
-        saveFormat={state.saveFormat}
-        setSaveFormat={state.setSaveFormat}
-        saveIsActive={state.saveIsActive}
-        setSaveIsActive={state.setSaveIsActive}
-        deckCards={state.deckCards}
-        loadingDecks={state.loadingDecks}
-        locations={state.locations}
-        userInventoryCounts={state.userInventoryCounts}
-        registerToInventory={state.registerToInventory}
-        setRegisterToInventory={state.setRegisterToInventory}
-        targetLocationId={state.targetLocationId}
-        setTargetLocationId={state.setTargetLocationId}
-        cardsToRegister={state.cardsToRegister}
-        setCardsToRegister={state.setCardsToRegister}
-        availableSleeves={state.availableSleeves}
-        selectedMainSleeveId={state.selectedMainSleeveId}
-        setSelectedMainSleeveId={state.setSelectedMainSleeveId}
-        selectedExtraSleeveId={state.selectedExtraSleeveId}
-        setSelectedExtraSleeveId={state.setSelectedExtraSleeveId}
-        handleSaveDeck={state.handleSaveDeck}
-        handleExcludeExisting={state.handleExcludeExisting}
-        extractionPickList={state.extractionPickList}
-      />
-
-      {/* LOAD DECK MODAL */}
-      <LoadDeckModal
-        isOpen={state.isLoadModalOpen}
-        onClose={() => state.setIsLoadModalOpen(false)}
-        loadingDecks={state.loadingDecks}
-        savedDecks={state.savedDecks}
-        handleLoadDeck={state.handleLoadDeck}
-        handleDeleteDeck={state.handleDeleteDeck}
-      />
 
       {/* ARCHETYPE BREAKDOWN DRAWER */}
       <ArchetypeBreakdownDrawer
@@ -1563,31 +1528,35 @@ export default function DeckBuilder() {
       />
 
       {/* DETAILED CARD PREVIEW TECHNICAL SHEET MODAL */}
-      <CardPreviewModal
-        isOpen={preview.isPreviewOpen}
-        onClose={preview.closePreview}
-        isLoadingPreview={preview.isLoadingPreview}
-        previewCard={preview.previewCard}
-        hoveredCard={preview.hoveredCard}
-        favoriteCardIds={state.favoriteCardIds}
-        handleToggleFavorite={state.handleToggleFavorite}
-        userInventoryCounts={state.userInventoryCounts}
-        userProxyCounts={state.userProxyCounts}
-        handleAddProxy={handleAddProxyWrapper}
-        handleRemoveFromCollection={handleRemoveFromCollectionWrapper}
-        isActionLoading={preview.isActionLoading}
-        modalActionMessage={preview.modalActionMessage}
-      />
+      {preview.isPreviewOpen && (
+        <CardPreviewModal
+          isOpen={preview.isPreviewOpen}
+          onClose={preview.closePreview}
+          isLoadingPreview={preview.isLoadingPreview}
+          previewCard={preview.previewCard}
+          hoveredCard={preview.hoveredCard}
+          favoriteCardIds={state.favoriteCardIds}
+          handleToggleFavorite={state.handleToggleFavorite}
+          userInventoryCounts={state.userInventoryCounts}
+          userProxyCounts={state.userProxyCounts}
+          handleAddProxy={handleAddProxyWrapper}
+          handleRemoveFromCollection={handleRemoveFromCollectionWrapper}
+          isActionLoading={preview.isActionLoading}
+          modalActionMessage={preview.modalActionMessage}
+        />
+      )}
 
       {/* UNIFIED AI COPILOT MODAL (Synthesizer & Live Judge) */}
-      <AICopilotModal
-        isOpen={isAICopilotOpen}
-        onClose={() => setIsAICopilotOpen(false)}
-        currentDeckCards={state.deckCards}
-        currentDeckName={state.deckName}
-        format={state.format}
-        onApplyDeck={handleApplyGeneratedDeck}
-      />
+      {isAICopilotOpen && (
+        <AICopilotModal
+          isOpen={isAICopilotOpen}
+          onClose={() => setIsAICopilotOpen(false)}
+          currentDeckCards={state.deckCards}
+          currentDeckName={state.deckName}
+          format={state.format}
+          onApplyDeck={handleApplyGeneratedDeck}
+        />
+      )}
 
       {/* CONFIRM CLEAR DECK DIALOG */}
       <ConfirmDialog
@@ -1689,78 +1658,83 @@ export default function DeckBuilder() {
 
 
       {/* UNREGISTERED CARDS / INVENTORY MANAGEMENT MODAL */}
-      <UnregisteredCardsModal
-        isOpen={state.isUnregisteredModalOpen}
-        onClose={() => state.setIsUnregisteredModalOpen(false)}
-        unregisteredCards={state.unregisteredCards}
-        targetLocationId={state.targetLocationId}
-        selectedLaneIndex={state.selectedLaneIndex}
-        locations={state.locations}
-        onConfirm={async (actions) => {
-          try {
-            await state.handleConfirmUnregisteredSave(actions);
-            toast.success(`¡"${state.deckName}" guardado y sincronizado con tu colección!`);
-          } catch (e) {
-            console.error('Error confirmando registro de cartas:', e);
-            toast.error('Error al procesar el guardado de cartas.');
-          }
-        }}
-        onSkipAndSave={async () => {
-          try {
-            await state.handleSkipUnregisteredSave();
-            toast.success(`¡"${state.deckName}" guardado con éxito!`);
-          } catch (e) {
-            console.error('Error al guardar:', e);
-            toast.error('Error al guardar la baraja.');
-          }
-        }}
-        isSaving={state.isSavingUnregistered}
-      />
+      {state.isUnregisteredModalOpen && (
+        <UnregisteredCardsModal
+          isOpen={state.isUnregisteredModalOpen}
+          onClose={() => state.setIsUnregisteredModalOpen(false)}
+          unregisteredCards={state.unregisteredCards}
+          targetLocationId={state.targetLocationId}
+          selectedLaneIndex={state.selectedLaneIndex}
+          locations={state.locations}
+          onConfirm={async (actions) => {
+            try {
+              await state.handleConfirmUnregisteredSave(actions);
+              toast.success(`¡"${state.deckName}" guardado y sincronizado con tu colección!`);
+            } catch (e) {
+              console.error('Error confirmando registro de cartas:', e);
+              toast.error('Error al procesar el guardado de cartas.');
+            }
+          }}
+          onSkipAndSave={async () => {
+            try {
+              await state.handleSkipUnregisteredSave();
+              toast.success(`¡"${state.deckName}" guardado con éxito!`);
+            } catch (e) {
+              console.error('Error al guardar:', e);
+              toast.error('Error al guardar la baraja.');
+            }
+          }}
+          isSaving={state.isSavingUnregistered}
+        />
+      )}
 
       {/* SAVE DECK MODAL */}
-      <SaveDeckModal
-        isOpen={state.isSaveModalOpen}
-        onClose={() => state.setIsSaveModalOpen(false)}
-        deckName={state.deckName}
-        setDeckName={state.setDeckName}
-        deckDescription={state.deckDescription}
-        setDeckDescription={state.setDeckDescription}
-        saveFormat={state.saveFormat}
-        setSaveFormat={state.setSaveFormat}
-        saveIsActive={state.saveIsActive}
-        setSaveIsActive={state.setSaveIsActive}
-        deckCards={state.deckCards}
-        loadingDecks={state.loadingDecks}
-        locations={state.locations}
-        userInventoryCounts={state.userInventoryCounts}
-        registerToInventory={state.registerToInventory}
-        setRegisterToInventory={state.setRegisterToInventory}
-        targetLocationId={state.targetLocationId}
-        setTargetLocationId={state.setTargetLocationId}
-        selectedLaneIndex={state.selectedLaneIndex}
-        setSelectedLaneIndex={state.setSelectedLaneIndex}
-        cardsToRegister={state.cardsToRegister}
-        setCardsToRegister={state.setCardsToRegister}
-        availableSleeves={state.availableSleeves}
-        selectedMainSleeveId={state.selectedMainSleeveId}
-        setSelectedMainSleeveId={state.setSelectedMainSleeveId}
-        selectedExtraSleeveId={state.selectedExtraSleeveId}
-        setSelectedExtraSleeveId={state.setSelectedExtraSleeveId}
-        handleSaveDeck={state.handleSaveDeck}
-        handleExcludeExisting={state.handleExcludeExisting}
-        extractionPickList={state.extractionPickList}
-      />
-
+      {state.isSaveModalOpen && (
+        <SaveDeckModal
+          isOpen={state.isSaveModalOpen}
+          onClose={() => state.setIsSaveModalOpen(false)}
+          deckName={state.deckName}
+          setDeckName={state.setDeckName}
+          deckDescription={state.deckDescription}
+          setDeckDescription={state.setDeckDescription}
+          saveFormat={state.saveFormat}
+          setSaveFormat={state.setSaveFormat}
+          saveIsActive={state.saveIsActive}
+          setSaveIsActive={state.setSaveIsActive}
+          deckCards={state.deckCards}
+          loadingDecks={state.loadingDecks}
+          locations={state.locations}
+          userInventoryCounts={state.userInventoryCounts}
+          registerToInventory={state.registerToInventory}
+          setRegisterToInventory={state.setRegisterToInventory}
+          targetLocationId={state.targetLocationId}
+          setTargetLocationId={state.setTargetLocationId}
+          selectedLaneIndex={state.selectedLaneIndex}
+          setSelectedLaneIndex={state.setSelectedLaneIndex}
+          cardsToRegister={state.cardsToRegister}
+          setCardsToRegister={state.setCardsToRegister}
+          availableSleeves={state.availableSleeves}
+          selectedMainSleeveId={state.selectedMainSleeveId}
+          setSelectedMainSleeveId={state.setSelectedMainSleeveId}
+          selectedExtraSleeveId={state.selectedExtraSleeveId}
+          setSelectedExtraSleeveId={state.setSelectedExtraSleeveId}
+          handleSaveDeck={state.handleSaveDeck}
+          handleExcludeExisting={state.handleExcludeExisting}
+          extractionPickList={state.extractionPickList}
+        />
+      )}
 
       {/* LOAD DECK MODAL */}
-      <LoadDeckModal
-        isOpen={state.isLoadModalOpen}
-        onClose={() => state.setIsLoadModalOpen(false)}
-        loadingDecks={state.loadingDecks}
-        savedDecks={state.savedDecks}
-        handleLoadDeck={state.handleLoadDeck}
-        handleDeleteDeck={state.handleDeleteDeck}
-      />
+      {state.isLoadModalOpen && (
+        <LoadDeckModal
+          isOpen={state.isLoadModalOpen}
+          onClose={() => state.setIsLoadModalOpen(false)}
+          loadingDecks={state.loadingDecks}
+          savedDecks={state.savedDecks}
+          handleLoadDeck={state.handleLoadDeck}
+          handleDeleteDeck={state.handleDeleteDeck}
+        />
+      )}
     </div>
   );
 }
