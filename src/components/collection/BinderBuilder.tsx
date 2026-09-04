@@ -217,18 +217,6 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Sincronizar navegación móvil y desktop
-  useEffect(() => {
-    if (isMobileScreen) {
-      setCurrentViewIndex(Math.floor(activePageMobile / 2));
-    }
-  }, [activePageMobile, isMobileScreen, setCurrentViewIndex]);
-
-  useEffect(() => {
-    if (!isMobileScreen) {
-      setActivePageMobile(currentViewIndex * 2 || 1);
-    }
-  }, [currentViewIndex, isMobileScreen]);
 
   const rows = binder?.grid_layout?.rows || 3;
   const cols = binder?.grid_layout?.cols || 3;
@@ -509,7 +497,7 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
                       </p>
                       {binder.description && (
                         <p className="text-xs text-slate-400 mt-4 text-center max-w-[200px] italic">
-                          "{binder.description}"
+                          &quot;{binder.description}&quot;
                         </p>
                       )}
                     </div>
@@ -576,9 +564,17 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
               disabled={isMobileScreen ? activePageMobile <= 1 : currentViewIndex <= 0}
               onClick={() => {
                 if (isMobileScreen) {
-                  setActivePageMobile(p => Math.max(1, p - 1));
+                  setActivePageMobile(p => {
+                    const nextP = Math.max(1, p - 1);
+                    setCurrentViewIndex(Math.floor(nextP / 2));
+                    return nextP;
+                  });
                 } else {
-                  setCurrentViewIndex(v => v - 1);
+                  setCurrentViewIndex(v => {
+                    const nextV = Math.max(0, v - 1);
+                    setActivePageMobile(nextV * 2 || 1);
+                    return nextV;
+                  });
                 }
               }}
               className="px-4 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/50 hover:bg-slate-850 rounded-xl text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300 cursor-pointer disabled:opacity-40 disabled:hover:border-slate-800 disabled:hover:bg-slate-900 disabled:cursor-not-allowed flex items-center gap-1.5"
@@ -591,9 +587,17 @@ export default function BinderBuilder({ binderId, onClose }: BinderBuilderProps)
               disabled={isMobileScreen ? activePageMobile >= totalPages : currentViewIndex >= totalViews}
               onClick={() => {
                 if (isMobileScreen) {
-                  setActivePageMobile(p => Math.min(totalPages, p + 1));
+                  setActivePageMobile(p => {
+                    const nextP = Math.min(totalPages, p + 1);
+                    setCurrentViewIndex(Math.floor(nextP / 2));
+                    return nextP;
+                  });
                 } else {
-                  setCurrentViewIndex(v => v + 1);
+                  setCurrentViewIndex(v => {
+                    const nextV = Math.min(totalViews, v + 1);
+                    setActivePageMobile(nextV * 2 || 1);
+                    return nextV;
+                  });
                 }
               }}
               className="px-4 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/50 hover:bg-slate-850 rounded-xl text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300 cursor-pointer disabled:opacity-40 disabled:hover:border-slate-800 disabled:hover:bg-slate-900 disabled:cursor-not-allowed flex items-center gap-1.5"

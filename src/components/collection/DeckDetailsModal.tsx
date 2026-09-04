@@ -26,10 +26,22 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
+  const [prevDeckId, setPrevDeckId] = useState<string | null>(deck?.id || null);
   const [name, setName] = useState(deck?.name || '');
   const [format, setFormat] = useState(deck?.format || 'TCG');
   const [isActive, setIsActive] = useState(deck?.is_active !== false);
   const [storageLocationId, setStorageLocationId] = useState<string>(deck?.storage_location_id || '');
+
+  if (prevDeckId !== (deck?.id || null) && deck) {
+    setPrevDeckId(deck.id);
+    setName(deck.name || '');
+    setFormat(deck.format || 'TCG');
+    setIsActive(deck.is_active !== false);
+    const assignedLoc = locations.find(
+      l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
+    );
+    setStorageLocationId(deck.storage_location_id || assignedLoc?.id || '');
+  }
   
   // Sleeves states
   const [availableSleeves, setAvailableSleeves] = useState<SleeveInventory[]>([]);
@@ -78,10 +90,10 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
 
   // Fetch current deck sleeves on open
   useEffect(() => {
-    if (isOpen && deck) {
-      setErrorMsg(null);
+    if (!isOpen || !deck) return;
 
-      const fetchSleevesForDeck = async () => {
+    const fetchSleevesForDeck = async () => {
+        setErrorMsg(null);
         setLoadingSleeves(true);
         try {
           const res = await fetch(`/api/decks/${deck.id}/sleeves`);
@@ -134,15 +146,6 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
       fetchSleevesForDeck();
       fetchAvailableSleeves();
       fetchDeckCards();
-
-      setName(deck.name || '');
-      setFormat(deck.format || 'TCG');
-      setIsActive(deck.is_active !== false);
-      const assignedLoc = locations.find(
-        l => l.id === deck.storage_location_id || Boolean(l.compartments?.deck_ids?.includes(deck.id))
-      );
-      setStorageLocationId(deck.storage_location_id || assignedLoc?.id || '');
-    }
   }, [isOpen, deck, locations]);
 
   if (!isOpen || !deck) return null;
@@ -179,19 +182,7 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
     return { N_needed, available, hasConflict };
   };
 
-  useEffect(() => {
-    if (mainSleeveId) {
-      const stats = getSleevingStats('main_side');
-      setMainSleeveAddedQty(stats.N_total > 0 ? stats.N_total : 60);
-    }
-  }, [mainSleeveId]);
 
-  useEffect(() => {
-    if (extraSleeveId) {
-      const stats = getSleevingStats('extra');
-      setExtraSleeveAddedQty(stats.N_total > 0 ? stats.N_total : 60);
-    }
-  }, [extraSleeveId]);
 
   const renderSleeveConflictPanel = (
     sleeveId: string,
@@ -532,7 +523,7 @@ export const DeckDetailsModal: React.FC<DeckDetailsModalProps> = ({
                 size="md"
                 options={[
                   { value: '', label: 'Sin almacenar (Sólo Receta)' },
-                  ...locations.map((loc, idx) => {
+                  ...locations.map(loc => {
                     const containerDecks = decks.filter((d) => d.storage_location_id === loc.id && d.id !== deck?.id);
                     const decksLabel = containerDecks.length > 0
                       ? ` (Contiene: ${containerDecks.map((d) => d.name).join(', ')})`

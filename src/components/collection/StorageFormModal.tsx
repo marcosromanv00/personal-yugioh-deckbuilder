@@ -25,40 +25,41 @@ export const StorageFormModal: React.FC<StorageFormModalProps> = ({ isOpen, onCl
   const [compartmentCount, setCompartmentCount] = useState(1);
   const [compartmentNames, setCompartmentNames] = useState<string[]>(['Principal']);
 
-  useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        setName(initialData.name || '');
-        setType(initialData.type || 'binder');
-        setSubType(initialData.sub_type || 'binder_3x3');
-        setColorCode(initialData.color_code || '#8b5cf6');
-        setCapacity(initialData.capacity || 360);
-        setRows(initialData.grid_layout?.rows || 3);
-        setCols(initialData.grid_layout?.cols || 3);
-        setDescription(initialData.description || '');
-        setTotalPages(initialData.grid_layout?.total_pages || 40);
-        if (initialData.compartments) {
-          setCompartmentCount(initialData.compartments.count || 1);
-          setCompartmentNames(initialData.compartments.names || ['Principal']);
-        } else {
-          setCompartmentCount(1);
-          setCompartmentNames(['Principal']);
-        }
+  const [prevInitialData, setPrevInitialData] = useState<StorageLocation | null | undefined>(initialData);
+
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData);
+    if (initialData) {
+      setName(initialData.name || '');
+      setType(initialData.type || 'binder');
+      setSubType(initialData.sub_type || 'binder_3x3');
+      setColorCode(initialData.color_code || '#8b5cf6');
+      setCapacity(initialData.capacity || 360);
+      setRows(initialData.grid_layout?.rows || 3);
+      setCols(initialData.grid_layout?.cols || 3);
+      setDescription(initialData.description || '');
+      setTotalPages(initialData.grid_layout?.total_pages || 40);
+      if (initialData.compartments) {
+        setCompartmentCount(initialData.compartments.count || 1);
+        setCompartmentNames(initialData.compartments.names || ['Principal']);
       } else {
-        setName('');
-        setType('binder');
-        setSubType('binder_3x3');
-        setColorCode('#8b5cf6');
-        setCapacity(360);
-        setRows(3);
-        setCols(3);
-        setDescription('');
-        setTotalPages(40);
         setCompartmentCount(1);
         setCompartmentNames(['Principal']);
       }
+    } else {
+      setName('');
+      setType('binder');
+      setSubType('binder_3x3');
+      setColorCode('#8b5cf6');
+      setCapacity(360);
+      setRows(3);
+      setCols(3);
+      setDescription('');
+      setTotalPages(40);
+      setCompartmentCount(1);
+      setCompartmentNames(['Principal']);
     }
-  }, [isOpen, initialData]);
+  }
 
   if (!isOpen) return null;
 

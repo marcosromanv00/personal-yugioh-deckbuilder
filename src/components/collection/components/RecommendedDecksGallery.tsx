@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -63,7 +63,7 @@ export const RecommendedDecksGallery: React.FC<RecommendedDecksGalleryProps> = (
   }, [recommendedRecipes, selectedStyle, searchQuery]);
 
   // Handler para abrir la baraja directamente en el Taller
-  const handleOpenInWorkshop = (recipe: RecommendedDeckRecipe) => {
+  const handleOpenInWorkshop = useCallback((recipe: RecommendedDeckRecipe) => {
     try {
       const draftPayload = {
         deckName: recipe.name,
@@ -84,7 +84,6 @@ export const RecommendedDecksGallery: React.FC<RecommendedDecksGalleryProps> = (
           race: c.race,
           attribute: c.attribute,
         })),
-        timestamp: Date.now(),
       };
 
       if (typeof window !== 'undefined') {
@@ -97,7 +96,7 @@ export const RecommendedDecksGallery: React.FC<RecommendedDecksGalleryProps> = (
       console.error('Error opening deck in workshop:', err);
       toast.error('No se pudo transferir el deck al taller');
     }
-  };
+  }, [router, toast]);
 
   const freeCardsCount = allUserCards.filter((c) => !c.deck_id).reduce((acc, c) => acc + (c.quantity || 1), 0);
 

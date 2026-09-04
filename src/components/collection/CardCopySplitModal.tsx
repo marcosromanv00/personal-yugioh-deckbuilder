@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Scissors, X, Layers, AlertCircle, ArrowRight, Check } from 'lucide-react';
+import { Scissors, X, AlertCircle, Check } from 'lucide-react';
 import { UserCard } from '@/types/collection';
 import { getLanguageDisplay, getCategoryBadgeStyle } from '@/lib/collectionUtils';
 
@@ -21,15 +21,15 @@ export const CardCopySplitModal: React.FC<CardCopySplitModalProps> = ({
 }) => {
   const currentQuantity = userCard?.quantity || 1;
   const maxSplit = Math.max(1, currentQuantity - 1);
+  const [prevCardId, setPrevCardId] = useState<string | null>(userCard?.id || null);
   const [splitCount, setSplitCount] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setSplitCount(1);
-      setIsProcessing(false);
-    }
-  }, [isOpen, userCard]);
+  if (prevCardId !== (userCard?.id || null)) {
+    setPrevCardId(userCard?.id || null);
+    setSplitCount(1);
+    setIsProcessing(false);
+  }
 
   if (!isOpen || !userCard) return null;
 

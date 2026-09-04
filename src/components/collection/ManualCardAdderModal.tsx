@@ -199,26 +199,26 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
   }, [searchQuery, typeFilter, isOpen, activeLeftTab, handleSearch]);
 
   // Add a card from search to the central queue
-  const handleAddCardToQueue = (card: YgoCardResult, qty: number = 1) => {
+  const handleAddCardToQueue = useCallback((card: YgoCardResult, qty: number = 1) => {
     setErrorMsg('');
     setSuccessMsg('');
 
-    // Check if card is already in queue
-    const existingIndex = queuedCards.findIndex((c) => c.card_id === card.id);
-    if (existingIndex >= 0) {
-      // Increment quantity
-      const existing = queuedCards[existingIndex];
-      const updated = [...queuedCards];
-      updated[existingIndex] = {
-        ...existing,
-        quantity: existing.quantity + qty,
-      };
-      setQueuedCards(updated);
-      setActiveCardId(existing.id);
-    } else {
-      // Create new queue item
+    setQueuedCards((prev) => {
+      const existingIndex = prev.findIndex((c) => c.card_id === card.id);
+      if (existingIndex >= 0) {
+        const existing = prev[existingIndex];
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...existing,
+          quantity: existing.quantity + qty,
+        };
+        setActiveCardId(existing.id);
+        return updated;
+      }
+
+      const generatedId = `queue-${card.id}-${prev.length + 1}`;
       const newItem: QueuedCardItem = {
-        id: `queue-${card.id}-${Math.random().toString(36).substring(2, 9)}`,
+        id: generatedId,
         card_id: card.id,
         name: card.name,
         type: card.type,
@@ -241,10 +241,10 @@ export const ManualCardAdderModal: React.FC<ManualCardAdderModalProps> = ({
         is_proxy: false,
         notes: '',
       };
-      setQueuedCards((prev) => [...prev, newItem]);
-      setActiveCardId(newItem.id);
-    }
-  };
+      setActiveCardId(generatedId);
+      return [...prev, newItem];
+    });
+  }, [defaultLocationId]);
 
   const handleScannerCardRegistered = async (card: YgoDetectedCard, quantity: number) => {
     handleAddCardToQueue(card as YgoCardResult, quantity);

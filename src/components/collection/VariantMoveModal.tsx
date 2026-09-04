@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRightLeft, X, Layers, Boxes, MapPin, Check, Minus, Plus } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
@@ -35,17 +35,23 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
   const [targetCompartmentIndex, setTargetCompartmentIndex] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  // Inicializar estado cuando se abre el modal
-  useEffect(() => {
-    if (isOpen && variant) {
-      setMoveQuantity(variant.quantity || 1);
-      // Seleccionar como sugerencia el primer contenedor diferente al actual o inbox
-      const defaultLoc = locations.find(l => l.id !== variant.storage_location_id);
-      setTargetLocationId(defaultLoc ? defaultLoc.id : (variant.storage_location_id ? 'inbox' : (locations[0]?.id || 'inbox')));
-      setTargetCompartmentIndex(0);
-      setIsProcessing(false);
-    }
-  }, [isOpen, variant, locations]);
+  // Track previous variant/isOpen to adjust state during render (React 19 / Zero-Effect)
+  const [prevTracked, setPrevTracked] = useState<{ isOpen: boolean; variantId: string | null }>({
+    isOpen: false,
+    variantId: null,
+  });
+
+  if (isOpen && variant && (prevTracked.isOpen !== isOpen || prevTracked.variantId !== variant.id)) {
+    setPrevTracked({ isOpen, variantId: variant.id });
+    setMoveQuantity(variant.quantity || 1);
+    // Seleccionar como sugerencia el primer contenedor diferente al actual o inbox
+    const defaultLoc = locations.find(l => l.id !== variant.storage_location_id);
+    setTargetLocationId(defaultLoc ? defaultLoc.id : (variant.storage_location_id ? 'inbox' : (locations[0]?.id || 'inbox')));
+    setTargetCompartmentIndex(0);
+    setIsProcessing(false);
+  } else if (!isOpen && prevTracked.isOpen) {
+    setPrevTracked({ isOpen: false, variantId: null });
+  }
 
   // Contenedor seleccionado
   const selectedTargetLocation = useMemo(() => {
@@ -76,16 +82,10 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
     }));
   }, [selectedTargetLocation]);
 
-  // Ajustar carril si cambia de contenedor
-  useEffect(() => {
-    if (compartmentOptions.length > 0) {
-      if (targetCompartmentIndex >= compartmentOptions.length) {
-        setTargetCompartmentIndex(0);
-      }
-    } else {
-      setTargetCompartmentIndex(0);
-    }
-  }, [selectedTargetLocation, compartmentOptions, targetCompartmentIndex]);
+  // Carril seguro derivado puramente (React 19 Zero-Effect)
+  const safeCompartmentIndex = compartmentOptions.length > 0 && targetCompartmentIndex < compartmentOptions.length
+    ? targetCompartmentIndex
+    : 0;
 
   if (!isOpen || !variant) return null;
 
@@ -98,7 +98,7 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
     setIsProcessing(true);
     try {
       const effectiveLocId = targetLocationId === 'inbox' ? null : targetLocationId;
-      await onConfirmMove(variant.id, moveQuantity, effectiveLocId, targetCompartmentIndex);
+      await onConfirmMove(variant.id, moveQuantity, effectiveLocId, safeCompartmentIndex);
       onClose();
     } catch (e) {
       console.error('Error al mover variante:', e);
@@ -234,7 +234,10 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
               </label>
               <PremiumDropdown
                 value={targetLocationId}
-                onChange={(val) => setTargetLocationId(val)}
+                onChange={(val) => {
+                  setTargetLocationId(val);
+                  setTargetCompartmentIndex(0);
+                }}
                 align="full"
                 size="md"
                 options={locationOptions}
@@ -249,7 +252,7 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
                   <span>Carril / Compartimento en {selectedTargetLocation?.name}</span>
                 </label>
                 <PremiumDropdown
-                  value={targetCompartmentIndex}
+                  value={safeCompartmentIndex}
                   onChange={(val) => setTargetCompartmentIndex(val as number)}
                   align="full"
                   size="md"
@@ -267,7 +270,7 @@ export const VariantMoveModal: React.FC<VariantMoveModalProps> = ({
                 ) : targetLocationId === 'inbox' ? (
                   <span>La carta se trasladará a la <strong>Bandeja Sin Clasificar (Inbox)</strong>.</span>
                 ) : (
-                  <span>La carta se guardará en <strong>{selectedTargetLocation?.name}</strong>{compartmentOptions.length > 0 ? ` en ${selectedTargetLocation?.compartments?.names[targetCompartmentIndex] || `el Carril ${targetCompartmentIndex + 1}`}` : ''}.</span>
+                  <span>La carta se guardará en <strong>{selectedTargetLocation?.name}</strong>{compartmentOptions.length > 0 ? ` en ${selectedTargetLocation?.compartments?.names[safeCompartmentIndex] || `el Carril ${safeCompartmentIndex + 1}`}` : ''}.</span>
                 )}
               </p>
             </div>

@@ -217,17 +217,17 @@ export function useDeckWorkspaceState({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Sincronizar sleeves externos
-  useEffect(() => {
-    if (sleeves && sleeves.length > 0) {
-      setAvailableSleeves(sleeves);
-    }
-  }, [sleeves]);
+  // Sincronizar sleeves externos mediante ajuste de estado en render (React 19 Zero-Effect)
+  const [prevExternalSleeves, setPrevExternalSleeves] = useState<SleeveInventory[]>(sleeves);
+  if (sleeves && sleeves.length > 0 && sleeves !== prevExternalSleeves) {
+    setPrevExternalSleeves(sleeves);
+    setAvailableSleeves(sleeves);
+  }
 
-  // Cargar datos cuando cambia el mazo activo
-  useEffect(() => {
-    if (!isOpen || !deck) return;
-
+  // Ajuste síncrono del estado del formulario durante el render al cambiar de deck (React 19 Zero-Effect)
+  const [prevTrackedDeckId, setPrevTrackedDeckId] = useState<string | null>(null);
+  if (isOpen && deck && prevTrackedDeckId !== deck.id) {
+    setPrevTrackedDeckId(deck.id);
     setCurrentDeck(deck);
     setName(deck.name || '');
     setFormat(deck.format || 'TCG');
@@ -290,6 +290,13 @@ export function useDeckWorkspaceState({
       poolSleeveId: initParsed.poolReg,
       poolSleeveOverId: initParsed.poolOver,
     });
+  } else if (!isOpen && prevTrackedDeckId !== null) {
+    setPrevTrackedDeckId(null);
+  }
+
+  // Carga asíncrona de detalles externos de la API
+  useEffect(() => {
+    if (!isOpen || !deck) return;
 
     const fetchDeckDetails = async () => {
       setLoading(true);

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Layers, HelpCircle, Search, X, Sparkles, Box, GripVertical } from 'lucide-react';
-import { Deck, StorageLocation } from '@/types/collection';
+import { Layers, HelpCircle, Search, X, GripVertical } from 'lucide-react';
+import { Deck, DeckCardDetail, StorageLocation } from '@/types/collection';
 
 interface DecksPanelProps {
   decks: Deck[];
@@ -181,7 +181,7 @@ export const DecksPanel: React.FC<DecksPanelProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-500">
-                      <span>{deck.cards?.reduce((acc: number, c: any) => acc + c.count, 0) || 0} cartas</span>
+                      <span>{deck.cards?.reduce((acc: number, c: DeckCardDetail) => acc + (c.count || 0), 0) || 0} cartas</span>
                       <span className={isActive ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-zinc-400'}>
                         • {isActive ? 'Activo' : 'Receta'}
                       </span>
