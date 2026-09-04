@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 import type { YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
 import { CardImage } from '@/components/ui/CardImage';
+import { StorageLocation, UserCard } from '@/types/collection';
+import { SearchCardCopyPickerModal } from './SearchCardCopyPickerModal';
 
 const CardCodeScannerModal = dynamic(
   () => import('@/components/scanner/CardCodeScannerModal').then(m => m.CardCodeScannerModal),
@@ -57,8 +59,10 @@ interface SearchPanelProps {
   format?: 'Master Duel' | 'TCG' | 'Duel Links';
   userInventoryCounts?: Record<number, number>;
   onSelectAllStaged?: () => void;
+  allUserCards?: UserCard[];
+  locations?: StorageLocation[];
 
-  addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
+  addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras', selectedCopy?: UserCard) => void;
   openPreviewForCard?: (card: HoverCardBase) => void;
   handleDragCardStart: (e: React.DragEvent, cardData: Card) => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
@@ -72,7 +76,7 @@ interface SearchResultsListProps {
   isMobile: boolean;
   getBanlistBadge: (card: Card) => React.ReactNode;
   userInventoryCounts?: Record<number, number>;
-  addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras') => void;
+  addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras', selectedCopy?: UserCard) => void;
   openPreviewForCard?: (card: HoverCardBase) => void;
   handleDragCardStart: (e: React.DragEvent, cardData: Card) => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
@@ -287,13 +291,33 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   format,
   userInventoryCounts = {},
   onSelectAllStaged,
+  allUserCards = [],
+  locations = [],
   addCardToDeck,
   openPreviewForCard,
   handleDragCardStart,
   handleCardMouseEnter,
   handleCardMouseLeave,
 }) => {
+  const [copyPickerState, setCopyPickerState] = useState<{
+    card: Card;
+    targetSection: 'main' | 'extra' | 'side' | 'extras';
+    copies: UserCard[];
+  } | null>(null);
 
+  const handleAddCardWithCopyCheck = (card: Card, targetSec: 'main' | 'extra' | 'side' | 'extras' = 'main') => {
+    const copies = (card.userCardsGroup && card.userCardsGroup.length > 0)
+      ? card.userCardsGroup
+      : (allUserCards ? allUserCards.filter(uc => uc.card_id === card.id) : []);
+
+    if (copies.length > 1 && locations && locations.length > 0) {
+      setCopyPickerState({ card, targetSection: targetSec, copies });
+    } else if (copies.length === 1) {
+      addCardToDeck(card, targetSec, copies[0]);
+    } else {
+      addCardToDeck(card, targetSec);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<'search' | 'bulk'>('search');
   // Sub-mode for bulk tab: ydk = file/.ydk/names, ids = raw numeric IDs
@@ -1075,7 +1099,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               isMobile={isMobile}
               getBanlistBadge={getBanlistBadge}
               userInventoryCounts={userInventoryCounts}
-              addCardToDeck={addCardToDeck}
+              addCardToDeck={handleAddCardWithCopyCheck}
               openPreviewForCard={openPreviewForCard}
               handleDragCardStart={handleDragCardStart}
               handleCardMouseEnter={handleCardMouseEnter}
@@ -1110,6 +1134,26 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           onCardRegistered={handleScannerCardRegistered}
           title="Escanear Código de Carta"
           subtitle="Apunta al código numérico de 8 dígitos de la esquina inferior"
+        />
+      )}
+
+      {/* MODAL SELECTOR DE COPIA FÍSICA ESPECÍFICA */}
+      {copyPickerState && (
+        <SearchCardCopyPickerModal
+          isOpen={Boolean(copyPickerState)}
+          onClose={() => setCopyPickerState(null)}
+          card={copyPickerState.card}
+          copies={copyPickerState.copies}
+          locations={locations}
+          targetSection={copyPickerState.targetSection}
+          onSelectCopy={(copy) => {
+            addCardToDeck(copyPickerState.card, copyPickerState.targetSection, copy);
+            setCopyPickerState(null);
+          }}
+          onSelectGeneric={() => {
+            addCardToDeck(copyPickerState.card, copyPickerState.targetSection);
+            setCopyPickerState(null);
+          }}
         />
       )}
     </section>

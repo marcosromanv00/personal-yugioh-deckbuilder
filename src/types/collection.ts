@@ -197,12 +197,68 @@ export interface WishlistItem {
   card_details?: UserCard['card_details'];
 }
 
+export interface DeckCardPhysicalCopy {
+  user_card_id?: string;
+  storage_location_id?: string | null;
+  location_name?: string;
+  rarity?: string;
+  condition?: string;
+  is_proxy?: boolean;
+  is_in_active_deck?: boolean;
+  active_deck_id?: string;
+  active_deck_name?: string;
+  binder_page?: number;
+  binder_slot?: number;
+  compartment_index?: number;
+  /**
+   * 'existing' = copy loaded from DB or selected from collection picker (already in yg_user_cards).
+   * 'staged'   = placeholder pushed when adding a card from search/import/drag (no user_card_id yet).
+   * undefined  = legacy/retrocompatible → treated as 'existing'.
+   */
+  source_status?: 'existing' | 'staged';
+}
+
 export interface DeckCardDetail {
   card_id: number;
   count: number;
   proxy_count?: number;
   section: string;
   card_details?: UserCard['card_details'];
+  physical_copies?: DeckCardPhysicalCopy[];
+  pending_count?: number;
+}
+
+export interface SaveDeckWorkspacePayload {
+  id: string;
+  name: string;
+  description?: string;
+  format: string;
+  is_active: boolean;
+  storage_location_id: string | null;
+  compartment_index: number;
+  cards: Array<{
+    id: number;
+    count: number;
+    proxy_count?: number;
+    section: string;
+    name?: string;
+    type?: string;
+    image_url?: string;
+  }>;
+  assigned_user_card_ids?: string[];
+  unassigned_user_card_ids?: string[];
+  inventory_cards_to_add?: Array<{
+    id: number;
+    count: number;
+    rarity: string;
+    condition: string;
+    is_proxy: boolean;
+    section: string;
+  }>;
+  sleeves?: Array<{
+    sleeve_id: string;
+    section: string;
+  }>;
 }
 
 // --- Sleeve Inventory ---

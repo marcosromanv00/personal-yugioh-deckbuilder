@@ -7,7 +7,8 @@ import {
   Swords, 
   Sparkles, 
   Shield, 
-  Package 
+  Package,
+  Layers
 } from 'lucide-react';
 import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
@@ -52,6 +53,15 @@ interface DeckCenterPanelProps {
   onSaveDeckCards?: () => void;
   onDiscardDeckCards?: () => void;
   loading?: boolean;
+  mainPhysicalCount?: number;
+  mainPendingCount?: number;
+  extraPhysicalCount?: number;
+  extraPendingCount?: number;
+  sidePhysicalCount?: number;
+  sidePendingCount?: number;
+  poolPhysicalCount?: number;
+  poolPendingCount?: number;
+  onOpenAssignDrawer?: (section: 'main' | 'extra' | 'side' | 'pool') => void;
 }
 
 export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
@@ -91,6 +101,15 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
   savingDeckCards = false,
   onSaveDeckCards,
   onDiscardDeckCards,
+  mainPhysicalCount = 0,
+  mainPendingCount = 0,
+  extraPhysicalCount = 0,
+  extraPendingCount = 0,
+  sidePhysicalCount = 0,
+  sidePendingCount = 0,
+  poolPhysicalCount = 0,
+  poolPendingCount = 0,
+  onOpenAssignDrawer,
 }) => {
   const currentBaseLocation = locations.find(l => l.id === storageLocationId);
 
@@ -207,7 +226,7 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
             {/* SECCIÓN 1: MAIN DECK */}
             {(sectionFilter === 'all' || sectionFilter === 'main') && (
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between border-b border-red-500/20 dark:border-red-500/20 pb-1.5">
+                <div className="flex items-center justify-between border-b border-red-500/20 dark:border-red-500/20 pb-1.5 flex-wrap gap-1.5">
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-lg bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 flex items-center justify-center">
                       <Swords className="w-3 h-3" />
@@ -216,9 +235,20 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                       Main Deck
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60">
-                      {totalMainCount} cartas
+                      {totalMainCount} cartas • {mainPhysicalCount} físicas{mainPendingCount > 0 ? ` / ${mainPendingCount} pendientes` : ''}
                     </span>
                   </div>
+
+                  {mainPendingCount > 0 && onOpenAssignDrawer && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenAssignDrawer('main')}
+                      className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs flex items-center gap-1 min-h-7"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>Asignar pendientes ({mainPendingCount})</span>
+                    </button>
+                  )}
                 </div>
 
                 <DeckSectionGrid
@@ -250,7 +280,7 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
             {/* SECCIÓN 2: EXTRA DECK */}
             {(sectionFilter === 'all' || sectionFilter === 'extra') && (
               <div className="space-y-2.5 pt-2">
-                <div className="flex items-center justify-between border-b border-purple-500/20 dark:border-purple-500/20 pb-1.5">
+                <div className="flex items-center justify-between border-b border-purple-500/20 dark:border-purple-500/20 pb-1.5 flex-wrap gap-1.5">
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-lg bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center">
                       <Sparkles className="w-3 h-3" />
@@ -259,9 +289,20 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                       Extra Deck
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
-                      {totalExtraCount} cartas
+                      {totalExtraCount} cartas • {extraPhysicalCount} físicas{extraPendingCount > 0 ? ` / ${extraPendingCount} pendientes` : ''}
                     </span>
                   </div>
+
+                  {extraPendingCount > 0 && onOpenAssignDrawer && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenAssignDrawer('extra')}
+                      className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs flex items-center gap-1 min-h-7"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>Asignar pendientes ({extraPendingCount})</span>
+                    </button>
+                  )}
                 </div>
 
                 <DeckSectionGrid
@@ -293,7 +334,7 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
             {/* SECCIÓN 3: SIDE DECK */}
             {(sectionFilter === 'all' || sectionFilter === 'side') && (
               <div className="space-y-2.5 pt-2">
-                <div className="flex items-center justify-between border-b border-amber-500/20 dark:border-amber-500/20 pb-1.5">
+                <div className="flex items-center justify-between border-b border-amber-500/20 dark:border-amber-500/20 pb-1.5 flex-wrap gap-1.5">
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                       <Shield className="w-3 h-3" />
@@ -302,9 +343,20 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                       Side Deck
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
-                      {totalSideCount} cartas
+                      {totalSideCount} cartas • {sidePhysicalCount} físicas{sidePendingCount > 0 ? ` / ${sidePendingCount} pendientes` : ''}
                     </span>
                   </div>
+
+                  {sidePendingCount > 0 && onOpenAssignDrawer && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenAssignDrawer('side')}
+                      className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs flex items-center gap-1 min-h-7"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>Asignar pendientes ({sidePendingCount})</span>
+                    </button>
+                  )}
                 </div>
 
                 <DeckSectionGrid
@@ -336,7 +388,7 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
             {/* SECCIÓN 4: RESERVA / CARTAS EXTRA (POOL) */}
             {(sectionFilter === 'all' || sectionFilter === 'pool') && (
               <div className="space-y-2.5 pt-2">
-                <div className="flex items-center justify-between border-b border-cyan-500/20 dark:border-cyan-500/20 pb-1.5">
+                <div className="flex items-center justify-between border-b border-cyan-500/20 dark:border-cyan-500/20 pb-1.5 flex-wrap gap-1.5">
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-lg bg-cyan-100 dark:bg-cyan-950/80 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
                       <Package className="w-3 h-3" />
@@ -345,9 +397,20 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                       Reserva / Cartas Extra del Arquetipo
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60">
-                      {totalPoolCount} cartas
+                      {totalPoolCount} cartas • {poolPhysicalCount} físicas{poolPendingCount > 0 ? ` / ${poolPendingCount} pendientes` : ''}
                     </span>
                   </div>
+
+                  {poolPendingCount > 0 && onOpenAssignDrawer && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenAssignDrawer('pool')}
+                      className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs flex items-center gap-1 min-h-7"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>Asignar pendientes ({poolPendingCount})</span>
+                    </button>
+                  )}
                 </div>
 
                 <DeckSectionGrid

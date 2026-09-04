@@ -15,6 +15,8 @@ import { Card } from '@/components/deckbuilder/types';
 import { SleeveInventory, UserCard } from '@/types/collection';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RelocateDeckCardModal } from './deck-workspace/RelocateDeckCardModal';
+import { AssignPendingDrawer } from './deck-workspace/AssignPendingDrawer';
+import { DeckWorkspaceSyncModal } from './deck-workspace/DeckWorkspaceSyncModal';
 
 export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalProps> = (props) => {
   const {
@@ -152,7 +154,9 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                 searchLimit={state.searchLimit}
                 setSearchLimit={state.setSearchLimit}
                 format={state.format as 'TCG' | 'Master Duel' | 'Duel Links'}
-                addCardToDeck={(card, targetSec) => state.handleAddCardToDeck(card as Card, targetSec || (state.sectionFilter !== 'all' ? state.sectionFilter : undefined))}
+                allUserCards={state.userCards}
+                locations={locations}
+                addCardToDeck={(card, targetSec, selectedCopy) => state.handleAddCardToDeck(card as Card, targetSec || (state.sectionFilter !== 'all' ? state.sectionFilter : undefined), selectedCopy)}
                 openPreviewForCard={(card) => {
                   const existing = state.deckCards.find(c => c.card_id === card.id);
                   if (existing) {
@@ -217,6 +221,15 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             onSaveDeckCards={state.handleSaveDeckCards}
             onDiscardDeckCards={state.handleDiscardDeckCards}
             loading={state.loading}
+            mainPhysicalCount={state.mainPhysicalCount}
+            mainPendingCount={state.mainPendingCount}
+            extraPhysicalCount={state.extraPhysicalCount}
+            extraPendingCount={state.extraPendingCount}
+            sidePhysicalCount={state.sidePhysicalCount}
+            sidePendingCount={state.sidePendingCount}
+            poolPhysicalCount={state.poolPhysicalCount}
+            poolPendingCount={state.poolPendingCount}
+            onOpenAssignDrawer={(sec) => state.setAssignDrawerSection(sec)}
           />
 
           {/* DIVIDER REDIMENSIONABLE DERECHO */}
@@ -310,6 +323,8 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             inferredArchetype={state.inferredArchetype}
             savedDecks={decks}
             onAddCardToDeck={(card, section) => state.handleAddCardToDeck(card, section === 'extras' ? 'pool' : section)}
+            onStageAssignCopy={state.stageAssignUserCard}
+            onStageUnassignCopy={state.stageUnassignUserCard}
           />
 
         </div>
@@ -404,6 +419,33 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           />
         )}
 
+        {/* Drawer de Asignación Guiada de Cartas Pendientes */}
+        <AssignPendingDrawer
+          isOpen={Boolean(state.assignDrawerSection)}
+          onClose={() => state.setAssignDrawerSection(null)}
+          section={state.assignDrawerSection}
+          pendingCards={state.pendingCardsForDrawer}
+          userCards={state.userCards}
+          locations={locations}
+          onAssignCopy={state.stageAssignUserCard}
+          onRegisterNewCopy={(cardId, isProxy) => {
+            state.handleAddPhysicalCopyForCard(cardId, isProxy);
+          }}
+        />
+
+        {/* Modal de Sincronización y Conciliación Atómica */}
+        <DeckWorkspaceSyncModal
+          isOpen={state.isSyncModalOpen}
+          onClose={() => state.setIsSyncModalOpen(false)}
+          isActiveDeck={state.isActive}
+          onToggleActiveDeck={state.setIsActive}
+          pendingCards={state.allPendingCards}
+          unassignedUserCards={state.unassignedUserCards}
+          locations={locations}
+          onConfirmSave={state.executeAtomicSave}
+          isSaving={state.isSavingSync}
+        />
+
         {/* Diálogo de Confirmación para Cambios No Guardados en Ficha Técnica o Lista de Cartas */}
         <ConfirmDialog
           isOpen={isConfirmCloseOpen}
@@ -418,12 +460,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             onClose(state.hasMutated);
           }}
           onSave={async () => {
-            if (state.isMetadataDirty) {
-              await state.handleSaveDeck();
-            }
-            if (state.isDeckListDirty) {
-              await state.handleSaveDeckCards();
-            }
+            await state.handleTriggerSave();
             setIsConfirmCloseOpen(false);
             onClose(true);
           }}

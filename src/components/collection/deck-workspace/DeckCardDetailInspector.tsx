@@ -38,6 +38,8 @@ interface DeckCardDetailInspectorProps {
   onDeleteUserCard?: (userCardId: string) => void;
   onRemoveCardFromDeck: (cardId: number, section: 'main' | 'extra' | 'side' | 'pool') => void;
   onOpenRegisterSleeveForCard?: (userCard: UserCard) => void;
+  onStageAssignCopy?: (cardId: number, section: string, copy: UserCard) => void;
+  onStageUnassignCopy?: (cardId: number, section: string, userCardId: string) => void;
 }
 
 const RARITY_OPTIONS = [
@@ -85,6 +87,8 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
   onDeleteUserCard,
   onRemoveCardFromDeck,
   onOpenRegisterSleeveForCard,
+  onStageAssignCopy,
+  onStageUnassignCopy,
 }) => {
   const [detailsCopiesMode, setDetailsCopiesMode] = useState<DetailsCopiesMode>('grouped');
   // Set de IDs de variantes abiertas
@@ -373,6 +377,36 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
                 title={`Funda: ${sleeveSummary}`}
               />
             )}
+
+            {/* Control directo de asignación al mazo */}
+            {(() => {
+              const isAssigned = selectedCardDetail.physical_copies?.some((cp) => cp.user_card_id === uc.id);
+              return isAssigned ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStageUnassignCopy?.(selectedCardDetail.card_id, selectedCardDetail.section, uc.id);
+                  }}
+                  className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[9.5px] font-black uppercase hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30 transition-all cursor-pointer shadow-xs min-h-6"
+                  title="Asignada a este mazo. Clic para desvincular"
+                >
+                  ✓ En Mazo
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStageAssignCopy?.(selectedCardDetail.card_id, selectedCardDetail.section, uc);
+                  }}
+                  className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white text-[9.5px] font-black uppercase transition-all cursor-pointer shadow-xs min-h-6"
+                  title="Vincular esta copia física al mazo"
+                >
+                  + Vincular
+                </button>
+              );
+            })()}
 
             {selectedPhysicalUserCards.length > 1 && onDeleteUserCard && (
               <button

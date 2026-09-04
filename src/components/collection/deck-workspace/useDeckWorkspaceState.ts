@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { StorageLocation, UserCard, SleeveInventory, Deck, DeckCardDetail, SleeveCategory } from '@/types/collection';
+import { StorageLocation, UserCard, SleeveInventory, Deck, DeckCardDetail, SleeveCategory, DeckCardPhysicalCopy } from '@/types/collection';
 import { Card, HoverCardBase } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useToast } from '@/components/ui/ToastProvider';
 import { DeckSectionFilter, RightDeckMode, MobileDeckTab } from './types';
+import { enrichDeckCardsWithPhysicalCopies } from './deckWorkspacePhysical.utils';
+import { useDeckPhysicalSync } from './useDeckPhysicalSync';
 
 interface UseDeckWorkspaceStateProps {
   isOpen: boolean;
@@ -151,6 +153,53 @@ export function useDeckWorkspaceState({
     setIsNewSleeveModalOpen(true);
   };
 
+  const sleevesPayload = useMemo(() => {
+    const payload: { sleeve_id: string; section: string }[] = [];
+    if (mainProtection === 'triple' || mainProtection === 'double') {
+      if (mainSleeveFitId) payload.push({ sleeve_id: mainSleeveFitId, section: 'main_side_fit' });
+      if (mainSleeveId) payload.push({ sleeve_id: mainSleeveId, section: 'main_side_regular' });
+      if (mainSleeveOverId) payload.push({ sleeve_id: mainSleeveOverId, section: 'main_side_over' });
+    } else {
+      if (mainSleeveId) payload.push({ sleeve_id: mainSleeveId, section: 'main_side_regular' });
+    }
+    if (extraProtection === 'triple' || extraProtection === 'double') {
+      if (extraSleeveFitId) payload.push({ sleeve_id: extraSleeveFitId, section: 'extra_fit' });
+      if (extraSleeveId) payload.push({ sleeve_id: extraSleeveId, section: 'extra_regular' });
+      if (extraSleeveOverId) payload.push({ sleeve_id: extraSleeveOverId, section: 'extra_over' });
+    } else {
+      if (extraSleeveId) payload.push({ sleeve_id: extraSleeveId, section: 'extra_regular' });
+    }
+    if (poolProtection === 'triple' || poolProtection === 'double') {
+      if (poolSleeveFitId) payload.push({ sleeve_id: poolSleeveFitId, section: 'pool_fit' });
+      if (poolSleeveId) payload.push({ sleeve_id: poolSleeveId, section: 'pool_regular' });
+      if (poolSleeveOverId) payload.push({ sleeve_id: poolSleeveOverId, section: 'pool_over' });
+    } else {
+      if (poolSleeveId) payload.push({ sleeve_id: poolSleeveId, section: 'pool_regular' });
+    }
+    return payload;
+  }, [
+    mainProtection, mainSleeveFitId, mainSleeveId, mainSleeveOverId,
+    extraProtection, extraSleeveFitId, extraSleeveId, extraSleeveOverId,
+    poolProtection, poolSleeveFitId, poolSleeveId, poolSleeveOverId,
+  ]);
+
+  const physicalSync = useDeckPhysicalSync({
+    currentDeck,
+    deckCards,
+    setDeckCards,
+    userCards,
+    setUserCards,
+    setHasMutated,
+    storageLocationId,
+    compartmentIndex,
+    name,
+    format,
+    isActive,
+    sleevesPayload,
+    onSuccess,
+    setInitialDeckCards,
+  });
+
   // Modo del Panel Derecho: 'details' (Ficha Técnica) vs 'card' (Detalles de Carta)
   const [rightMode, setRightMode] = useState<RightDeckMode>('details');
   const [selectedCardDetail, setSelectedCardDetail] = useState<DeckCardDetail | null>(null);
@@ -250,8 +299,9 @@ export function useDeckWorkspaceState({
     setSectionFilter('all');
     setSearchFilter('');
     if (deck.cards && Array.isArray(deck.cards)) {
-      setDeckCards(deck.cards);
-      setInitialDeckCards(deck.cards);
+      const enriched = enrichDeckCardsWithPhysicalCopies(deck.cards, userCards, deck.id);
+      setDeckCards(enriched);
+      setInitialDeckCards(enriched);
     }
 
     // Cargar fundas asignadas al deck si existen (soporte multicapa)
@@ -307,11 +357,26 @@ export function useDeckWorkspaceState({
           fetch('/api/collection/sleeve-inventory')
         ]);
 
+        let fetchedCards: UserCard[] = [];
+        if (cardsRes.ok) {
+          const json = await cardsRes.json();
+          fetchedCards = json.data || [];
+          setUserCards(fetchedCards);
+
+          // Si el deck no tenía carril registrado en la caja, deducirlo de las cartas
+          const deckUserCard = fetchedCards.find((uc: UserCard) => uc.deck_id === deck.id && uc.storage_location_id === deck.storage_location_id);
+          if (deckUserCard && deckUserCard.compartment_index !== undefined) {
+            setCompartmentIndex(deckUserCard.compartment_index);
+          }
+        }
+
         if (deckRes.ok) {
           const json = await deckRes.json();
           if (json.data) {
-            setDeckCards(json.data.cards || []);
-            setInitialDeckCards(json.data.cards || []);
+            const loaded = json.data.cards || [];
+            const enriched = enrichDeckCardsWithPhysicalCopies(loaded, fetchedCards, deck.id);
+            setDeckCards(enriched);
+            setInitialDeckCards(enriched);
 
             if (json.data.sleeves && Array.isArray(json.data.sleeves)) {
               const loadedParsed = parseSleevesList(json.data.sleeves);
@@ -346,18 +411,6 @@ export function useDeckWorkspaceState({
                 poolSleeveOverId: loadedParsed.poolOver,
               } : null);
             }
-          }
-        }
-
-        if (cardsRes.ok) {
-          const json = await cardsRes.json();
-          const fetchedCards: UserCard[] = json.data || [];
-          setUserCards(fetchedCards);
-
-          // Si el deck no tenía carril registrado en la caja, deducirlo de las cartas
-          const deckUserCard = fetchedCards.find((uc: UserCard) => uc.deck_id === deck.id && uc.storage_location_id === deck.storage_location_id);
-          if (deckUserCard && deckUserCard.compartment_index !== undefined) {
-            setCompartmentIndex(deckUserCard.compartment_index);
           }
         }
 
@@ -515,7 +568,11 @@ export function useDeckWorkspaceState({
   const poolCards = useMemo(() => filteredCenterCards.filter(c => c.section === 'pool' || c.section === 'extras'), [filteredCenterCards]);
 
   // Acciones de Gestión de Cartas en el Deck (Solo mutación local hasta confirmación del usuario)
-  const handleAddCardToDeck = (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'pool' | 'extras') => {
+  const handleAddCardToDeck = (
+    card: Card,
+    targetSection?: 'main' | 'extra' | 'side' | 'pool' | 'extras',
+    selectedCopy?: UserCard
+  ) => {
     if (!currentDeck) return;
 
     let sectionToUse: 'main' | 'extra' | 'side' | 'pool' | 'extras' = targetSection || 'main';
@@ -532,21 +589,51 @@ export function useDeckWorkspaceState({
     }
 
     const sectionNormalized = (sectionToUse === 'pool' || sectionToUse === 'extras') ? 'extras' : sectionToUse;
-
     const existing = deckCards.find(c => c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized || (sectionNormalized === 'extras' && (c.section === 'pool' || c.section === 'extras'))));
     let updatedCards: DeckCardDetail[];
 
+    // selectedCopy → existing (has a real user_card_id in inventory)
+    // no selectedCopy → staged placeholder (needs future registration)
+    const newCopy: DeckCardPhysicalCopy = selectedCopy
+      ? {
+          user_card_id: selectedCopy.id,
+          storage_location_id: selectedCopy.storage_location_id,
+          rarity: selectedCopy.rarity,
+          condition: selectedCopy.condition,
+          is_proxy: selectedCopy.is_proxy,
+          is_in_active_deck: true,
+          active_deck_id: currentDeck.id,
+          compartment_index: selectedCopy.compartment_index,
+          binder_page: selectedCopy.binder_page,
+          binder_slot: selectedCopy.binder_slot,
+          source_status: 'existing' as const,
+        }
+      : { source_status: 'staged' as const };
+
     if (existing) {
-      updatedCards = deckCards.map(c => 
-        c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized || (sectionNormalized === 'extras' && (c.section === 'pool' || c.section === 'extras')))
-          ? { ...c, count: c.count + 1 }
-          : c
-      );
+      updatedCards = deckCards.map(c => {
+        if (c.card_id === card.id && (c.section === sectionToUse || c.section === sectionNormalized || (sectionNormalized === 'extras' && (c.section === 'pool' || c.section === 'extras')))) {
+          const currentCopies = c.physical_copies || [];
+          const updatedCopies = [...currentCopies, newCopy];
+          const newCount = c.count + 1;
+          const stagedCount = updatedCopies.filter((cp) => cp.source_status === 'staged').length;
+          return {
+            ...c,
+            count: newCount,
+            physical_copies: updatedCopies,
+            pending_count: stagedCount,
+          };
+        }
+        return c;
+      });
     } else {
+      const initialCopies = [newCopy];
       const newDetail: DeckCardDetail = {
         card_id: card.id,
         count: 1,
         section: sectionNormalized,
+        physical_copies: initialCopies,
+        pending_count: selectedCopy ? 0 : 1,
         card_details: {
           name: card.name,
           type: card.type,
@@ -564,25 +651,56 @@ export function useDeckWorkspaceState({
       updatedCards = [...deckCards, newDetail];
     }
 
+    if (selectedCopy) {
+      physicalSync.setAssignedUserCardIds(prev => prev.includes(selectedCopy.id) ? prev : [...prev, selectedCopy.id]);
+      physicalSync.setUnassignedUserCardIds(prev => prev.filter(id => id !== selectedCopy.id));
+    }
+
     setDeckCards(updatedCards);
     setHasMutated(true);
     const displaySec = sectionNormalized === 'extras' ? 'RESERVA / POOL' : sectionNormalized.toUpperCase();
-    toast.success(`+1 ${card.name} en ${displaySec} (Cambios pendientes)`);
+    toast.success(`+1 ${card.name} en ${displaySec}${selectedCopy ? ` (${selectedCopy.rarity || 'Common'})` : ' (Pendiente)'}`);
   };
 
   const handleRemoveCardFromDeck = (cardId: number, section: 'main' | 'extra' | 'side' | 'pool' | 'extras') => {
     if (!currentDeck) return;
 
     const sectionNormalized = (section === 'pool' || section === 'extras') ? 'extras' : section;
-
     const existing = deckCards.find(c => c.card_id === cardId && (c.section === section || c.section === sectionNormalized));
     if (!existing) return;
 
+    const currentCopies = [...(existing.physical_copies || [])];
+    let poppedCopy: DeckCardPhysicalCopy | undefined;
+    if (currentCopies.length > 0) {
+      // Prefer to pop a staged placeholder first (LIFO within staged group)
+      const lastStagedIdx = currentCopies.map((cp, i) => ({ cp, i })).filter(({ cp }) => cp.source_status === 'staged').pop()?.i;
+      if (lastStagedIdx !== undefined) {
+        poppedCopy = currentCopies.splice(lastStagedIdx, 1)[0];
+      } else {
+        poppedCopy = currentCopies.pop();
+        if (poppedCopy?.user_card_id) {
+          const uid = poppedCopy.user_card_id;
+          if (physicalSync.assignedUserCardIds.includes(uid)) {
+            physicalSync.setAssignedUserCardIds(prev => prev.filter(id => id !== uid));
+          } else {
+            physicalSync.setUnassignedUserCardIds(prev => prev.includes(uid) ? prev : [...prev, uid]);
+          }
+        }
+      }
+    }
+
     let updatedCards: DeckCardDetail[];
     if (existing.count > 1) {
+      const newCount = existing.count - 1;
+      const stagedCount = currentCopies.filter((cp) => cp.source_status === 'staged').length;
       updatedCards = deckCards.map(c => 
         c.card_id === cardId && (c.section === section || c.section === sectionNormalized)
-          ? { ...c, count: c.count - 1 }
+          ? {
+              ...c,
+              count: newCount,
+              physical_copies: currentCopies,
+              pending_count: stagedCount,
+            }
           : c
       );
     } else {
@@ -595,7 +713,7 @@ export function useDeckWorkspaceState({
 
     setDeckCards(updatedCards);
     setHasMutated(true);
-    toast.info('Carta retirada (Cambios pendientes)');
+    toast.info(poppedCopy ? 'Copia física retirada (se enviará a Inbox al guardar)' : 'Carta retirada (Cambios pendientes)');
   };
 
   const handleChangeCardSection = (cardId: number, currentSection: string, targetSection: string) => {
@@ -862,15 +980,19 @@ export function useDeckWorkspaceState({
 
   // Detectar si la lista de cartas del mazo tiene cambios sin guardar
   const isDeckListDirty = useMemo(() => {
+    if (physicalSync.assignedUserCardIds.length > 0 || physicalSync.unassignedUserCardIds.length > 0) {
+      return true;
+    }
     const serialize = (cards: DeckCardDetail[]) =>
       cards.map(c => ({
         id: c.card_id,
         count: c.count,
         section: (c.section === 'pool' || c.section === 'extras') ? 'extras' : c.section,
+        assignedCount: c.physical_copies?.length || 0,
       })).sort((a, b) => a.id - b.id || a.section.localeCompare(b.section));
 
     return JSON.stringify(serialize(deckCards)) !== JSON.stringify(serialize(initialDeckCards));
-  }, [deckCards, initialDeckCards]);
+  }, [deckCards, initialDeckCards, physicalSync.assignedUserCardIds, physicalSync.unassignedUserCardIds]);
 
   const handleSaveDeckCards = async () => {
     if (!currentDeck) return;
@@ -1230,12 +1352,12 @@ export function useDeckWorkspaceState({
     setStorageLocationId,
     compartmentIndex,
     setCompartmentIndex,
-    savingDeck,
-    handleSaveDeck,
+    savingDeck: savingDeck || physicalSync.isSavingSync,
+    handleSaveDeck: physicalSync.handleTriggerSave,
     isMetadataDirty,
     isDeckListDirty,
-    savingDeckCards,
-    handleSaveDeckCards,
+    savingDeckCards: savingDeckCards || physicalSync.isSavingSync,
+    handleSaveDeckCards: physicalSync.handleTriggerSave,
     handleDiscardDeckCards,
 
     // Sleeves (Multicapa)
@@ -1338,6 +1460,31 @@ export function useDeckWorkspaceState({
     isMobile,
     handleNavigatePrev,
     handleNavigateNext,
+
+    // Physical Sync & Staging
+    assignedUserCardIds: physicalSync.assignedUserCardIds,
+    unassignedUserCardIds: physicalSync.unassignedUserCardIds,
+    assignDrawerSection: physicalSync.assignDrawerSection,
+    setAssignDrawerSection: physicalSync.setAssignDrawerSection,
+    isSyncModalOpen: physicalSync.isSyncModalOpen,
+    setIsSyncModalOpen: physicalSync.setIsSyncModalOpen,
+    isSavingSync: physicalSync.isSavingSync,
+    stageAssignUserCard: physicalSync.stageAssignUserCard,
+    stageUnassignUserCard: physicalSync.stageUnassignUserCard,
+    mainPhysicalCount: physicalSync.mainPhysicalCount,
+    mainPendingCount: physicalSync.mainPendingCount,
+    extraPhysicalCount: physicalSync.extraPhysicalCount,
+    extraPendingCount: physicalSync.extraPendingCount,
+    sidePhysicalCount: physicalSync.sidePhysicalCount,
+    sidePendingCount: physicalSync.sidePendingCount,
+    poolPhysicalCount: physicalSync.poolPhysicalCount,
+    poolPendingCount: physicalSync.poolPendingCount,
+    totalPendingCount: physicalSync.totalPendingCount,
+    pendingCardsForDrawer: physicalSync.pendingCardsForDrawer,
+    allPendingCards: physicalSync.allPendingCards,
+    unassignedUserCards: physicalSync.unassignedUserCards,
+    executeAtomicSave: physicalSync.executeAtomicSave,
+    handleTriggerSave: physicalSync.handleTriggerSave,
 
     // Card Actions
     handleAddCardToDeck,
