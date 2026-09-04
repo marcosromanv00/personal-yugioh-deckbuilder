@@ -567,6 +567,24 @@ export async function PUT(req: NextRequest) {
         .select('*, sleeve_details:yg_sleeves(*)')
         .eq('deck_id', id);
 
+      // Obtener detalles de fundas específicas si alguna carta eligió una funda distinta a la del mazo
+      const specificSleeveIds = inventory_cards_to_add
+        .map((c: { sleeve_id?: string }) => c.sleeve_id)
+        .filter((sid: string | undefined): sid is string => Boolean(sid && sid !== 'none' && sid !== 'inherit'));
+
+      const extraSleevesMap: Record<string, { id: string; brand?: string; color_pattern?: string; condition?: string }> = {};
+      if (specificSleeveIds.length > 0) {
+        const { data: extSleeves } = await supabase
+          .from('yg_sleeves')
+          .select('*')
+          .in('id', specificSleeveIds);
+        if (extSleeves) {
+          for (const s of extSleeves) {
+            extraSleevesMap[s.id] = s;
+          }
+        }
+      }
+
       // 2. Obtener copias físicas existentes en inventario general para las cartas a registrar
       const cardIdsToRegister = inventory_cards_to_add.map((c: { id: number }) => c.id);
       const { data: existingUserCards } = await supabase
@@ -592,7 +610,8 @@ export async function PUT(req: NextRequest) {
         const qtyToInsert = (c as { count?: number }).count || 1;
 
         if (qtyToInsert > 0) {
-          // Determinar si ya hay una funda asignada para esta sección en el deck
+          // Determinar funda asignada
+          const cardSleeveId = (c as { sleeve_id?: string | null })?.sleeve_id;
           const sectionType = (section === 'main' || section === 'side') ? 'main_side' : 'extra';
           const assignedSleeve = deckSleeves?.find((ds: { section_type: string; sleeve_details?: { brand?: string; color_pattern?: string; condition?: string } }) => ds.section_type === sectionType);
 
@@ -600,12 +619,26 @@ export async function PUT(req: NextRequest) {
           let sleeveBrand = null;
           let sleeveColor = null;
           let sleeveCondition = null;
+          let sleeveRegularId: string | null = null;
 
-          if (assignedSleeve?.sleeve_details) {
+          if (cardSleeveId === 'none') {
+            // Explícitamente sin funda
+            sleeveType = 'none';
+          } else if (cardSleeveId && extraSleevesMap[cardSleeveId]) {
+            // Funda individual elegida del inventario
+            const slv = extraSleevesMap[cardSleeveId];
+            sleeveType = 'single';
+            sleeveBrand = slv.brand || null;
+            sleeveColor = slv.color_pattern || null;
+            sleeveCondition = slv.condition || 'good';
+            sleeveRegularId = slv.id;
+          } else if (assignedSleeve?.sleeve_details) {
+            // Heredada por defecto del mazo
             sleeveType = 'single';
             sleeveBrand = assignedSleeve.sleeve_details.brand;
             sleeveColor = assignedSleeve.sleeve_details.color_pattern;
             sleeveCondition = assignedSleeve.sleeve_details.condition || 'good';
+            sleeveRegularId = assignedSleeve.sleeve_id;
           }
 
           inventoryPayload.push({
@@ -624,6 +657,7 @@ export async function PUT(req: NextRequest) {
             sleeve_brand: sleeveBrand,
             sleeve_color: sleeveColor,
             sleeve_condition: sleeveCondition,
+            sleeve_regular_id: sleeveRegularId,
             notes: `Registrado automáticamente desde deck "${name || 'Actualizado'}"`
           });
         }
@@ -669,6 +703,38 @@ export async function PUT(req: NextRequest) {
           binder_slot: null
         })
         .in('id', unassignedUserCardIds);
+    }
+
+    // Eliminar permanentemente copias físicas dadas de baja por daño o venta
+    const deletedUserCardIds: string[] = body.deleted_user_card_ids || [];
+    if (deletedUserCardIds.length > 0) {
+      await supabase
+        .from('yg_user_cards')
+        .delete()
+        .in('id', deletedUserCardIds);
+    }
+
+    // Reubicar copias reemplazadas a ubicaciones físicas específicas o inbox
+    const relocatedUserCards: Array<{
+      id: string;
+      storage_location_id: string | null;
+      compartment_index?: number | null;
+    }> = body.relocated_user_cards || [];
+    if (relocatedUserCards.length > 0) {
+      for (const r of relocatedUserCards) {
+        await supabase
+          .from('yg_user_cards')
+          .update({
+            deck_id: null,
+            deck_section: null,
+            storage_location_id: r.storage_location_id || null,
+            compartment_index: r.compartment_index !== undefined ? r.compartment_index : null,
+            status_flag: 'collection',
+            binder_page: null,
+            binder_slot: null
+          })
+          .eq('id', r.id);
+      }
     }
 
     // Asignar copias físicas específicas seleccionadas en el borrador si el deck es activo

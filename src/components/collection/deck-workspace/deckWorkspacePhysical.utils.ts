@@ -127,6 +127,12 @@ export interface BuildDeckSavePayloadParams {
   deckCards: DeckCardDetail[];
   assignedUserCardIds: string[];
   unassignedUserCardIds: string[];
+  deletedUserCardIds?: string[];
+  relocatedUserCards?: Array<{
+    id: string;
+    storage_location_id: string | null;
+    compartment_index?: number | null;
+  }>;
   inventoryCardsToAdd?: Array<{
     id: number;
     count: number;
@@ -134,6 +140,8 @@ export interface BuildDeckSavePayloadParams {
     condition: string;
     is_proxy: boolean;
     section: string;
+    sleeve_id?: string | null;
+    sleeve_type?: string;
   }>;
 }
 
@@ -158,6 +166,8 @@ export function buildDeckSavePayload(params: BuildDeckSavePayloadParams): SaveDe
     cards: payloadCards,
     assigned_user_card_ids: params.assignedUserCardIds,
     unassigned_user_card_ids: params.unassignedUserCardIds,
+    deleted_user_card_ids: params.deletedUserCardIds || [],
+    relocated_user_cards: params.relocatedUserCards || [],
     inventory_cards_to_add: params.inventoryCardsToAdd || [],
   };
 }
