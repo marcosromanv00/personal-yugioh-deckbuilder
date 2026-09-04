@@ -45,11 +45,13 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
   const [registerSleeveUserCard, setRegisterSleeveUserCard] = useState<UserCard | null>(null);
   const [isRegisterSleeveModalOpen, setIsRegisterSleeveModalOpen] = useState(false);
 
+  const isDirty = state.isMetadataDirty || state.isDeckListDirty;
+
   // Advertencia de recarga del navegador si hay cambios sin guardar
   useEffect(() => {
     if (!isOpen) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (state.isMetadataDirty) {
+      if (isDirty) {
         e.preventDefault();
         e.returnValue = '';
         return '';
@@ -57,10 +59,10 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isOpen, state.isMetadataDirty]);
+  }, [isOpen, isDirty]);
 
   const handleRequestClose = (hasMutated?: boolean) => {
-    if (state.isMetadataDirty) {
+    if (isDirty) {
       setIsConfirmCloseOpen(true);
     } else {
       onClose(hasMutated ?? state.hasMutated);
@@ -133,7 +135,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                 searchLimit={state.searchLimit}
                 setSearchLimit={state.setSearchLimit}
                 format={state.format as 'TCG' | 'Master Duel' | 'Duel Links'}
-                addCardToDeck={(card) => state.handleAddCardToDeck(card as Card, state.sectionFilter !== 'all' ? state.sectionFilter : undefined)}
+                addCardToDeck={(card, targetSec) => state.handleAddCardToDeck(card as Card, targetSec || (state.sectionFilter !== 'all' ? state.sectionFilter : undefined))}
                 openPreviewForCard={(card) => {
                   const existing = state.deckCards.find(c => c.card_id === card.id);
                   if (existing) {
@@ -144,7 +146,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                   }
                   if (state.isMobile) state.setMobileTab('right');
                 }}
-                handleDragCardStart={() => {}}
+                handleDragCardStart={state.handleDragCardStart}
                 handleCardMouseEnter={() => {}}
                 handleCardMouseLeave={() => {}}
               />
@@ -191,6 +193,12 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
             poolSleeveId={state.poolSleeveId}
             isMobile={state.isMobile}
             setMobileTab={state.setMobileTab}
+            handleDragCardStart={state.handleDragCardStart}
+            handleDropCardOnSection={state.handleDropCardOnSection}
+            isDeckListDirty={state.isDeckListDirty}
+            savingDeckCards={state.savingDeckCards}
+            onSaveDeckCards={state.handleSaveDeckCards}
+            onDiscardDeckCards={state.handleDiscardDeckCards}
           />
 
           {/* DIVIDER REDIMENSIONABLE DERECHO */}
@@ -378,21 +386,26 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           />
         )}
 
-        {/* Diálogo de Confirmación para Cambios No Guardados en Ficha Técnica */}
+        {/* Diálogo de Confirmación para Cambios No Guardados en Ficha Técnica o Lista de Cartas */}
         <ConfirmDialog
           isOpen={isConfirmCloseOpen}
-          title="¿Cerrar sin guardar la ficha técnica?"
-          description={`Has realizado modificaciones en el nombre, formato, ubicación o fundas del mazo "${state.name || state.currentDeck.name}". ¿Deseas salir y descartar los cambios no guardados?`}
+          title="¿Cerrar sin guardar los cambios del mazo?"
+          description={`Has realizado modificaciones en la lista de cartas o configuración técnica del mazo "${state.name || state.currentDeck.name}". ¿Deseas salir y descartar los cambios no guardados?`}
           confirmLabel="Descartar y Salir"
           cancelLabel="Continuar Editando"
-          saveLabel="Guardar y Salir"
+          saveLabel="Guardar Todo y Salir"
           variant="warning"
           onConfirm={() => {
             setIsConfirmCloseOpen(false);
             onClose(state.hasMutated);
           }}
           onSave={async () => {
-            await state.handleSaveDeck();
+            if (state.isMetadataDirty) {
+              await state.handleSaveDeck();
+            }
+            if (state.isDeckListDirty) {
+              await state.handleSaveDeckCards();
+            }
             setIsConfirmCloseOpen(false);
             onClose(true);
           }}

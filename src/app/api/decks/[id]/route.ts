@@ -208,6 +208,7 @@ export async function PUT(
       const { data: deckCards } = await supabase
         .from('yg_deck_cards')
         .select(`
+          card_id,
           count,
           section,
           card_details:yg_cards (
@@ -221,7 +222,34 @@ export async function PUT(
         return t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link');
       };
 
-      const cardsList = (deckCards || []) as { count: number; section: string; card_details?: { type?: string } }[];
+      const cardsList = (deckCards || []) as { card_id: number; count: number; section: string; card_details?: { type?: string } }[];
+
+      // Auto-vincular copias físicas existentes de las cartas del mazo que no tengan deck_id
+      const deckCardIds = cardsList.map((dc) => dc.card_id).filter(Boolean);
+      if (deckCardIds.length > 0) {
+        const { data: unlinkedCards } = await supabase
+          .from('yg_user_cards')
+          .select('id, card_id, deck_id, deck_section')
+          .in('card_id', deckCardIds)
+          .is('deck_id', null);
+
+        if (unlinkedCards && unlinkedCards.length > 0) {
+          for (const uc of unlinkedCards) {
+            const matchingDeckCard = cardsList.find((dc) => dc.card_id === uc.card_id);
+            if (matchingDeckCard) {
+              await supabase
+                .from('yg_user_cards')
+                .update({
+                  deck_id: deckId,
+                  deck_section: matchingDeckCard.section,
+                  status_flag: 'in_deck',
+                  ...(storage_location_id ? { storage_location_id } : {})
+                })
+                .eq('id', uc.id);
+            }
+          }
+        }
+      }
 
       const mainOnlyCount = cardsList
         .filter((c) => c.section === 'main')

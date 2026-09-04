@@ -224,6 +224,14 @@ const SearchResultsList = React.memo(({
                 >
                   + Extra
                 </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
+                  className="px-2.5 py-2 bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/50 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
+                  title="Añadir a Reserva / Cartas Extra del Arquetipo"
+                >
+                  + Reserva
+                </button>
               </div>
             </div>
           </div>

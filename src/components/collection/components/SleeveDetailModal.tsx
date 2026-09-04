@@ -277,9 +277,22 @@ export const SleeveDetailModal: React.FC<SleeveDetailModalProps> = ({
 
           {/* Stats Bar & Audit Banner */}
           <div className="px-4 sm:px-6 py-3.5 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800 grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
-            <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800/80">
-              <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">Total en Inventario</span>
-              <span className="text-base font-black font-mono text-zinc-900 dark:text-zinc-100">{qtyTotal}</span>
+            <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">Total en Inventario</span>
+                <span className="text-base font-black font-mono text-zinc-900 dark:text-zinc-100">{qtyTotal}</span>
+              </div>
+              {onAddStock && (
+                <button
+                  type="button"
+                  onClick={() => onAddStock(sleeve)}
+                  className="px-2 py-1 rounded-lg bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/40 text-xs font-mono font-black flex items-center gap-1 transition-all cursor-pointer touch-manipulation shadow-2xs"
+                  title="Sumar stock a esta funda"
+                >
+                  <PackagePlus className="w-3 h-3" />
+                  <span>+</span>
+                </button>
+              )}
             </div>
 
             <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800/80">

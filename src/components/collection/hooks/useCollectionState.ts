@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
+import { StorageLocation, UserCard, StorageLocationFormData, Deck, SleeveInventory, CardCondition, CardStatusFlag, SleeveType, SleeveCategory } from '@/types/collection';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 import { computeCrossContainerDuplicateMap } from '@/lib/collectionSuggestions';
@@ -100,18 +100,21 @@ export function useCollectionState() {
   const [editingSleeve, setEditingSleeve] = useState<SleeveInventory | null>(null);
   const [sleeveFormTab, setSleeveFormTab] = useState<'add_stock' | 'create'>('create');
   const [sleeveFormInitialId, setSleeveFormInitialId] = useState<string | undefined>(undefined);
+  const [sleeveFormInitialCategory, setSleeveFormInitialCategory] = useState<SleeveCategory | undefined>(undefined);
 
-  const handleOpenAddStock = (sleeve?: SleeveInventory) => {
+  const handleOpenAddStock = (sleeve?: SleeveInventory, category?: SleeveCategory) => {
     setEditingSleeve(null);
     setSleeveFormTab('add_stock');
     setSleeveFormInitialId(sleeve?.id);
+    setSleeveFormInitialCategory(category || sleeve?.category);
     setIsSleeveFormOpen(true);
   };
 
-  const handleOpenCreateSleeve = () => {
+  const handleOpenCreateSleeve = (category?: SleeveCategory) => {
     setEditingSleeve(null);
     setSleeveFormTab('create');
     setSleeveFormInitialId(undefined);
+    setSleeveFormInitialCategory(category);
     setIsSleeveFormOpen(true);
   };
 
@@ -766,6 +769,8 @@ export function useCollectionState() {
     setSleeveFormTab,
     sleeveFormInitialId,
     setSleeveFormInitialId,
+    sleeveFormInitialCategory,
+    setSleeveFormInitialCategory,
     handleOpenAddStock,
     handleOpenCreateSleeve,
     fetchCollectionData,

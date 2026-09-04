@@ -3,6 +3,7 @@ import { Card, DeckCard, DeckCardPhysicalCopy, ArchetypeItem, BreakdownCardItem,
 import { FilterState } from '../CardFilters';
 import { StorageLocation, SleeveInventory, DeckSleeve, Deck, UserCard } from '@/types/collection';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
+import { UnregisteredAction, UnregisteredCardItem } from '../components/UnregisteredCardsModal';
 
 export interface YgoApiCardDetails {
   id: number;
@@ -60,12 +61,17 @@ export function useDeckBuilderState() {
     if (!name.trim()) {
       setIsManualDeckName(false);
       isManualDeckNameRef.current = false;
-      if (detectedArchetypes.length >= 2 && detectedArchetypes[0].count >= 2 && detectedArchetypes[1].count >= 2) {
-        setDeckName(`${detectedArchetypes[0].name} ${detectedArchetypes[1].name}`);
-      } else if (detectedArchetypes.length >= 1) {
-        setDeckName(`Deck ${detectedArchetypes[0].name}`);
+      // Solo sugerir automáticamente si el mazo se construye desde cero (sin deckId cargado de DB)
+      if (!deckId) {
+        if (detectedArchetypes.length >= 2 && detectedArchetypes[0].count >= 2 && detectedArchetypes[1].count >= 2) {
+          setDeckName(`${detectedArchetypes[0].name} ${detectedArchetypes[1].name}`);
+        } else if (detectedArchetypes.length >= 1) {
+          setDeckName(`Deck ${detectedArchetypes[0].name}`);
+        } else {
+          setDeckName('Nuevo Deck TCG');
+        }
       } else {
-        setDeckName('Nuevo Deck TCG');
+        setDeckName('');
       }
       return;
     }
@@ -80,12 +86,14 @@ export function useDeckBuilderState() {
   const handleResetDeckName = () => {
     setIsManualDeckName(false);
     isManualDeckNameRef.current = false;
-    if (detectedArchetypes.length >= 2 && detectedArchetypes[0].count >= 2 && detectedArchetypes[1].count >= 2) {
-      setDeckName(`${detectedArchetypes[0].name} ${detectedArchetypes[1].name}`);
-    } else if (detectedArchetypes.length >= 1) {
-      setDeckName(`Deck ${detectedArchetypes[0].name}`);
-    } else {
-      setDeckName('Nuevo Deck TCG');
+    if (!deckId) {
+      if (detectedArchetypes.length >= 2 && detectedArchetypes[0].count >= 2 && detectedArchetypes[1].count >= 2) {
+        setDeckName(`${detectedArchetypes[0].name} ${detectedArchetypes[1].name}`);
+      } else if (detectedArchetypes.length >= 1) {
+        setDeckName(`Deck ${detectedArchetypes[0].name}`);
+      } else {
+        setDeckName('Nuevo Deck TCG');
+      }
     }
   };
 
@@ -148,6 +156,11 @@ export function useDeckBuilderState() {
   const [selectedLaneIndex, setSelectedLaneIndex] = useState<number>(0);
   const [registerToInventory, setRegisterToInventory] = useState(false);
   const [cardsToRegister, setCardsToRegister] = useState<Record<number, boolean>>({});
+
+  // Modal de Cartas Sin Registrar / Gestión de Inventario al Guardar
+  const [isUnregisteredModalOpen, setIsUnregisteredModalOpen] = useState(false);
+  const [unregisteredCards, setUnregisteredCards] = useState<UnregisteredCardItem[]>([]);
+  const [isSavingUnregistered, setIsSavingUnregistered] = useState(false);
 
   // Fundas disponibles
   const [availableSleeves, setAvailableSleeves] = useState<SleeveInventory[]>([]);
@@ -248,8 +261,8 @@ export function useDeckBuilderState() {
         setBanlistAlerts(json.banlistAlerts || []);
         setReplacements(json.replacements || {});
 
-        // Precarga dinámica del nombre basada en el balance de arquetipos detectados
-        if (!isManualDeckNameRef.current) {
+        // Precarga dinámica del nombre basada en el balance de arquetipos detectados (solo si se crea desde cero sin deckId)
+        if (!isManualDeckNameRef.current && !deckId) {
           if (currentCards.length === 0) {
             setDeckName('Nuevo Deck TCG');
           } else if (detected.length >= 2 && detected[0].count >= 2 && detected[1].count >= 2) {
@@ -268,7 +281,7 @@ export function useDeckBuilderState() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [setDetectedArchetypes, setInferredArchetype, setActiveArchetypeTab, setBanlistAlerts, setReplacements, setDeckName]);
+  }, [deckId, setDetectedArchetypes, setInferredArchetype, setActiveArchetypeTab, setBanlistAlerts, setReplacements, setDeckName]);
 
   const triggerSync = useCallback(async (silent = false) => {
     setIsSyncing(true);
@@ -1161,13 +1174,20 @@ export function useDeckBuilderState() {
   const handleLoadDeck = useCallback(async (selected: Deck) => {
     setDeckId(selected.id);
     setDeckName(selected.name);
+    setIsManualDeckName(true);
+    isManualDeckNameRef.current = true;
     setDeckDescription(selected.description || '');
     const fmt = selected.format;
     if (fmt === 'Master Duel' || fmt === 'TCG' || fmt === 'Duel Links') {
       setFormat(fmt);
+      setSaveFormat(fmt);
     } else {
       setFormat('Master Duel');
+      setSaveFormat('Master Duel');
     }
+    setTargetLocationId(selected.storage_location_id || 'inbox');
+    setSelectedLaneIndex(selected.compartment_index || 0);
+    setSaveIsActive(Boolean(selected.is_active));
 
     // Mapear copias físicas reales asignadas a este deck desde el inventario
     const userCardsInDeck = allUserCards.filter(uc => 
@@ -1366,6 +1386,172 @@ export function useDeckBuilderState() {
     return deckCards.length > 0 || isManualDeckName;
   }, [lastSavedSnapshot, currentSnapshot, deckCards.length, isManualDeckName]);
 
+  const getUnregisteredCardsList = useCallback((): UnregisteredCardItem[] => {
+    const list: UnregisteredCardItem[] = [];
+    deckCards.forEach(card => {
+      const owned = userInventoryCounts[card.id] || 0;
+      if (owned < card.count || owned === 0) {
+        list.push({
+          id: card.id,
+          name: card.name,
+          count: card.count,
+          section: card.section,
+          image_url: card.image_url,
+          owned,
+          missing: Math.max(0, card.count - owned),
+        });
+      }
+    });
+    return list;
+  }, [deckCards, userInventoryCounts]);
+
+  const handleQuickSaveDeck = async (overrideActions?: Record<number, UnregisteredAction>): Promise<boolean> => {
+    if (!deckName.trim()) {
+      alert('El nombre del deck es obligatorio.');
+      return false;
+    }
+
+    // Si no se pasaron acciones personalizadas y hay cartas sin registrar, abrir modal interactivo
+    if (!overrideActions) {
+      const unregList = getUnregisteredCardsList();
+      if (unregList.length > 0) {
+        setUnregisteredCards(unregList);
+        setIsUnregisteredModalOpen(true);
+        return false;
+      }
+    }
+
+    setLoadingDecks(true);
+    setIsSavingUnregistered(true);
+    try {
+      const inventoryCardsToAdd: { id: number; count: number }[] = [];
+      const assignedUserCardIds: string[] = [];
+
+      if (overrideActions) {
+        deckCards.forEach(c => {
+          const act = overrideActions[c.id];
+          if (act === 'register') {
+            const owned = userInventoryCounts[c.id] || 0;
+            const deficit = Math.max(1, c.count - owned);
+            inventoryCardsToAdd.push({ id: c.id, count: deficit });
+          } else if (act === 'take_collection') {
+            const available = allUserCards.filter(uc => uc.card_id === c.id);
+            available.slice(0, c.count).forEach(uc => {
+              if (uc.id && !uc.is_proxy) assignedUserCardIds.push(uc.id);
+            });
+          }
+        });
+      } else {
+        deckCards.forEach(c => {
+          c.physical_copies?.forEach(pc => {
+            if (pc.user_card_id && !pc.is_proxy) {
+              assignedUserCardIds.push(pc.user_card_id);
+            }
+          });
+        });
+      }
+
+      const method = deckId ? 'PUT' : 'POST';
+      const payload = {
+        id: deckId || undefined,
+        name: deckName,
+        description: deckDescription,
+        format: saveFormat || format,
+        is_active: saveIsActive,
+        storage_location_id: targetLocationId === 'inbox' ? null : targetLocationId,
+        compartment_index: targetLocationId === 'inbox' ? 0 : selectedLaneIndex,
+        cards: deckCards.map(c => ({
+          id: c.id,
+          name: c.name,
+          count: c.count,
+          proxy_count: c.proxy_count || 0,
+          section: c.section,
+          type: c.type,
+          image_url: c.image_url
+        })),
+        register_to_inventory: inventoryCardsToAdd.length > 0,
+        inventory_cards_to_add: inventoryCardsToAdd,
+        assigned_user_card_ids: assignedUserCardIds,
+        deactivated_deck_ids: deactivatedDeckIds
+      };
+
+      const res = await fetch('/api/decks', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const savedDeckId = deckId || json.data?.id;
+        if (!deckId && json.data?.id) {
+          setDeckId(json.data.id);
+        }
+
+        if (savedDeckId) {
+          try {
+            if (selectedMainSleeveId) {
+              await fetch(`/api/decks/${savedDeckId}/sleeves`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sleeve_id: selectedMainSleeveId, section_type: 'main_side' })
+              });
+            }
+            if (selectedExtraSleeveId) {
+              await fetch(`/api/decks/${savedDeckId}/sleeves`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sleeve_id: selectedExtraSleeveId, section_type: 'extra' })
+              });
+            }
+          } catch (sErr) {
+            console.error('Error guardando fundas en quick save:', sErr);
+          }
+        }
+
+        setLastSavedSnapshot(JSON.stringify({
+          deckName,
+          deckDescription,
+          format: saveFormat || format,
+          saveFormat: saveFormat || format,
+          deckId: savedDeckId,
+          selectedMainSleeveId,
+          selectedExtraSleeveId,
+          cards: deckCards.map(c => ({
+            id: c.id,
+            count: c.count,
+            section: c.section,
+            proxy_count: c.proxy_count || 0,
+            rarity: c.rarity,
+            condition: c.condition,
+          })),
+        }));
+
+        setIsUnregisteredModalOpen(false);
+        fetchDecksAndLocations();
+        return true;
+      } else {
+        const json = await res.json();
+        alert(`Error al guardar: ${json.error || 'Intente de nuevo'}`);
+        return false;
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error de red al guardar el deck.');
+      return false;
+    } finally {
+      setLoadingDecks(false);
+      setIsSavingUnregistered(false);
+    }
+  };
+
+  const handleConfirmUnregisteredSave = async (actions: Record<number, UnregisteredAction>) => {
+    await handleQuickSaveDeck(actions);
+  };
+
+  const handleSkipUnregisteredSave = async () => {
+    await handleQuickSaveDeck({});
+  };
 
   const handleSaveDeck = async () => {
     if (!deckName.trim()) {
@@ -1977,6 +2163,13 @@ export function useDeckBuilderState() {
     handleOpenLoadModal,
     handleLoadDeck,
     handleSaveDeck,
+    handleQuickSaveDeck,
+    isUnregisteredModalOpen,
+    setIsUnregisteredModalOpen,
+    unregisteredCards,
+    handleConfirmUnregisteredSave,
+    handleSkipUnregisteredSave,
+    isSavingUnregistered,
     handleDeleteDeck,
     handleClearDeck,
     isCollectionLinkModalOpen,

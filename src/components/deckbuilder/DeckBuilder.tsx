@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { YdkUploadModal } from '@/components/collection/YdkUploadModal';
 import { EnvironmentSwitcher } from '@/components/collection/EnvironmentSwitcher';
 import { useAIChat } from '@/context/AIChatContext';
@@ -39,6 +40,7 @@ import { SearchPanel } from './components/SearchPanel';
 import { DeckSection } from './components/DeckSection';
 import { MetaAnalysisPanel } from './components/MetaAnalysisPanel';
 import { SaveDeckModal } from './components/SaveDeckModal';
+import { UnregisteredCardsModal } from './components/UnregisteredCardsModal';
 import { LoadDeckModal } from './components/LoadDeckModal';
 import { CardPreviewModal } from './components/CardPreviewModal';
 import { YdkCollectionLinkModal } from './components/YdkCollectionLinkModal';
@@ -287,7 +289,39 @@ export default function DeckBuilder() {
 
   const { canUndo, canRedo, handleUndo, handleRedo } = state;
 
-  // Atajos de teclado para Deshacer / Rehacer (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+  const handleQuickSaveClick = useCallback(async () => {
+    if (state.deckCards.length === 0) {
+      toast.warning('Agrega cartas a la baraja antes de guardar.');
+      return;
+    }
+
+    if (!state.deckId) {
+      // Si es un deck nuevo desde cero, abrir modal de guardado completo
+      state.handleOpenSaveModal();
+      return;
+    }
+
+    // Si ya existe deckId, mostrar toast interactivo de confirmación antes de sobrescribir
+    toast.info(`¿Sobrescribir "${state.deckName}" con las cartas actuales?`, {
+      duration: 6000,
+      action: {
+        label: 'Confirmar',
+        onClick: async () => {
+          try {
+            const success = await state.handleQuickSaveDeck();
+            if (success) {
+              toast.success(`¡"${state.deckName}" sobrescrito con éxito!`);
+            }
+          } catch (e) {
+            console.error('Error en guardado rápido:', e);
+            toast.error('Error al sobrescribir la baraja.');
+          }
+        },
+      },
+    });
+  }, [state, toast]);
+
+  // Atajos de teclado para Deshacer / Rehacer / Guardado Rápido (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Ctrl+S)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignorar si el foco está en un input o textarea
@@ -311,12 +345,15 @@ export default function DeckBuilder() {
           handleRedo();
           toast.info('Acción rehecha');
         }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleQuickSaveClick();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, handleUndo, handleRedo, toast]);
+  }, [canUndo, canRedo, handleUndo, handleRedo, handleQuickSaveClick, toast]);
 
 
   // Wrapper para añadir cartas con Toast y botón de deshacer
@@ -606,7 +643,7 @@ export default function DeckBuilder() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-6 h-16 flex items-center shadow-xs">
         <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
           
-          {/* ZONA IZQUIERDA: Marca Exordio DeckLab + Nombre editable + Selector de Formato */}
+          {/* ZONA IZQUIERDA: Marca Exordio DeckLab + Dropdown de Formato */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
               <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-xs shadow-md shadow-red-600/30 font-display tracking-wider">
@@ -621,36 +658,20 @@ export default function DeckBuilder() {
                 </span>
               </div>
             </div>
-            
-            <div className="flex items-center gap-1.5 min-w-0">
-              <input
-                value={state.deckName}
-                onChange={(e) => state.setDeckName(e.target.value)}
-                className="text-sm font-black bg-transparent border-b-2 border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 focus:outline-none transition-colors max-w-32 sm:max-w-44 text-zinc-900 dark:text-zinc-100 truncate"
-                title="Editar nombre del deck"
-              />
-            </div>
 
-            {/* Selector de Formato Ultra-Compacto */}
-            <div className="flex items-center bg-zinc-100 dark:bg-zinc-900 p-0.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0">
-              {(['TCG', 'Master Duel', 'Duel Links'] as const).map((f) => {
-                const label = f === 'Master Duel' ? 'MD' : f === 'Duel Links' ? 'DL' : 'TCG';
-                const isSelected = state.format === f;
-                return (
-                  <button
-                    key={f}
-                    onClick={() => state.setFormat(f)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-red-600 text-white shadow-xs'
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                    }`}
-                    title={`Formato ${f}`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+            {/* Dropdown Selector de Formato */}
+            <div className="w-36 shrink-0">
+              <PremiumDropdown
+                value={state.format}
+                onChange={(val) => state.setFormat(val as 'TCG' | 'Master Duel' | 'Duel Links')}
+                options={[
+                  { value: 'TCG', label: 'TCG' },
+                  { value: 'Master Duel', label: 'Master Duel' },
+                  { value: 'Duel Links', label: 'Duel Links' },
+                ]}
+                size="sm"
+                triggerClassName="bg-zinc-100 dark:bg-zinc-900 font-bold border-zinc-200 dark:border-zinc-800 rounded-xl"
+              />
             </div>
           </div>
 
@@ -709,6 +730,39 @@ export default function DeckBuilder() {
               <BrainCircuit className="w-4 h-4" />
               <span>IA</span>
             </button>
+
+            {/* Botón de Guardado Rápido (Icono: Verde Brillante Activo / Gris Deshabilitado) */}
+            {(() => {
+              const canSave = !state.loadingDecks && !state.isSavingUnregistered && state.deckCards.length > 0;
+              return (
+                <button
+                  type="button"
+                  onClick={handleQuickSaveClick}
+                  disabled={!canSave}
+                  className={`flex items-center justify-center p-2.5 rounded-xl min-h-11 min-w-11 touch-manipulation transition-all ${
+                    canSave
+                      ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/35 border border-emerald-400/50 cursor-pointer active:scale-95'
+                      : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-400 dark:text-zinc-600 border border-zinc-200 dark:border-zinc-700/60 cursor-not-allowed opacity-50'
+                  }`}
+                  title={
+                    !canSave
+                      ? 'No hay cartas para guardar'
+                      : state.deckId
+                        ? `Guardado Rápido: Sobrescribir "${state.deckName}" (Ctrl+S)`
+                        : 'Guardar Nueva Baraja (Ctrl+S)'
+                  }
+                  aria-label={
+                    !canSave
+                      ? 'Guardar desactivado'
+                      : state.deckId
+                        ? `Guardado Rápido: Sobrescribir "${state.deckName}"`
+                        : 'Guardar Nueva Baraja'
+                  }
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+              );
+            })()}
 
             {/* Menú Desplegable de Operaciones de Deck con 'Crear Deck con IA' */}
             <DeckActionsDropdown
@@ -1585,6 +1639,35 @@ export default function DeckBuilder() {
         }}
       />
 
+
+      {/* UNREGISTERED CARDS / INVENTORY MANAGEMENT MODAL */}
+      <UnregisteredCardsModal
+        isOpen={state.isUnregisteredModalOpen}
+        onClose={() => state.setIsUnregisteredModalOpen(false)}
+        unregisteredCards={state.unregisteredCards}
+        targetLocationId={state.targetLocationId}
+        selectedLaneIndex={state.selectedLaneIndex}
+        locations={state.locations}
+        onConfirm={async (actions) => {
+          try {
+            await state.handleConfirmUnregisteredSave(actions);
+            toast.success(`¡"${state.deckName}" guardado y sincronizado con tu colección!`);
+          } catch (e) {
+            console.error('Error confirmando registro de cartas:', e);
+            toast.error('Error al procesar el guardado de cartas.');
+          }
+        }}
+        onSkipAndSave={async () => {
+          try {
+            await state.handleSkipUnregisteredSave();
+            toast.success(`¡"${state.deckName}" guardado con éxito!`);
+          } catch (e) {
+            console.error('Error al guardar:', e);
+            toast.error('Error al guardar la baraja.');
+          }
+        }}
+        isSaving={state.isSavingUnregistered}
+      />
 
       {/* SAVE DECK MODAL */}
       <SaveDeckModal

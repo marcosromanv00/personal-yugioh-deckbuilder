@@ -44,6 +44,12 @@ interface DeckCenterPanelProps {
   poolSleeveId?: string;
   isMobile: boolean;
   setMobileTab: (tab: MobileDeckTab) => void;
+  handleDragCardStart?: (e: React.DragEvent, cardData: { id: number; name: string; type?: string; image_url?: string; archetype?: string; fromSection?: 'main' | 'extra' | 'side' | 'pool' | 'extras' }) => void;
+  handleDropCardOnSection?: (e: React.DragEvent, targetSection: 'main' | 'extra' | 'side' | 'pool' | 'extras') => void;
+  isDeckListDirty?: boolean;
+  savingDeckCards?: boolean;
+  onSaveDeckCards?: () => void;
+  onDiscardDeckCards?: () => void;
 }
 
 export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
@@ -76,6 +82,12 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
   poolSleeveId = '',
   isMobile,
   setMobileTab,
+  handleDragCardStart,
+  handleDropCardOnSection,
+  isDeckListDirty = false,
+  savingDeckCards = false,
+  onSaveDeckCards,
+  onDiscardDeckCards,
 }) => {
   const currentBaseLocation = locations.find(l => l.id === storageLocationId);
 
@@ -95,100 +107,94 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Filtrar en deck..."
-            className="w-full pl-8.5 pr-2.5 py-1.5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+            placeholder="Filtrar cartas en mazo..."
+            className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden focus:border-red-500/50 transition-colors"
           />
         </div>
 
-        {/* Selector de Ordenamiento */}
-        <PremiumDropdown
-          value={sortBy}
-          onChange={(val) => setSortBy(val)}
-          size="sm"
-          icon={<ArrowUpDown className="w-3.5 h-3.5 text-red-500" />}
-          options={[
-            { value: 'default', label: 'Orden: Por Defecto' },
-            { value: 'name_asc', label: 'Nombre (A → Z)' },
-            { value: 'type', label: 'Tipo de Carta' },
-          ]}
-        />
+        {/* Selector de Sección y Ordenamiento */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex bg-zinc-200/60 dark:bg-zinc-800/60 p-0.5 rounded-xl border border-zinc-200 dark:border-zinc-700/50">
+            <button
+              onClick={() => setSectionFilter('all')}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                sectionFilter === 'all' 
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-xs' 
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }`}
+            >
+              Todo ({totalDeckCount})
+            </button>
+            <button
+              onClick={() => setSectionFilter('main')}
+              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                sectionFilter === 'main' 
+                  ? 'bg-red-600 text-white shadow-xs' 
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }`}
+            >
+              Main ({totalMainCount})
+            </button>
+            <button
+              onClick={() => setSectionFilter('extra')}
+              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                sectionFilter === 'extra' 
+                  ? 'bg-purple-600 text-white shadow-xs' 
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }`}
+            >
+              Extra ({totalExtraCount})
+            </button>
+            <button
+              onClick={() => setSectionFilter('side')}
+              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                sectionFilter === 'side' 
+                  ? 'bg-amber-600 text-white shadow-xs' 
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }`}
+            >
+              Side ({totalSideCount})
+            </button>
+            <button
+              onClick={() => setSectionFilter('pool')}
+              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                sectionFilter === 'pool' 
+                  ? 'bg-cyan-600 text-white shadow-xs' 
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }`}
+            >
+              Reserva ({totalPoolCount})
+            </button>
+          </div>
+
+          <div className="w-36 hidden sm:block">
+            <PremiumDropdown
+              value={sortBy}
+              onChange={(val) => setSortBy(val)}
+              options={[
+                { value: 'name_asc', label: 'Nombre (A-Z)' },
+                { value: 'name_desc', label: 'Nombre (Z-A)' },
+                { value: 'atk_desc', label: 'Mayor ATK' },
+                { value: 'level_desc', label: 'Mayor Nivel' },
+                { value: 'type', label: 'Tipo de Carta' },
+              ]}
+              icon={<ArrowUpDown className="w-3.5 h-3.5" />}
+              size="sm"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Pestañas de Secciones del Deck */}
-      <div className="px-3 sm:px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/30 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
-        <button
-          type="button"
-          onClick={() => setSectionFilter('all')}
-          className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 ${
-            sectionFilter === 'all'
-              ? 'bg-red-600 text-white shadow-xs'
-              : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
-        >
-          Todas ({totalDeckCount})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSectionFilter('main')}
-          className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-            sectionFilter === 'main'
-              ? 'bg-red-600 text-white shadow-xs'
-              : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
-        >
-          <Swords className="w-3 h-3 text-red-400" />
-          <span>Main Deck ({totalMainCount})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSectionFilter('extra')}
-          className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-            sectionFilter === 'extra'
-              ? 'bg-purple-600 text-white shadow-xs'
-              : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
-        >
-          <Sparkles className="w-3 h-3 text-purple-400" />
-          <span>Extra Deck ({totalExtraCount})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSectionFilter('side')}
-          className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-            sectionFilter === 'side'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
-        >
-          <Shield className="w-3 h-3 text-amber-400" />
-          <span>Side Deck ({totalSideCount})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSectionFilter('pool')}
-          className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-            sectionFilter === 'pool'
-              ? 'bg-cyan-600 text-white shadow-xs'
-              : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
-        >
-          <Package className="w-3 h-3 text-cyan-400" />
-          <span>Reserva / Cartas Extra ({totalPoolCount})</span>
-        </button>
-      </div>
-
-      {/* Cuadrícula de Cartas con División por Secciones */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6 scrollbar-thin">
+      {/* Contenedor Principal con Scroll */}
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
         {filteredCenterCards.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-8 text-zinc-400 dark:text-zinc-600 space-y-3">
-            <Swords className="w-12 h-12 opacity-30" />
-            <p className="text-xs font-bold uppercase tracking-wider">No hay cartas en esta sección</p>
-            <p className="text-[11px] max-w-xs">
-              Usa el buscador del panel izquierdo para agregar cartas a tu mazo o a tu reserva de cartas extra.
+          <div className="flex flex-col items-center justify-center h-64 text-center p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl bg-zinc-50/50 dark:bg-zinc-900/20">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mb-3">
+              <Search className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">No se encontraron cartas</h4>
+            <p className="text-xs text-zinc-500 max-w-xs mt-1">
+              {searchFilter ? 'Prueba ajustando el término de búsqueda.' : 'Este mazo aún no tiene cartas en la sección seleccionada.'}
             </p>
           </div>
         ) : (
@@ -205,7 +211,7 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                       Main Deck
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60">
-                      {totalMainCount} / 40-60 cartas
+                      {totalMainCount} cartas
                     </span>
                   </div>
                 </div>
@@ -227,7 +233,11 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   isMobile={isMobile}
                   setMobileTab={setMobileTab}
                   emptyMessage="Main Deck vacío"
-                  emptySubMessage="Agrega cartas desde el buscador izquierdo."
+                  emptySubMessage="Arrastra o agrega cartas desde el buscador izquierdo."
+                  badgeLabel="Main"
+                  badgeColorClass="bg-red-900/90 text-red-200 border-red-700/50"
+                  handleDragCardStart={handleDragCardStart}
+                  handleDropCardOnSection={handleDropCardOnSection}
                 />
               </div>
             )}
@@ -244,7 +254,7 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                       Extra Deck
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
-                      {totalExtraCount} / 15 cartas
+                      {totalExtraCount} cartas
                     </span>
                   </div>
                 </div>
@@ -266,9 +276,11 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   isMobile={isMobile}
                   setMobileTab={setMobileTab}
                   emptyMessage="Extra Deck vacío"
-                  emptySubMessage="Agrega monstruos Fusión, Sincronía, Xyz o Enlace."
+                  emptySubMessage="Monstruos Fusión, Synchro, Xyz y Link aparecerán aquí."
                   badgeLabel="Extra"
                   badgeColorClass="bg-purple-900/90 text-purple-200 border-purple-700/50"
+                  handleDragCardStart={handleDragCardStart}
+                  handleDropCardOnSection={handleDropCardOnSection}
                 />
               </div>
             )}
@@ -285,7 +297,7 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                       Side Deck
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
-                      {totalSideCount} / 15 cartas
+                      {totalSideCount} cartas
                     </span>
                   </div>
                 </div>
@@ -310,6 +322,8 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   emptySubMessage="Agrega cartas de banquillo para enfrentamientos competitivos."
                   badgeLabel="Side"
                   badgeColorClass="bg-amber-900/90 text-amber-200 border-amber-700/50"
+                  handleDragCardStart={handleDragCardStart}
+                  handleDropCardOnSection={handleDropCardOnSection}
                 />
               </div>
             )}
@@ -351,12 +365,55 @@ export const DeckCenterPanel: React.FC<DeckCenterPanelProps> = ({
                   emptySubMessage="Guarda aquí piezas de repuesto, tech cards o cartas que no entran en la lista activa."
                   badgeLabel="Reserva"
                   badgeColorClass="bg-cyan-900/90 text-cyan-200 border-cyan-700/50"
+                  handleDragCardStart={handleDragCardStart}
+                  handleDropCardOnSection={handleDropCardOnSection}
                 />
               </div>
             )}
           </>
         )}
       </div>
+
+      {/* BANNER DE VALIDACIÓN DE CAMBIOS EN LA LISTA DE CARTAS */}
+      {isDeckListDirty && (
+        <div className="sticky bottom-0 inset-x-0 z-40 bg-zinc-900/95 dark:bg-zinc-900/95 text-white p-3 sm:px-5 border-t border-amber-500/40 shadow-2xl flex items-center justify-between gap-3 flex-wrap backdrop-blur-md animate-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+            <div className="text-xs">
+              <span className="font-bold text-amber-400">Cambios no confirmados en la baraja:</span>{' '}
+              <span className="text-zinc-300">Se han modificado cartas en Main / Extra / Side / Reserva.</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={onDiscardDeckCards}
+              disabled={savingDeckCards}
+              className="px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold transition-all cursor-pointer min-h-9 touch-manipulation disabled:opacity-50"
+            >
+              Descartar
+            </button>
+            <button
+              type="button"
+              onClick={onSaveDeckCards}
+              disabled={savingDeckCards}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-600/30 transition-all cursor-pointer min-h-9 touch-manipulation disabled:opacity-50"
+            >
+              {savingDeckCards ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <span>Guardar Cambios</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

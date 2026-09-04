@@ -53,8 +53,13 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'in_use' | 'out_of_stock'>('all');
   const [conditionFilter, setConditionFilter] = useState<'all' | SleeveInventoryCondition>('all');
 
-  // Estado para el modal de tracking y detalle de cartas
-  const [selectedSleeveForDetail, setSelectedSleeveForDetail] = useState<SleeveInventory | null>(null);
+  // Estado para el modal de tracking y detalle de cartas (reactivo por ID)
+  const [selectedSleeveIdForDetail, setSelectedSleeveIdForDetail] = useState<string | null>(null);
+
+  const selectedSleeveForDetail = useMemo(() => {
+    if (!selectedSleeveIdForDetail) return null;
+    return sleeves.find((s) => s.id === selectedSleeveIdForDetail) || null;
+  }, [sleeves, selectedSleeveIdForDetail]);
 
   // Filtrado reactivo de inventario de fundas
   const filteredSleeves = useMemo(() => {
@@ -292,7 +297,7 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
               }}
               onDelete={() => handleDeleteSleeve(sleeve)}
               onAddStock={onAddStock}
-              onViewDetails={(s) => setSelectedSleeveForDetail(s)}
+              onViewDetails={(s) => setSelectedSleeveIdForDetail(s.id)}
             />
           ))}
           <AddSleeveCard onClick={handleOpenAdd} />
@@ -302,7 +307,7 @@ export const SleevesTab: React.FC<SleevesTabProps> = ({
       {/* ═══ MODAL DETALLADO DE TRACKING DE CARTAS INDIVIDUALES ═══ */}
       <SleeveDetailModal
         isOpen={Boolean(selectedSleeveForDetail)}
-        onClose={() => setSelectedSleeveForDetail(null)}
+        onClose={() => setSelectedSleeveIdForDetail(null)}
         sleeve={selectedSleeveForDetail}
         allUserCards={allUserCards}
         decks={decks}
