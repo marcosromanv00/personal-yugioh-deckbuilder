@@ -617,10 +617,11 @@ export async function PUT(req: NextRequest) {
             deck_id: id,
             deck_section: section,
             quantity: qtyToInsert,
-            rarity: (matchingDeckCard as { rarity?: string })?.rarity || (c as { rarity?: string })?.rarity || 'Common',
-            condition: 'Near Mint',
+            rarity: (c as { rarity?: string })?.rarity || (matchingDeckCard as { rarity?: string })?.rarity || 'Common',
+            condition: (c as { condition?: string })?.condition || 'Near Mint',
             language: 'en',
             status_flag: newStatusFlag,
+            is_proxy: Boolean((c as { is_proxy?: boolean })?.is_proxy),
             sleeve_type: sleeveType,
             sleeve_brand: sleeveBrand,
             sleeve_color: sleeveColor,
@@ -655,6 +656,23 @@ export async function PUT(req: NextRequest) {
         .in('deck_id', deactivatedDeckIds);
     }
 
+    // Desvincular copias físicas retiradas del mazo (enviándolas de forma segura a Inbox)
+    const unassignedUserCardIds: string[] = body.unassigned_user_card_ids || [];
+    if (unassignedUserCardIds.length > 0) {
+      await supabase
+        .from('yg_user_cards')
+        .update({
+          deck_id: null,
+          deck_section: null,
+          storage_location_id: null,
+          compartment_index: null,
+          status_flag: 'collection',
+          binder_page: null,
+          binder_slot: null
+        })
+        .in('id', unassignedUserCardIds);
+    }
+
     // Asignar copias físicas específicas seleccionadas en el borrador si el deck es activo
     const assignedUserCardIds: string[] = body.assigned_user_card_ids || [];
     const isNowActive = is_active !== undefined ? is_active : true;
@@ -669,6 +687,20 @@ export async function PUT(req: NextRequest) {
           binder_slot: null
         })
         .in('id', assignedUserCardIds);
+    }
+
+    // Sincronizar fundas asignadas si se proporcionaron
+    if (Array.isArray(body.sleeves)) {
+      await supabase.from('yg_deck_sleeves').delete().eq('deck_id', id);
+      if (body.sleeves.length > 0) {
+        const sleevesPayload = body.sleeves.map((s: { sleeve_id: string; section: string }) => ({
+          deck_id: id,
+          sleeve_id: s.sleeve_id,
+          section_type: s.section,
+          quantity_used: 0
+        }));
+        await supabase.from('yg_deck_sleeves').insert(sleevesPayload);
+      }
     }
 
     return NextResponse.json({ success: true });
