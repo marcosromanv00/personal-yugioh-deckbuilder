@@ -49,30 +49,31 @@ export const PremiumDropdown = <T extends string | number>({
   direction = 'auto',
 }: PremiumDropdownProps<T>) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [computedDirection, setComputedDirection] = useState<'down' | 'up'>('down');
+  const [computedDirection, setComputedDirection] = useState<'down' | 'up'>(() => (direction === 'up' ? 'up' : 'down'));
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Calcular la dirección óptima de apertura (arriba o abajo) según el espacio disponible en pantalla
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      if (direction === 'up' || direction === 'down') {
-        setComputedDirection(direction);
-        return;
+  const handleToggle = () => {
+    if (disabled) return;
+    setIsOpen((prev) => {
+      const nextOpen = !prev;
+      if (nextOpen && containerRef.current) {
+        if (direction === 'up' || direction === 'down') {
+          setComputedDirection(direction);
+        } else {
+          const rect = containerRef.current.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          const spaceBelow = viewportHeight - rect.bottom;
+          const spaceAbove = rect.top;
+          if (spaceBelow < 220 && spaceAbove > spaceBelow) {
+            setComputedDirection('up');
+          } else {
+            setComputedDirection('down');
+          }
+        }
       }
-
-      const rect = containerRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - rect.bottom;
-      const spaceAbove = rect.top;
-
-      // Si abajo hay menos de 220px y arriba hay más espacio, abrir hacia arriba
-      if (spaceBelow < 220 && spaceAbove > spaceBelow) {
-        setComputedDirection('up');
-      } else {
-        setComputedDirection('down');
-      }
-    }
-  }, [isOpen, direction]);
+      return nextOpen;
+    });
+  };
 
   // Cerrar al hacer clic fuera o presionar Escape
   useEffect(() => {
@@ -125,7 +126,7 @@ export const PremiumDropdown = <T extends string | number>({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setIsOpen((prev) => !prev)}
+        onClick={handleToggle}
         className={`w-full flex items-center justify-between gap-1.5 rounded-xl border transition-all font-bold select-none shadow-2xs touch-manipulation ${paddingClasses} ${
           disabled
             ? 'opacity-50 cursor-not-allowed bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600'

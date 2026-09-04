@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
 
     const detectedArchetypes = sortedArchetypes.slice(0, 2);
 
-    let inferredArchetype = userArchetype || (detectedArchetypes.length > 0 ? detectedArchetypes[0].name : '');
+    const inferredArchetype = userArchetype || (detectedArchetypes.length > 0 ? detectedArchetypes[0].name : '');
 
     const recommendations: Record<string, unknown>[] = [];
     const banlistAlerts: Record<string, unknown>[] = [];
@@ -333,7 +333,7 @@ export async function POST(req: NextRequest) {
             usagePercent: Math.round(syn.weight * 100),
             averageCopies: syn.recommendedCopies || 1,
             rationale: {
-              role: syn.role as any,
+              role: syn.role,
               badgeLabel: `Sinergia ${syn.role.toUpperCase()}`,
               badgeColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
               shortReason: syn.reason,

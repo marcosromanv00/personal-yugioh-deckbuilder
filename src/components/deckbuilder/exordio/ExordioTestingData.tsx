@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { BarChart3, TrendingUp, AlertOctagon, Flame, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { BarChart3, TrendingUp, Flame, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { ExordioTestingData as TestingDataType } from '@/lib/engines/exordioAnalytics';
 import { DeckCard } from '@/components/deckbuilder/types';
 
@@ -114,7 +114,7 @@ export const ExordioTestingData: React.FC<ExordioTestingDataProps> = ({
           <span className="italic font-black text-white/90">Deck Analysis - {format} Format</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">// COMBAT SIMULATION //</span>
+          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">{"// COMBAT SIMULATION //"}</span>
           <span className="text-[10px] font-mono text-white font-black tracking-widest">× × ×</span>
           <BarChart3 className="w-5 h-5 text-amber-300" />
         </div>

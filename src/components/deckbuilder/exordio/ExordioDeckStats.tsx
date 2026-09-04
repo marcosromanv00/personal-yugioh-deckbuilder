@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Swords, Shield, Zap, Sparkles, AlertCircle, Compass, RotateCcw, Award } from 'lucide-react';
+import { Swords, Zap, Sparkles, Compass, Award } from 'lucide-react';
 import { ExordioAnalysisResult } from '@/lib/engines/exordioAnalytics';
 
 interface ExordioDeckStatsProps {
@@ -69,7 +69,7 @@ export const ExordioDeckStats: React.FC<ExordioDeckStatsProps> = ({ analysis, fo
           <span className="italic font-black text-white/90">Deck Analysis - {format} Format</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">// TACTICAL RADAR //</span>
+          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">{"// TACTICAL RADAR //"}</span>
           <span className="text-[10px] font-mono text-white font-black tracking-widest">+ + +</span>
           <Award className="w-5 h-5 text-amber-300" />
         </div>

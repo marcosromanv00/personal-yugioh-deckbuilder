@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Shield, Swords, Award, Layers, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Layers } from 'lucide-react';
 import { DeckCard } from '@/components/deckbuilder/types';
 import { ExordioAnalysisResult } from '@/lib/engines/exordioAnalytics';
 
@@ -90,7 +90,7 @@ export const ExordioDecklistBroadcast: React.FC<ExordioDecklistBroadcastProps> =
           <span className="italic font-black text-white/90">Deck Analysis - {format} Format</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">// ROSTER GRID //</span>
+          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">{"// ROSTER GRID //"}</span>
           <span className="text-[10px] font-mono text-white font-black tracking-widest">× × ×</span>
           <Layers className="w-5 h-5 text-amber-300" />
         </div>

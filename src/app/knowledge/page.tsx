@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -48,12 +48,7 @@ export default function KnowledgePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isTeachSynergyModalOpen, setIsTeachSynergyModalOpen] = useState(false);
 
-  // Fetch initial card knowledge
-  useEffect(() => {
-    fetchCardKnowledge('Fallen of Albaz');
-  }, []);
-
-  const fetchCardKnowledge = async (cardName: string) => {
+  const fetchCardKnowledge = useCallback(async (cardName: string) => {
     if (!cardName.trim()) return;
     setIsLoading(true);
     setErrorMessage(null);
@@ -67,12 +62,19 @@ export default function KnowledgePage() {
       } else {
         setErrorMessage(result.error || `No se encontraron datos para "${cardName}"`);
       }
-    } catch (err) {
+    } catch {
       setErrorMessage('Error al conectar con la Base de Conocimiento.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch initial card knowledge
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchCardKnowledge('Fallen of Albaz');
+    });
+  }, [fetchCardKnowledge]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

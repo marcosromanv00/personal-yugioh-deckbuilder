@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, X, Sparkles, Loader2, ShieldAlert, BookOpen, Swords, HelpCircle } from 'lucide-react';
+import { Bot, Send, X, Loader2 } from 'lucide-react';
 import { DeckCard } from '@/components/deckbuilder/types';
 
 interface AIDuelCopilotDrawerProps {
@@ -19,33 +19,34 @@ interface ChatMessage {
   timestamp: number;
 }
 
+const INITIAL_COPILOT_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content:
+    '¡Saludos, Duelista! Soy tu **Duel Copilot & Master Judge AI**. Puedo ayudarte a evaluar jugadas con tu mano inicial, mitigar handtraps del oponente, resolver cadenas y dudas de rulings complejas bajo el formato oficial vigente de Agosto 2026. ¿En qué situación te encuentras?',
+  timestamp: 0,
+};
+
 export const AIDuelCopilotDrawer: React.FC<AIDuelCopilotDrawerProps> = ({
   isOpen,
   onClose,
   currentDeckCards,
   format = 'TCG',
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content:
-        '¡Saludos, Duelista! Soy tu **Duel Copilot & Master Judge AI**. Puedo ayudarte a evaluar jugadas con tu mano inicial, mitigar handtraps del oponente, resolver cadenas y dudas de rulings complejas bajo el formato oficial vigente de Agosto 2026. ¿En qué situación te encuentras?',
-      timestamp: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_COPILOT_MESSAGE]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = async (textToSend?: string) => {
+  const handleSend = useCallback(async (textToSend?: string) => {
     const text = textToSend || input;
     if (!text.trim() || isLoading) return;
 
+    const currentTimestamp = Date.now();
     const userMsg: ChatMessage = {
-      id: `user_${Date.now()}`,
+      id: `user_${currentTimestamp}`,
       role: 'user',
       content: text,
-      timestamp: Date.now(),
+      timestamp: currentTimestamp,
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -65,31 +66,33 @@ export const AIDuelCopilotDrawer: React.FC<AIDuelCopilotDrawerProps> = ({
 
       const res = await response.json();
       if (res.success && res.reply) {
+        const replyTimestamp = Date.now();
         setMessages((prev) => [
           ...prev,
           {
-            id: `assistant_${Date.now()}`,
+            id: `assistant_${replyTimestamp}`,
             role: 'assistant',
             content: res.reply,
-            timestamp: Date.now(),
+            timestamp: replyTimestamp,
           },
         ]);
       }
     } catch (err) {
       console.error(err);
+      const errorTimestamp = Date.now();
       setMessages((prev) => [
         ...prev,
         {
-          id: `err_${Date.now()}`,
+          id: `err_${errorTimestamp}`,
           role: 'assistant',
           content: 'Ocurrió un error al contactar al juez de IA. Por favor intenta de nuevo.',
-          timestamp: Date.now(),
+          timestamp: errorTimestamp,
         },
       ]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [input, isLoading, messages, currentDeckCards, format]);
 
   if (!isOpen) return null;
 

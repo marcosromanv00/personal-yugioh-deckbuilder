@@ -45,7 +45,7 @@ export const ExordioThreatCards: React.FC<ExordioThreatCardsProps> = ({
           <span className="italic font-black text-white/90">Deck Analysis - {format} Format</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">// VULNERABILITIES //</span>
+          <span className="text-[10px] font-mono text-red-200 font-bold hidden sm:inline tracking-widest">{"// VULNERABILITIES //"}</span>
           <span className="text-[10px] font-mono text-white font-black tracking-widest">+ + +</span>
           <ShieldAlert className="w-5 h-5 text-amber-300 animate-pulse" />
         </div>

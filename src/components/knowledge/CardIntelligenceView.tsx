@@ -33,16 +33,18 @@ export const CardIntelligenceView: React.FC<CardIntelligenceViewProps> = ({
   cardData: initialCardData,
   onKnowledgeUpdated
 }) => {
+  const [prevInitialData, setPrevInitialData] = useState<CardKnowledgeData>(initialCardData);
   const [cardData, setCardData] = useState<CardKnowledgeData>(initialCardData);
+
+  if (prevInitialData !== initialCardData) {
+    setPrevInitialData(initialCardData);
+    setCardData(initialCardData);
+  }
+
   const [activeFormat, setActiveFormat] = useState<FormatType>('TCG');
   const [deckSearchQuery, setDeckSearchQuery] = useState<string>('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isTeachSynergyModalOpen, setIsTeachSynergyModalOpen] = useState(false);
-
-  // Sync state if initial changes
-  React.useEffect(() => {
-    setCardData(initialCardData);
-  }, [initialCardData]);
 
   const currentFormatStats = cardData.formats[activeFormat] || {
     format: activeFormat,

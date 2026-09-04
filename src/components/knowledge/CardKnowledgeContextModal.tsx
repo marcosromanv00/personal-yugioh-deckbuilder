@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, BrainCircuit, Loader2 } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import { CardKnowledgeData } from '@/types/knowledge';
 import { CardIntelligenceView } from './CardIntelligenceView';
 
@@ -15,7 +15,7 @@ interface CardKnowledgeContextModalProps {
 export const CardKnowledgeContextModal: React.FC<CardKnowledgeContextModalProps> = ({
   isOpen,
   onClose,
-  cardNameOrId
+  cardNameOrId,
 }) => {
   const [knowledgeData, setKnowledgeData] = useState<CardKnowledgeData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,10 +25,10 @@ export const CardKnowledgeContextModal: React.FC<CardKnowledgeContextModalProps>
     if (!isOpen || !cardNameOrId) return;
 
     let isMounted = true;
-    setIsLoading(true);
-    setError(null);
 
     const fetchKnowledge = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
         const queryParam = typeof cardNameOrId === 'number' 
           ? `id=${cardNameOrId}` 
@@ -44,7 +44,7 @@ export const CardKnowledgeContextModal: React.FC<CardKnowledgeContextModalProps>
             setError(result.error || 'No se pudo cargar la información de conocimiento.');
           }
         }
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setError('Error de conexión con la Base de Conocimiento.');
         }

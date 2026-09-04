@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart2, 
@@ -21,23 +21,17 @@ interface OcrStatsModalProps {
 }
 
 export const OcrStatsModal: React.FC<OcrStatsModalProps> = ({ isOpen, onClose }) => {
-  const [metrics, setMetrics] = useState<OcrConsolidatedMetrics | null>(null);
+  const [, setResetVersion] = useState(0);
   const [isConfirmingReset, setIsConfirmingReset] = useState(false);
-
-  // Cargar métricas al abrir el modal
-  useEffect(() => {
-    if (isOpen) {
-      setMetrics(OcrDigitStats.getMetrics());
-      setIsConfirmingReset(false);
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const metrics: OcrConsolidatedMetrics = OcrDigitStats.getMetrics();
+
   const handleReset = () => {
     OcrDigitStats.resetMetrics();
-    setMetrics(OcrDigitStats.getMetrics());
     setIsConfirmingReset(false);
+    setResetVersion(v => v + 1);
   };
 
   // Cálculos globales

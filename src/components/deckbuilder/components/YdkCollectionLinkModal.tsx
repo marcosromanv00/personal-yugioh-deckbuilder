@@ -38,17 +38,15 @@ export const YdkCollectionLinkModal: React.FC<YdkCollectionLinkModalProps> = ({
   locations,
   onConfirm,
 }) => {
-  // Estado de selecciones: card_id -> Record<user_card_id, selectedQuantity>
+  const [prevParsedCards, setPrevParsedCards] = useState(parsedCards);
   const [selectedBindings, setSelectedBindings] = useState<Record<number, Record<string, number>>>(() => {
     return computeInitialBindings(parsedCards, allUserCards);
   });
 
-  // Re-computar selecciones iniciales cuando cambien las cartas parseadas
-  React.useEffect(() => {
-    if (isOpen && parsedCards.length > 0) {
-      setSelectedBindings(computeInitialBindings(parsedCards, allUserCards));
-    }
-  }, [isOpen, parsedCards, allUserCards]);
+  if (prevParsedCards !== parsedCards) {
+    setPrevParsedCards(parsedCards);
+    setSelectedBindings(computeInitialBindings(parsedCards, allUserCards));
+  }
 
   if (!isOpen) return null;
 

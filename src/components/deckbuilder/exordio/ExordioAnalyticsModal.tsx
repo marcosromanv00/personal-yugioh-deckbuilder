@@ -46,16 +46,16 @@ export const ExordioAnalyticsModal: React.FC<ExordioAnalyticsModalProps> = ({
   initialTab = 'stats',
   onCardClick,
 }) => {
+  const [prevInitialTab, setPrevInitialTab] = useState<ExordioModalTab>(initialTab);
   const [activeTab, setActiveTab] = useState<ExordioModalTab>(initialTab);
+
+  if (prevInitialTab !== initialTab) {
+    setPrevInitialTab(initialTab);
+    setActiveTab(initialTab);
+  }
+
   const [isGraphOpen, setIsGraphOpen] = useState(false);
   const [isComboOpen, setIsComboOpen] = useState(false);
-
-  // Sincronizar initialTab cuando se abre el modal
-  useEffect(() => {
-    if (isOpen && initialTab) {
-      setActiveTab(initialTab);
-    }
-  }, [isOpen, initialTab]);
 
   // Manejo de tecla Escape
   useEffect(() => {
