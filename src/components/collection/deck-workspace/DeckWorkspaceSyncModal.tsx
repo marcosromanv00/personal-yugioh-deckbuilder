@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, PackagePlus, AlertTriangle } from 'lucide-react';
-import { StorageLocation, UserCard, DeckCardDetail } from '@/types/collection';
+import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { NewCardRegistrationForm } from './sync-modal/SyncCardFormDrawer';
 import { SyncRemovedCardsSection } from './sync-modal/SyncRemovedCardsSection';
 import { SyncPendingCardsList } from './sync-modal/SyncPendingCardsList';
-import { hasStagedCopies, countStagedCopies } from './deckWorkspacePhysical.utils';
+import { CardSubstitution } from './sync-modal/SyncRegisteredCardDrawer';
+import { buildSyncModalSavePayload, SyncSavePayloadData } from './sync-modal/syncModalSave.utils';
+import { hasStagedCopies } from './deckWorkspacePhysical.utils';
 
 interface DeckWorkspaceSyncModalProps {
   isOpen: boolean;
@@ -17,17 +19,33 @@ interface DeckWorkspaceSyncModalProps {
   pendingCards: DeckCardDetail[];
   unassignedUserCards: UserCard[];
   locations: StorageLocation[];
-  onConfirmSave: (data: {
-    inventoryCardsToAdd: Array<{ id: number; count: number; rarity: string; condition: string; is_proxy: boolean; section: string }>;
-  }) => Promise<void>;
+  availableSleeves?: SleeveInventory[];
+  userCards?: UserCard[];
+  mainSleeveId?: string;
+  extraSleeveId?: string;
+  onConfirmSave: (data: SyncSavePayloadData) => Promise<void>;
   isSaving: boolean;
 }
 
 export const DeckWorkspaceSyncModal: React.FC<DeckWorkspaceSyncModalProps> = ({
-  isOpen, onClose, isActiveDeck, onToggleActiveDeck, pendingCards, unassignedUserCards, onConfirmSave, isSaving,
+  isOpen,
+  onClose,
+  isActiveDeck,
+  onToggleActiveDeck,
+  pendingCards,
+  unassignedUserCards,
+  locations,
+  availableSleeves = [],
+  userCards = [],
+  mainSleeveId,
+  onConfirmSave,
+  isSaving,
 }) => {
   const firstUnregistered = pendingCards.find(hasStagedCopies);
-  const [expandedCardId, setExpandedCardId] = useState<number | null>(firstUnregistered?.card_id || pendingCards[0]?.card_id || null);
+  const [expandedCardId, setExpandedCardId] = useState<number | null>(
+    firstUnregistered?.card_id || pendingCards[0]?.card_id || null
+  );
+
   const [actions, setActions] = useState<Record<number, 'register' | 'ignore'>>(() => {
     const initial: Record<number, 'register' | 'ignore'> = {};
     pendingCards.forEach((c) => { initial[c.card_id] = 'register'; });
@@ -37,52 +55,61 @@ export const DeckWorkspaceSyncModal: React.FC<DeckWorkspaceSyncModalProps> = ({
   const [cardForms, setCardForms] = useState<Record<number, NewCardRegistrationForm>>(() => {
     const initial: Record<number, NewCardRegistrationForm> = {};
     pendingCards.forEach((c) => {
-      initial[c.card_id] = { rarity: 'Common', condition: 'Near Mint', is_proxy: false };
+      initial[c.card_id] = { rarity: 'Common', condition: 'Near Mint', is_proxy: false, sleeve_id: 'inherit' };
     });
     return initial;
   });
+
+  const [substitutions, setSubstitutions] = useState<Record<string, CardSubstitution>>({});
+  const [additionalCopies, setAdditionalCopies] = useState<Record<number, NewCardRegistrationForm[]>>({});
+
+  // Nombre directo de la funda del mazo por defecto
+  const defaultDeckSleeveName = useMemo(() => {
+    if (!mainSleeveId) return undefined;
+    const sleeve = availableSleeves.find((s) => s.id === mainSleeveId);
+    return sleeve?.name || undefined;
+  }, [mainSleeveId, availableSleeves]);
+
+  const handleUpdateForm = useCallback((cardId: number, fields: Partial<NewCardRegistrationForm>) => {
+    setCardForms((prev) => ({
+      ...prev,
+      [cardId]: { ...prev[cardId], ...fields },
+    }));
+  }, []);
+
+  const handleUpdateSubstitution = useCallback((userCardId: string, sub: CardSubstitution | null) => {
+    setSubstitutions((prev) => {
+      const next = { ...prev };
+      if (sub === null) delete next[userCardId];
+      else next[userCardId] = sub;
+      return next;
+    });
+  }, []);
+
+  const handleAddCopy = useCallback((cardId: number) => {
+    setAdditionalCopies((prev) => ({
+      ...prev,
+      [cardId]: [
+        ...(prev[cardId] || []),
+        { rarity: 'Common', condition: 'Near Mint', is_proxy: false, sleeve_id: 'inherit' },
+      ],
+    }));
+  }, []);
 
   if (!isOpen) return null;
 
   const hasIgnoredInActive = isActiveDeck && pendingCards.some((c) => hasStagedCopies(c) && actions[c.card_id] === 'ignore');
 
-  const handleUpdateForm = (cardId: number, fields: Partial<NewCardRegistrationForm>) => {
-    setCardForms((prev) => ({
-      ...prev,
-      [cardId]: { ...prev[cardId], ...fields },
-    }));
-  };
-
   const handleSave = async () => {
     if (hasIgnoredInActive) return;
-
-    const inventoryCardsToAdd: Array<{
-      id: number;
-      count: number;
-      rarity: string;
-      condition: string;
-      is_proxy: boolean;
-      section: string;
-    }> = [];
-
-    pendingCards.forEach((card) => {
-      if (actions[card.card_id] === 'register') {
-        const form = cardForms[card.card_id] || { rarity: 'Common', condition: 'Near Mint', is_proxy: false };
-        const needed = countStagedCopies(card);
-        if (needed > 0) {
-          inventoryCardsToAdd.push({
-            id: card.card_id,
-            count: needed,
-            rarity: form.rarity,
-            condition: form.condition,
-            is_proxy: form.is_proxy,
-            section: (card.section === 'pool' || card.section === 'extras') ? 'extras' : card.section,
-          });
-        }
-      }
+    const payloadData = buildSyncModalSavePayload({
+      pendingCards,
+      actions,
+      cardForms,
+      substitutions,
+      additionalCopies,
     });
-
-    await onConfirmSave({ inventoryCardsToAdd });
+    await onConfirmSave(payloadData);
   };
 
   return (
@@ -107,7 +134,7 @@ export const DeckWorkspaceSyncModal: React.FC<DeckWorkspaceSyncModalProps> = ({
                   Conciliación de Inventario Físico
                 </h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Revisa las cartas añadidas y retiradas para sincronizarlas con tu colección.
+                  Revisa las cartas añadidas, retiradas o sustituidas para sincronizarlas con tu colección.
                 </p>
               </div>
             </div>
@@ -147,6 +174,13 @@ export const DeckWorkspaceSyncModal: React.FC<DeckWorkspaceSyncModalProps> = ({
               setActions={setActions}
               cardForms={cardForms}
               onUpdateForm={handleUpdateForm}
+              locations={locations}
+              defaultDeckSleeveName={defaultDeckSleeveName}
+              availableSleeves={availableSleeves}
+              userCards={userCards}
+              substitutions={substitutions}
+              onUpdateSubstitution={handleUpdateSubstitution}
+              onAddCopy={handleAddCopy}
             />
           </div>
 
