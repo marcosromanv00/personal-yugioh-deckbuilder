@@ -339,7 +339,7 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
     return (
       <div 
         key={uc.id} 
-        className="bg-zinc-50/90 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden transition-all shadow-2xs"
+        className={`bg-zinc-50/90 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-visible transition-all shadow-2xs relative ${expanded ? 'z-20' : 'z-10'}`}
       >
         {/* Cabecera de la variante (Línea compacta que actúa como trigger de acordeón) */}
         <div 
@@ -355,7 +355,8 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
             </span>
             <OverflowTooltip
               text={uc.is_proxy ? '🖨️ Proxy' : (uc.rarity || 'Common')}
-              className="text-[10.5px] font-bold text-zinc-800 dark:text-zinc-200"
+              containerClassName="min-w-0 flex-1"
+              className="text-[10.5px] font-bold text-zinc-800 dark:text-zinc-200 truncate"
             />
             <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-500 shrink-0">
               ({uc.condition === 'Near Mint' ? 'NM' : uc.condition === 'Lightly Played' ? 'LP' : uc.condition || 'NM'})
@@ -363,11 +364,13 @@ export const DeckCardDetailInspector: React.FC<DeckCardDetailInspectorProps> = (
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Badge de Ubicación Compacto */}
-            <OverflowTooltip
-              text={`📍 ${locLabel}`}
-              className="text-[9px] font-mono text-zinc-500 dark:text-zinc-400 max-w-24 truncate hidden sm:inline-block"
-            />
+            {/* Ubicación Compacta Icon-Only con Tooltip */}
+            <span 
+              title={`Ubicación: ${locLabel}`} 
+              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors shrink-0 flex items-center cursor-help"
+            >
+              <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
+            </span>
             
             {/* Color de funda dot */}
             {regularSleeve && uc.sleeve_type !== 'none' && (
