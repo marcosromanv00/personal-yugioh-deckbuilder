@@ -56,7 +56,7 @@ export const CardPreviewModal: React.FC<CardPreviewModalProps> = ({
             {/* Close Button */}
             <button 
               onClick={onClose} 
-              className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20 w-11 h-11 min-h-11 min-w-11 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer touch-manipulation shadow-xs"
               title="Cerrar"
             >
               <X className="w-4 h-4" />

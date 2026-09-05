@@ -426,7 +426,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="absolute right-3 bottom-3 p-2.5 rounded-xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 disabled:opacity-40 text-white shadow-md shadow-red-600/30 transition-all cursor-pointer disabled:cursor-not-allowed"
+                className="absolute right-3 bottom-3 min-h-11 min-w-11 p-2.5 rounded-xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 disabled:opacity-40 text-white shadow-md shadow-red-600/30 transition-all cursor-pointer disabled:cursor-not-allowed touch-manipulation flex items-center justify-center"
                 title="Enviar consulta"
               >
                 <Send className="w-4 h-4" />

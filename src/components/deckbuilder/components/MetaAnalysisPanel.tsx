@@ -148,11 +148,11 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
           }`}
         >
           {rightPanelOpen && (
-            <div className="flex-1 grid grid-cols-4 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-1">
+            <div className="flex-1 grid grid-cols-4 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-0.5 sm:gap-1">
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('detail')}
-                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
+                className={`py-1.5 px-1 rounded-lg text-[9.5px] sm:text-[10px] xl:text-[10.5px] font-black uppercase tracking-tight lg:tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-9 ${
                   currentTab === 'detail'
                     ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
@@ -160,13 +160,13 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
                 title="Ver y editar detalles de la carta seleccionada"
               >
                 <Info className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                <span className="truncate">Detalle</span>
+                <span>Detalle</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('analysis')}
-                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
+                className={`py-1.5 px-1 rounded-lg text-[9.5px] sm:text-[10px] xl:text-[10.5px] font-black uppercase tracking-tight lg:tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-9 ${
                   currentTab === 'analysis'
                     ? 'bg-red-600 text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
@@ -174,13 +174,13 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
                 title="Ver analíticas Exordio del mazo"
               >
                 <Activity className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Análisis</span>
+                <span>Análisis</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('meta')}
-                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
+                className={`py-1.5 px-1 rounded-lg text-[9.5px] sm:text-[10px] xl:text-[10.5px] font-black uppercase tracking-tight lg:tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-9 ${
                   currentTab === 'meta'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
@@ -188,14 +188,14 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
                 title="Ver análisis del meta y arquetipos"
               >
                 <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Meta</span>
+                <span>Meta</span>
                 {isAnalyzing && <Loader2 className="w-3 h-3 animate-spin text-white shrink-0" />}
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveRightTab?.('collection')}
-                className={`py-1.5 px-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-8 ${
+                className={`py-1.5 px-1 rounded-lg text-[9.5px] sm:text-[10px] xl:text-[10.5px] font-black uppercase tracking-tight lg:tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-9 ${
                   currentTab === 'collection'
                     ? 'bg-purple-600 text-white shadow-xs'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
@@ -203,7 +203,8 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
                 title="Ver recomendaciones de cartas libres y motores en tu colección física"
               >
                 <PackageCheck className="w-3.5 h-3.5 text-purple-300 shrink-0" />
-                <span className="truncate">Colección</span>
+                <span className="hidden xl:inline">Colección</span>
+                <span className="xl:hidden">Colec.</span>
               </button>
             </div>
           )}

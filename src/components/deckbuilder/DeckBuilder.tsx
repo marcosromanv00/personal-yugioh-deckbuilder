@@ -1178,7 +1178,7 @@ export default function DeckBuilder() {
                   searchLimit={state.searchLimit}
                   setSearchLimit={state.setSearchLimit}
                   format={state.format}
-                  addCardToDeck={state.addCardToDeck}
+                  addCardToDeck={handleAddCardWithFeedback}
                   handleDragCardStart={handleDragCardStart}
                   handleCardMouseEnter={preview.handleCardMouseEnter}
                   handleCardMouseLeave={preview.handleCardMouseLeave}
@@ -1432,8 +1432,23 @@ export default function DeckBuilder() {
         </div>
       ) : (
         /* ARCHETYPES BREAKDOWNS LIST VIEW */
-        <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 md:pb-8">
+        <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 md:pb-8">
           <div className="space-y-6">
+            {/* Barra de Retorno Rápido al Constructor en Móvil y Tablet */}
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => state.setActiveView('builder')}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display min-h-11 touch-manipulation"
+              >
+                <span>←</span>
+                <span>Volver al Taller</span>
+              </button>
+              <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider">
+                Metajuego MDM
+              </span>
+            </div>
+
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-4">
               <div>
                 <h2 className="font-black text-xl sm:text-2xl text-zinc-900 dark:text-zinc-100 flex items-center gap-2 uppercase tracking-wider">
