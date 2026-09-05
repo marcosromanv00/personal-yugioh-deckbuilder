@@ -239,7 +239,8 @@ export async function PUT(req: NextRequest) {
       sale_price, 
       notes,
       is_proxy,
-      is_favorite
+      is_favorite,
+      language
     } = body;
 
     const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -537,6 +538,7 @@ export async function PUT(req: NextRequest) {
     if (is_favorite !== undefined) updatePayload.is_favorite = is_favorite;
     if (sale_price !== undefined) updatePayload.sale_price = sale_price;
     if (notes !== undefined) updatePayload.notes = notes;
+    if (language !== undefined) updatePayload.language = language;
 
     const { data, error } = await supabase
       .from('yg_user_cards')

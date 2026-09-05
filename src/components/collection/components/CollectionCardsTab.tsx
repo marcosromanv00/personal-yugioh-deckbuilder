@@ -13,7 +13,9 @@ import {
   ChevronsLeft, 
   ChevronsRight,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Home,
+  Plane
 } from 'lucide-react';
 import { UserCard, StorageLocation, Deck, CardStatusFlag } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
@@ -205,7 +207,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
-            placeholder="Buscar por nombre, rareza, notas o card_id:XXXXX..."
+            placeholder="Buscar por nombre, rareza, notas o ID..."
             value={allSearchQuery}
             onChange={(e) => setAllSearchQuery(e.target.value)}
             className="w-full pl-10 pr-8 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-red-500 transition-colors"
@@ -324,7 +326,7 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
 
       {/* Panel Plegable de Filtros Avanzados */}
       {isAdvancedFiltersOpen && (
-        <div className="p-3 sm:p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xs space-y-3">
+        <div className="p-3 sm:p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xs space-y-3 relative z-30 overflow-visible">
           <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
             <span className="text-xs font-mono font-bold uppercase text-zinc-500 flex items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-red-500" />
@@ -597,33 +599,40 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
                   />
 
                   <div className="mt-1.5 pt-1 border-t border-zinc-100 dark:border-zinc-800/80 space-y-1">
-                    <div className="flex items-center justify-between text-[9px]">
-                      <span className="text-zinc-400 font-bold">Ubicación:</span>
+                    <div className="flex items-center justify-between gap-1.5 text-[9px]">
+                      <span className="flex items-center gap-1 text-zinc-400 font-bold shrink-0" title="Ubicación actual">
+                        <Home className="w-3.5 h-3.5 text-zinc-400" />
+                      </span>
                       {storedIn ? (
-                        <span className="font-bold text-zinc-700 dark:text-zinc-300 truncate max-w-20" title={storedIn.name}>
+                        <span className="font-bold text-zinc-700 dark:text-zinc-300 truncate flex-1 min-w-0 text-right" title={storedIn.name}>
                           📦 {storedIn.name}
                         </span>
                       ) : (
-                        <span className="font-bold text-amber-500 dark:text-amber-400">
+                        <span className="font-bold text-amber-500 dark:text-amber-400 truncate flex-1 min-w-0 text-right">
                           📥 Inbox
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-[9px]">
-                      <span className="text-zinc-400 font-bold">Destino:</span>
-                      <PremiumDropdown
-                        value={uc.status_flag}
-                        onChange={(val) => handleUpdateCardStatus(uc.id, val)}
-                        size="xs"
-                        menuWidth="min-w-28"
-                        options={[
-                          { value: 'collection', label: 'Colección' },
-                          { value: 'trade_sale', label: 'Venta' },
-                          { value: 'workshop', label: 'Taller' },
-                          { value: 'bulk', label: 'Bulk' },
-                        ]}
-                      />
+                    <div className="flex items-center justify-between gap-1.5 text-[9px]">
+                      <span className="flex items-center gap-1 text-zinc-400 font-bold shrink-0" title="Destino / Propósito">
+                        <Plane className="w-3.5 h-3.5 text-zinc-400" />
+                      </span>
+                      <div className="flex-1 min-w-0 flex justify-end">
+                        <PremiumDropdown
+                          value={uc.status_flag}
+                          onChange={(val) => handleUpdateCardStatus(uc.id, val)}
+                          size="xs"
+                          align="right"
+                          menuWidth="min-w-28"
+                          options={[
+                            { value: 'collection', label: 'Colección' },
+                            { value: 'trade_sale', label: 'Venta' },
+                            { value: 'workshop', label: 'Taller' },
+                            { value: 'bulk', label: 'Bulk' },
+                          ]}
+                        />
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-end gap-1 pt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -764,6 +773,14 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
             handleUpdateCardStatus(id, selectedCardForDetail?.status_flag || 'collection');
           }
           setSelectedCardForDetail(prev => prev ? { ...prev, storage_location_id: newLocId } : null);
+        }}
+        onUpdateUserCard={async (id, fields) => {
+          await fetch('/api/collection/cards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, ...fields }),
+          });
+          setSelectedCardForDetail(prev => prev ? { ...prev, ...fields } : null);
         }}
         onDelete={async (id) => {
           await handleDeleteCard(id);
