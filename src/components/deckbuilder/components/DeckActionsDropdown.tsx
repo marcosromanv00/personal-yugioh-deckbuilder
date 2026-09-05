@@ -25,6 +25,7 @@ interface DeckActionsDropdownProps {
   isSyncing: boolean;
   isSavedDeck?: boolean;
   onDeleteDeck?: () => void;
+  onPreloadSave?: () => void;
 }
 
 export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
@@ -39,6 +40,7 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
   isSyncing,
   isSavedDeck,
   onDeleteDeck,
+  onPreloadSave,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -57,6 +59,8 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
+        onMouseEnter={onPreloadSave}
+        onFocus={onPreloadSave}
         className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-700 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer min-h-11 touch-manipulation"
       >
         <FileText className="w-3.5 h-3.5 text-zinc-500" />
@@ -95,6 +99,8 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
               onSave();
               setIsOpen(false);
             }}
+            onMouseEnter={onPreloadSave}
+            onFocus={onPreloadSave}
             className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer"
           >
             <Save className="w-4 h-4 text-emerald-500" />
