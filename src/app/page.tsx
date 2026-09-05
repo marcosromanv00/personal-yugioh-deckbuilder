@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[hsl(224,25%,6%)]">
+    <main className="min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden bg-[hsl(224,25%,6%)]">
       <DeckBuilder />
     </main>
   );

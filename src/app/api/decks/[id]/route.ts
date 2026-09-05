@@ -85,13 +85,13 @@ export async function PUT(
     }
 
     const body = await req.json();
+    const storage_location_id = body.storage_location_id !== undefined ? body.storage_location_id : body.storageLocationId;
+    const compartment_index = body.compartment_index !== undefined ? body.compartment_index : body.compartmentIndex;
     const {
       name,
       description,
       format,
       skill_name,
-      storage_location_id,
-      compartment_index,
       is_active,
       sleeves // Array de { sleeve_id: string, section: 'main_side' | 'extra' }
     } = body;

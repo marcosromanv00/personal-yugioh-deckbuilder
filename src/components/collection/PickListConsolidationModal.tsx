@@ -16,7 +16,8 @@ import {
   Square,
   Loader2,
   Wrench,
-  Swords
+  Swords,
+  Plane
 } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
 import { LaneCluster } from '@/lib/cardClassificationEngine';
@@ -528,7 +529,7 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
             {/* DESTINATION CONTAINER PICKER */}
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
               <span className="text-xs font-mono font-black uppercase text-zinc-500 shrink-0 flex items-center gap-1">
-                <ArrowRight className="w-3.5 h-3.5 text-red-500" />
+                <Plane className="w-3.5 h-3.5 text-red-500" />
                 <span>Destino:</span>
               </span>
 
@@ -540,7 +541,7 @@ export const PickListConsolidationModal: React.FC<PickListConsolidationModalProp
                 }}
                 className="px-3 py-1.5 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-red-500 shadow-2xs"
               >
-                <option value="inbox">📥 Sin Clasificar (Inbox)</option>
+                <option value="inbox">📥 Inbox (Sin Clasificar)</option>
                 {locations.map(l => (
                   <option key={l.id} value={l.id}>
                     {l.type === 'binder' ? '📖' : '📦'} {l.name}

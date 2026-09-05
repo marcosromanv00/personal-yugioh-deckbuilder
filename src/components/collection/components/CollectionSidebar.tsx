@@ -88,7 +88,7 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
     },
     {
       id: 'complete' as CollectionTab,
-      label: 'Colección Completa',
+      label: 'Colección',
       icon: Layers,
       count: totalCardsCount,
       color: 'text-zinc-700 dark:text-zinc-300',

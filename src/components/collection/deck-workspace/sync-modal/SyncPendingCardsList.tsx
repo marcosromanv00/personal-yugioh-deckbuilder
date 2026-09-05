@@ -18,6 +18,8 @@ interface SyncPendingCardsListProps {
   onUpdateForm: (cardId: number, fields: Partial<NewCardRegistrationForm>) => void;
   locations: StorageLocation[];
   defaultDeckSleeveName?: string;
+  storageLocationId?: string | null;
+  compartmentIndex?: number | null;
   availableSleeves?: SleeveInventory[];
   userCards?: UserCard[];
   substitutions: Record<string, CardSubstitution>;
@@ -40,6 +42,8 @@ export const SyncPendingCardsList: React.FC<SyncPendingCardsListProps> = ({
   onUpdateForm,
   locations,
   defaultDeckSleeveName,
+  storageLocationId,
+  compartmentIndex,
   availableSleeves = [],
   userCards = [],
   substitutions,
@@ -81,6 +85,8 @@ export const SyncPendingCardsList: React.FC<SyncPendingCardsListProps> = ({
         onUpdateForm={(fields) => onUpdateForm(cardId, fields)}
         locations={locations}
         defaultDeckSleeveName={defaultDeckSleeveName}
+        defaultStorageLocationId={storageLocationId}
+        defaultCompartmentIndex={compartmentIndex}
         availableSleeves={availableSleeves}
         availableCopies={availableCopies}
         substitutions={substitutions}

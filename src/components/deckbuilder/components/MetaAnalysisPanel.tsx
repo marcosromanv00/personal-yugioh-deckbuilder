@@ -132,7 +132,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
   return (
     <section
       style={!isMobile && rightPanelOpen ? { width: `${rightPanelWidth}px` } : {}}
-      className={`flex flex-col gap-3 ${
+      className={`flex flex-col h-full min-h-0 gap-3 ${
         isMobile
           ? 'w-full'
           : `bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm transition-all overflow-hidden ${
@@ -297,7 +297,7 @@ export const MetaAnalysisPanel: React.FC<MetaAnalysisPanelProps> = ({
         </div>
       ) : (
         // Contenido Expandido del Panel
-        <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-thin">
           {currentTab === 'detail' ? (
             /* TAB 1: CARD DETAIL & ATTRIBUTE EDITOR */
             <CardDetailPanel

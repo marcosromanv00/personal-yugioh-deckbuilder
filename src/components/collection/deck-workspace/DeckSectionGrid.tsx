@@ -3,8 +3,7 @@
 import React from 'react';
 import { StorageLocation, UserCard, DeckCardDetail, SleeveInventory } from '@/types/collection';
 import { MobileDeckTab } from './types';
-import { isExtraDeckCardType } from './useDeckWorkspaceState';
-import { OverflowTooltip } from '@/components/ui/OverflowTooltip';
+import { DeckSectionCardTile } from './DeckSectionCardTile';
 
 interface DeckSectionGridProps {
   cards: DeckCardDetail[];
@@ -95,106 +94,29 @@ export const DeckSectionGrid: React.FC<DeckSectionGridProps> = ({
         isDragOver ? 'ring-2 ring-red-500 bg-red-500/5' : ''
       }`}
     >
-      {cards.map((cardDetail, idx) => {
-        const isSelected = selectedCardDetail?.card_id === cardDetail.card_id && selectedCardDetail.section === cardDetail.section;
-        const physicalCards = userCards.filter(uc => uc.card_id === cardDetail.card_id);
-        const hasPhysical = physicalCards.length > 0;
-        const cardLocationId = physicalCards[0]?.storage_location_id;
-        const cardLoc = cardLocationId ? locations.find(l => l.id === cardLocationId) : null;
-
-        // Determinar la funda de esta carta para la franja visual
-        const isExtra = isExtraDeckCardType(cardDetail.card_details?.type);
-        let targetDeckSleeveId = mainSleeveId;
-        if (cardDetail.section === 'extra' || (cardDetail.section === 'side' && isExtra)) {
-          targetDeckSleeveId = extraSleeveId;
-        } else if (cardDetail.section === 'pool' || cardDetail.section === 'extras') {
-          targetDeckSleeveId = poolSleeveId;
-        }
-
-        const customSleeve = (physicalCards[0]?.sleeve_brand && physicalCards[0]?.sleeve_color)
-          ? availableSleeves.find(s => s.brand === physicalCards[0].sleeve_brand && s.color_pattern === physicalCards[0].sleeve_color)
-          : null;
-
-        const deckSleeve = availableSleeves.find(s => s.id === targetDeckSleeveId) || null;
-        const activeSleeve = customSleeve || deckSleeve;
-        const locationText = cardLoc ? cardLoc.name : (storageLocationId ? (currentBaseLocation?.name || 'En Deckbox') : 'Sin clasificar');
-
-        return (
-          <div
-            key={`${sectionKey}-${cardDetail.card_id}-${idx}`}
-            draggable={!isMobile}
-            onDragStart={!isMobile ? (e) => {
-              handleDragCardStart?.(e, {
-                id: cardDetail.card_id,
-                name: cardDetail.card_details?.name || '',
-                type: cardDetail.card_details?.type,
-                image_url: cardDetail.card_details?.image_url_small || cardDetail.card_details?.image_url,
-                archetype: cardDetail.card_details?.archetype,
-                fromSection: cardDetail.section as 'main' | 'extra' | 'side' | 'pool' | 'extras',
-              });
-            } : undefined}
-            onClick={() => {
-              onSelectCard(cardDetail);
-              if (isMobile) setMobileTab('right');
-            }}
-            className={`relative aspect-3/4.4 bg-white dark:bg-zinc-900 rounded-xl border p-1 flex flex-col justify-between overflow-hidden cursor-pointer transition-all shadow-2xs group select-none ${
-              isSelected
-                ? 'border-red-500 ring-2 ring-red-500/40 shadow-md scale-102'
-                : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700'
-            }`}
-          >
-            <div className="relative flex-1 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-950">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={cardDetail.card_details?.image_url_small || cardDetail.card_details?.image_url}
-                alt={cardDetail.card_details?.name || 'Carta'}
-                className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                onError={(e) => { e.currentTarget.src = 'https://images.ygoprodeck.com/images/cards/back.jpg'; }}
-                loading="lazy"
-              />
-              <div className="absolute top-1 right-1 bg-black/85 text-white font-mono text-[9px] px-1.5 py-0.5 rounded-md font-black shadow-xs">
-                {cardDetail.count}x
-              </div>
-              {badgeLabel && (
-                <div className="absolute top-1 left-1">
-                  <span className={`text-[8px] font-black uppercase px-1 py-0.2 rounded border ${badgeColorClass}`}>
-                    {badgeLabel}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="mt-1 px-0.5 text-center min-w-0 w-full flex flex-col items-center">
-              <OverflowTooltip 
-                text={cardDetail.card_details?.name || 'Carta'} 
-                className="text-[9.5px] font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors"
-                containerClassName="w-full"
-              />
-              <div className="mt-0.5 w-full flex justify-center">
-                {hasPhysical ? (
-                  <OverflowTooltip
-                    text={`📍 ${locationText}`}
-                    className="text-[8px] font-mono text-zinc-500 dark:text-zinc-400 block"
-                    containerClassName="w-full"
-                  />
-                ) : (
-                  <span className="text-[8px] font-mono text-amber-600 dark:text-amber-400 font-bold block truncate">
-                    ⚠️ Solo Receta
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Franja de Color de Funda */}
-            {activeSleeve && (
-              <div
-                className="h-1 w-full rounded-full mt-1 shrink-0 opacity-90 group-hover:opacity-100 transition-opacity"
-                style={{ backgroundColor: activeSleeve.color_hex || '#1a1a2e' }}
-                title={`Funda: ${activeSleeve.name} (${activeSleeve.brand} - ${activeSleeve.color_pattern})`}
-              />
-            )}
-          </div>
-        );
-      })}
+      {cards.map((cardDetail, idx) => (
+        <DeckSectionCardTile
+          key={`${sectionKey}-${cardDetail.card_id}-${idx}`}
+          cardDetail={cardDetail}
+          idx={idx}
+          sectionKey={sectionKey}
+          isSelected={selectedCardDetail?.card_id === cardDetail.card_id && selectedCardDetail.section === cardDetail.section}
+          onSelectCard={onSelectCard}
+          userCards={userCards}
+          locations={locations}
+          storageLocationId={storageLocationId}
+          currentBaseLocation={currentBaseLocation}
+          availableSleeves={availableSleeves}
+          mainSleeveId={mainSleeveId}
+          extraSleeveId={extraSleeveId}
+          poolSleeveId={poolSleeveId}
+          isMobile={isMobile}
+          setMobileTab={setMobileTab}
+          badgeLabel={badgeLabel}
+          badgeColorClass={badgeColorClass}
+          handleDragCardStart={handleDragCardStart}
+        />
+      ))}
     </div>
   );
 };

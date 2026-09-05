@@ -23,7 +23,7 @@ export async function GET() {
     // Fetch deck sleeves joined with decks to know which decks are using them
     const { data: deckSleeves, error: dsError } = await supabase
       .from('yg_deck_sleeves')
-      .select('sleeve_id, quantity_used, deck:yg_decks(id, name)');
+      .select('sleeve_id, section_type, quantity_used, deck:yg_decks(id, name, cards:yg_deck_cards(count, section))');
 
     if (dsError) throw dsError;
 
@@ -32,13 +32,26 @@ export async function GET() {
 
     for (const ds of deckSleeves || []) {
       const sleeveId = ds.sleeve_id;
-      const qty = ds.quantity_used || 0;
+      let qty = ds.quantity_used || 0;
+      const deckInfo = (Array.isArray(ds.deck) ? ds.deck[0] : ds.deck) as {
+        id?: string;
+        name?: string;
+        cards?: Array<{ count?: number; section?: string }>;
+      } | null;
+
+      if (qty === 0 && deckInfo?.cards && Array.isArray(deckInfo.cards)) {
+        const sec = (ds as { section_type?: string }).section_type || '';
+        const matchSec = sec.startsWith('extra') ? 'extra' : (sec.startsWith('pool') || sec.startsWith('extras')) ? 'pool' : 'main';
+        qty = deckInfo.cards
+          .filter((c) => matchSec === 'extra' ? c.section === 'extra' : matchSec === 'pool' ? (c.section === 'pool' || c.section === 'extras') : (c.section === 'main' || c.section === 'side'))
+          .reduce((sum, c) => sum + (c.count || 1), 0);
+      }
+
       usedMap[sleeveId] = (usedMap[sleeveId] || 0) + qty;
 
       if (!deckUsageMap[sleeveId]) {
         deckUsageMap[sleeveId] = [];
       }
-      const deckInfo = (Array.isArray(ds.deck) ? ds.deck[0] : ds.deck) as { id?: string; name?: string } | null;
       if (deckInfo?.id) {
         deckUsageMap[sleeveId].push({
           deck_id: deckInfo.id,
@@ -76,10 +89,7 @@ export async function POST(req: NextRequest) {
     const body: SleeveInventoryFormData = await req.json();
 
     const { name, category = 'regular', brand, color_pattern, color_hex, size_type, condition, quantity_total, notes } = body;
-
-    if (!name || !brand) {
-      return NextResponse.json({ error: 'Nombre y marca son obligatorios' }, { status: 400 });
-    }
+    if (!name || !brand) return NextResponse.json({ error: 'Nombre y marca son obligatorios' }, { status: 400 });
 
     const { data, error } = await supabase
       .from('yg_sleeves')
@@ -88,7 +98,6 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) throw error;
-
     return NextResponse.json({ data: { ...data, quantity_available: data.quantity_total, quantity_used: 0, used_in_decks: [] } });
   } catch (error: unknown) {
     const err = error as Error;
@@ -125,16 +134,18 @@ export async function PUT(req: NextRequest) {
       finalQuantityTotal = (currentSleeve?.quantity_total || 0) + add_quantity;
     }
 
-    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (name !== undefined) payload.name = name;
-    if (category !== undefined) payload.category = category;
-    if (brand !== undefined) payload.brand = brand;
-    if (color_pattern !== undefined) payload.color_pattern = color_pattern;
-    if (color_hex !== undefined) payload.color_hex = color_hex;
-    if (size_type !== undefined) payload.size_type = size_type;
-    if (condition !== undefined) payload.condition = condition;
-    if (finalQuantityTotal !== undefined) payload.quantity_total = finalQuantityTotal;
-    if (notes !== undefined) payload.notes = notes;
+    const payload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      ...(name !== undefined && { name }),
+      ...(category !== undefined && { category }),
+      ...(brand !== undefined && { brand }),
+      ...(color_pattern !== undefined && { color_pattern }),
+      ...(color_hex !== undefined && { color_hex }),
+      ...(size_type !== undefined && { size_type }),
+      ...(condition !== undefined && { condition }),
+      ...(finalQuantityTotal !== undefined && { quantity_total: finalQuantityTotal }),
+      ...(notes !== undefined && { notes }),
+    };
 
     const { data, error } = await supabase
       .from('yg_sleeves')
@@ -160,31 +171,16 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const { searchParams } = req.nextUrl;
-    const id = searchParams.get('id');
+    const id = req.nextUrl.searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'ID de funda es obligatorio' }, { status: 400 });
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID de funda es obligatorio' }, { status: 400 });
-    }
-
-    // Check if in use
-    const { data: inUse } = await supabase
-      .from('yg_deck_sleeves')
-      .select('id')
-      .eq('sleeve_id', id)
-      .limit(1);
-
+    const { data: inUse } = await supabase.from('yg_deck_sleeves').select('id').eq('sleeve_id', id).limit(1);
     if (inUse && inUse.length > 0) {
-      return NextResponse.json(
-        { error: 'No puedes eliminar esta funda porque está asignada a uno o más decks.' },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'No puedes eliminar esta funda porque está asignada a uno o más decks.' }, { status: 409 });
     }
 
     const { error } = await supabase.from('yg_sleeves').delete().eq('id', id);
-
     if (error) throw error;
-
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const err = error as Error;

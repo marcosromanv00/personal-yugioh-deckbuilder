@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { StorageLocation, UserCard, SleeveInventory, Deck, DeckCardDetail, SleeveCategory, DeckCardPhysicalCopy } from '@/types/collection';
-import { Card, HoverCardBase } from '@/components/deckbuilder/types';
+import { Card, HoverCardBase, SearchScope } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useToast } from '@/components/ui/ToastProvider';
 import { DeckSectionFilter, RightDeckMode, MobileDeckTab } from './types';
 import { enrichDeckCardsWithPhysicalCopies } from './deckWorkspacePhysical.utils';
 import { useDeckPhysicalSync } from './useDeckPhysicalSync';
+import { useRecentCardsHistory } from '@/components/deckbuilder/hooks/useRecentCardsHistory';
 
 interface UseDeckWorkspaceStateProps {
   isOpen: boolean;
@@ -70,11 +71,11 @@ export const parseSleevesList = (
 
   return {
     mainFit, mainReg, mainOver,
-    mainProt: (mainCount >= 3 ? 'triple' : mainCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
+    mainProt: (mainOver || mainCount >= 3 ? 'triple' : mainCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
     extraFit, extraReg, extraOver,
-    extraProt: (extraCount >= 3 ? 'triple' : extraCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
+    extraProt: (extraOver || extraCount >= 3 ? 'triple' : extraCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
     poolFit, poolReg, poolOver,
-    poolProt: (poolCount >= 3 ? 'triple' : poolCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
+    poolProt: (poolOver || poolCount >= 3 ? 'triple' : poolCount === 2 ? 'double' : 'single') as 'single' | 'double' | 'triple',
   };
 };
 
@@ -202,7 +203,23 @@ export function useDeckWorkspaceState({
 
   // Modo del Panel Derecho: 'details' (Ficha Técnica) vs 'card' (Detalles de Carta)
   const [rightMode, setRightMode] = useState<RightDeckMode>('details');
-  const [selectedCardDetail, setSelectedCardDetail] = useState<DeckCardDetail | null>(null);
+  const [selectedCardDetail, _setSelectedCardDetail] = useState<DeckCardDetail | null>(null);
+
+  // Historial Unificado de Cartas Recientes
+  const { recentCards, addRecentCard, clearRecentCards } = useRecentCardsHistory();
+
+  const setSelectedCardDetail = useCallback(
+    (action: React.SetStateAction<DeckCardDetail | null>) => {
+      _setSelectedCardDetail((prev) => {
+        const next = typeof action === 'function' ? action(prev) : action;
+        if (next) {
+          addRecentCard(next);
+        }
+        return next;
+      });
+    },
+    [addRecentCard]
+  );
 
   // Filtros del Panel Central
   const [searchFilter, setSearchFilter] = useState('');
@@ -211,7 +228,7 @@ export function useDeckWorkspaceState({
 
   // Search Panel (Panel Izquierdo) State
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchScope, setSearchScope] = useState<'global' | 'collection' | 'staged'>('global');
+  const [searchScope, setSearchScope] = useState<SearchScope>('global');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [searchType, setSearchType] = useState<'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra'>('All');
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>({
@@ -231,6 +248,11 @@ export function useDeckWorkspaceState({
   const [isSearching, setIsSearching] = useState(false);
   const [searchViewMode, setSearchViewMode] = useState<'grid' | 'list'>('grid');
   const [searchLimit, setSearchLimit] = useState(50);
+  const [dropCopyPickerState, setDropCopyPickerState] = useState<{
+    card: Card;
+    targetSection: 'main' | 'extra' | 'side' | 'pool' | 'extras';
+    copies: UserCard[];
+  } | null>(null);
 
   // Estado inicial del formulario para detectar cambios sin guardar
   const [initialFormState, setInitialFormState] = useState<{
@@ -448,6 +470,95 @@ export function useDeckWorkspaceState({
 
   // Búsqueda en panel izquierdo
   const executeSearch = useCallback(async () => {
+    if (searchScope === 'recent') {
+      setIsSearching(true);
+      try {
+        const q = searchQuery.trim().toLowerCase();
+        let list = recentCards;
+        if (q) {
+          list = list.filter((c) =>
+            c.name.toLowerCase().includes(q) ||
+            String(c.id).includes(q) ||
+            (c.desc && c.desc.toLowerCase().includes(q)) ||
+            (c.archetype && c.archetype.toLowerCase().includes(q))
+          );
+        }
+        const typeToUse = searchType !== 'All' ? searchType : advancedFilters.type;
+        if (typeToUse) {
+          list = list.filter((c) => c.type === typeToUse);
+        }
+        if (advancedFilters.attribute) {
+          list = list.filter((c) => c.attribute?.toLowerCase() === advancedFilters.attribute.toLowerCase());
+        }
+        if (advancedFilters.race) {
+          list = list.filter((c) => c.race?.toLowerCase() === advancedFilters.race.toLowerCase());
+        }
+        if (advancedFilters.level) {
+          list = list.filter((c) => c.level === parseInt(advancedFilters.level));
+        }
+        if (advancedFilters.archetype) {
+          list = list.filter((c) => c.archetype?.toLowerCase().includes(advancedFilters.archetype.toLowerCase()));
+        }
+        setSearchResults(list);
+      } finally {
+        setIsSearching(false);
+      }
+      return;
+    }
+
+    if (searchScope === 'collection') {
+      setIsSearching(true);
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery.trim()) params.set('q', searchQuery.trim());
+        if (searchType !== 'All') params.set('type', searchType);
+        if (searchLimit) params.set('limit', String(searchLimit));
+        if (advancedFilters.attribute) params.set('attribute', advancedFilters.attribute);
+        if (advancedFilters.race) params.set('race', advancedFilters.race);
+        if (advancedFilters.level) params.set('level', advancedFilters.level);
+        if (advancedFilters.archetype) params.set('archetype', advancedFilters.archetype);
+
+        const res = await fetch(`/api/collection/cards?${params.toString()}`);
+        if (res.ok) {
+          const json = await res.json();
+          const data: UserCard[] = json.data || [];
+          const groupedMap = new Map<number, { first: UserCard; items: UserCard[] }>();
+          for (const uc of data) {
+            if (!uc.card_id) continue;
+            if (!groupedMap.has(uc.card_id)) {
+              groupedMap.set(uc.card_id, { first: uc, items: [uc] });
+            } else {
+              groupedMap.get(uc.card_id)!.items.push(uc);
+            }
+          }
+          const mapped: Card[] = [];
+          groupedMap.forEach(({ first, items }, cardId) => {
+            mapped.push({
+              id: cardId,
+              name: first.card_details?.name || 'Carta',
+              type: first.card_details?.type || 'Monster',
+              desc: first.card_details?.desc || '',
+              race: first.card_details?.race,
+              attribute: first.card_details?.attribute,
+              atk: first.card_details?.atk,
+              def: first.card_details?.def,
+              level: first.card_details?.level,
+              image_url: first.card_details?.image_url || '',
+              image_url_small: first.card_details?.image_url_small || '',
+              archetype: first.card_details?.archetype,
+              userCardsGroup: items,
+            });
+          });
+          setSearchResults(mapped);
+        }
+      } catch (err) {
+        console.error('Error al buscar cartas en mi colección:', err);
+      } finally {
+        setIsSearching(false);
+      }
+      return;
+    }
+
     setIsSearching(true);
     try {
       const params = new URLSearchParams();
@@ -471,7 +582,7 @@ export function useDeckWorkspaceState({
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, searchType, searchLimit, format, advancedFilters]);
+  }, [searchQuery, searchType, searchLimit, format, advancedFilters, searchScope, recentCards]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -658,6 +769,7 @@ export function useDeckWorkspaceState({
 
     setDeckCards(updatedCards);
     setHasMutated(true);
+    addRecentCard(card);
     const displaySec = sectionNormalized === 'extras' ? 'RESERVA / POOL' : sectionNormalized.toUpperCase();
     toast.success(`+1 ${card.name} en ${displaySec}${selectedCopy ? ` (${selectedCopy.rarity || 'Common'})` : ' (Pendiente)'}`);
   };
@@ -668,6 +780,8 @@ export function useDeckWorkspaceState({
     const sectionNormalized = (section === 'pool' || section === 'extras') ? 'extras' : section;
     const existing = deckCards.find(c => c.card_id === cardId && (c.section === section || c.section === sectionNormalized));
     if (!existing) return;
+
+    addRecentCard(existing);
 
     const currentCopies = [...(existing.physical_copies || [])];
     let poppedCopy: DeckCardPhysicalCopy | undefined;
@@ -726,6 +840,8 @@ export function useDeckWorkspaceState({
 
     const card = deckCards.find(c => c.card_id === cardId && (c.section === currentSection || c.section === fromSec));
     if (!card) return;
+
+    addRecentCard(card);
 
     const remainingCards = deckCards.filter(c => !(c.card_id === cardId && (c.section === currentSection || c.section === fromSec)));
     const targetExisting = remainingCards.find(c => c.card_id === cardId && (c.section === targetSection || c.section === toSec));
@@ -801,7 +917,20 @@ export function useDeckWorkspaceState({
               image_url: cardObj.image_url,
               image_url_small: cardObj.image_url,
               archetype: cardObj.archetype,
+              fromScope: cardObj.fromScope,
+              userCardsGroup: cardObj.userCardsGroup,
             };
+
+            if (cardObj.fromScope === 'collection') {
+              const copies = (cardObj.userCardsGroup && cardObj.userCardsGroup.length > 0)
+                ? cardObj.userCardsGroup
+                : userCards.filter(uc => uc.card_id === cardObj.id);
+              if (copies.length > 0) {
+                setDropCopyPickerState({ card: fullCard, targetSection, copies });
+                return;
+              }
+            }
+
             await handleAddCardToDeck(fullCard, targetSection);
           }
           return;
@@ -881,6 +1010,8 @@ export function useDeckWorkspaceState({
           name: name.trim() || currentDeck.name,
           format: format,
           is_active: isActive,
+          storage_location_id: storageLocationId || null,
+          compartment_index: compartmentIndex,
           storageLocationId: storageLocationId || null,
           compartmentIndex: compartmentIndex,
           sleeves: sleevesPayload,
@@ -1453,6 +1584,9 @@ export function useDeckWorkspaceState({
     setSearchViewMode,
     searchLimit,
     setSearchLimit,
+    recentCards,
+    addRecentCard,
+    clearRecentCards,
 
     // Mobile & Navigation
     mobileTab,
@@ -1492,6 +1626,8 @@ export function useDeckWorkspaceState({
     handleChangeCardSection,
     handleDragCardStart,
     handleDropCardOnSection,
+    dropCopyPickerState,
+    setDropCopyPickerState,
     handleUpdateCardPhysicalLocation,
     handleRequestRelocateCard,
     pendingRelocation,

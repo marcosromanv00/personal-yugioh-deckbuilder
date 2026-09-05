@@ -124,17 +124,17 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ showToast, dismissToast, success, error, info, warning }}>
       {children}
 
-      {/* TOAST CONTAINER FIXED - En mobile: top-4 inset-x-4, en desktop: bottom-5 right-5 */}
-      <div className="fixed top-4 sm:top-auto sm:bottom-5 inset-x-4 sm:inset-x-auto sm:right-5 z-60 flex flex-col gap-2.5 max-w-sm w-auto sm:w-full pointer-events-none">
+      {/* TOAST CONTAINER FIXED - Centrado en la parte superior (desktop y mobile) */}
+      <div className="fixed top-5 left-1/2 -translate-x-1/2 z-60 flex flex-col items-center gap-2.5 w-11/12 max-w-md sm:w-auto min-w-72 pointer-events-none">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div
               key={toast.id}
-              initial={{ opacity: 0, y: -15, scale: 0.95 }}
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9, y: -10 }}
+              exit={{ opacity: 0, scale: 0.9, y: -15 }}
               transition={{ duration: 0.2 }}
-              className={`pointer-events-auto rounded-xl p-3.5 border shadow-xl backdrop-blur-md flex items-start justify-between gap-3 text-xs ${getBorderColor(
+              className={`pointer-events-auto w-full sm:w-auto min-w-72 rounded-xl p-3.5 border shadow-xl backdrop-blur-md flex items-start justify-between gap-3 text-xs ${getBorderColor(
                 toast.type
               )}`}
             >
@@ -153,7 +153,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                       toast.action?.onClick();
                       dismissToast(toast.id);
                     }}
-                    className="px-2 py-1 rounded bg-[hsl(263,85%,64%)] hover:bg-[hsl(263,85%,58%)] text-white text-[11px] font-bold transition-all shadow-sm cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                   >
                     {toast.action.label}
                   </button>

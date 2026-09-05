@@ -114,6 +114,8 @@ const UniversalContainerWorkspaceInner: React.FC<UniversalContainerWorkspaceModa
                 setSearchViewMode={state.setSearchViewMode}
                 searchLimit={state.searchLimit}
                 setSearchLimit={state.setSearchLimit}
+                recentCardsCount={state.recentCards.length}
+                onClearRecentCards={state.clearRecentCards}
                 format="Master Duel"
                 addCardToDeck={(card) => {
                   if (state.containerType === 'binder') {

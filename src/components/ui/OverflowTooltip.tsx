@@ -63,7 +63,7 @@ export const OverflowTooltip: React.FC<OverflowTooltipProps> = ({
 
   return (
     <span
-      className={`relative inline-block max-w-full ${containerClassName}`}
+      className={`relative inline-block max-w-full overflow-hidden align-middle ${containerClassName}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >

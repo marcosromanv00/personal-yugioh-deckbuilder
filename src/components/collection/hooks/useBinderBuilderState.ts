@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { StorageLocation, UserCard } from '@/types/collection';
-import { Card } from '@/components/deckbuilder/types';
+import { Card, SearchScope } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 
 export function useBinderBuilderState(binderId: string) {
@@ -13,7 +13,7 @@ export function useBinderBuilderState(binderId: string) {
   // Estados de Búsqueda (Idénticos al Deck Builder)
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra'>('All');
-  const [searchScope, setSearchScope] = useState<'global' | 'collection' | 'staged'>('global');
+  const [searchScope, setSearchScope] = useState<SearchScope>('global');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [searchResults, setSearchResults] = useState<Card[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -83,7 +83,7 @@ export function useBinderBuilderState(binderId: string) {
     query: string,
     type: string,
     adv: FilterState,
-    scope: 'global' | 'collection' | 'staged',
+    scope: SearchScope,
     favs: boolean,
     limitVal: number
   ) => {

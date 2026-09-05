@@ -43,21 +43,21 @@ export const SyncRegisteredCardDrawer: React.FC<SyncRegisteredCardDrawerProps> =
   const sleeveOptions = [
     {
       value: 'inherit',
-      label: defaultDeckSleeveName ? `🎴 ${defaultDeckSleeveName} (Funda del Mazo)` : '🎴 Funda estándar del mazo',
+      label: defaultDeckSleeveName ? `(Heredado) ${defaultDeckSleeveName}` : '(Heredado) Funda del Mazo',
     },
     { value: 'none', label: '🚫 Sin funda' },
     ...availableSleeves.map((s) => ({
       value: s.id,
-      label: `🎴 ${s.name} (${s.brand || 'Genérica'} - ${s.color_pattern || 'Color'})`,
+      label: `🎴 ${s.name} (${s.brand || 'Genérica'})`,
     })),
   ];
 
   const destinationOptions = [
-    { value: 'inbox', label: '📥 Mover a Inbox (Colección sin clasificar)' },
-    { value: 'delete', label: '🗑️ Eliminar de la colección (Baja por daño/venta)' },
+    { value: 'inbox', label: '📥 Inbox (Sin clasificar)' },
+    { value: 'delete', label: '🗑️ Dar de baja / Eliminar' },
     ...locations.map((loc) => ({
       value: loc.id,
-      label: `📦 Mover a: ${loc.name}`,
+      label: `📦 ${loc.name}`,
     })),
   ];
 

@@ -2,8 +2,12 @@
 
 import React from 'react';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
-import { SleeveInventory, UserCard } from '@/types/collection';
-import { Box, Plus, Check } from 'lucide-react';
+import { SleeveInventory, UserCard, StorageLocation } from '@/types/collection';
+import { Box, Plus } from 'lucide-react';
+import { SyncCardSleevePicker } from './SyncCardSleevePicker';
+import { SyncCardLocationPicker } from './SyncCardLocationPicker';
+import { SyncCardExistingCopiesPicker } from './SyncCardExistingCopiesPicker';
+import { RARITY_SELECT_OPTIONS, CONDITION_SELECT_OPTIONS } from './syncModal.constants';
 
 export interface NewCardRegistrationForm {
   mode?: 'new' | 'take_existing';
@@ -11,6 +15,16 @@ export interface NewCardRegistrationForm {
   condition: string;
   is_proxy: boolean;
   sleeve_id?: string;
+  sleeve_type?: 'none' | 'single' | 'double' | 'triple';
+  sleeve_fit_id?: string | null;
+  sleeve_regular_id?: string | null;
+  sleeve_over_id?: string | null;
+  sleeve_action?: 'deduct' | 'add';
+  sleeve_fit_action?: 'deduct' | 'add';
+  sleeve_regular_action?: 'deduct' | 'add';
+  sleeve_over_action?: 'deduct' | 'add';
+  storage_location_id?: string | null;
+  compartment_index?: number | null;
   selected_user_card_id?: string;
   notes?: string;
 }
@@ -19,37 +33,39 @@ interface SyncCardFormDrawerProps {
   cardId: number;
   form: NewCardRegistrationForm;
   onChange: (fields: Partial<NewCardRegistrationForm>) => void;
+  locations?: StorageLocation[];
+  defaultDeckFitSleeveName?: string;
+  defaultDeckFitId?: string | null;
   defaultDeckSleeveName?: string;
+  defaultDeckRegularId?: string | null;
+  defaultDeckOverSleeveName?: string;
+  defaultDeckOverId?: string | null;
+  defaultStorageLocationId?: string | null;
+  defaultCompartmentIndex?: number | null;
   availableSleeves?: SleeveInventory[];
   availableCopies?: UserCard[];
+  onOpenNewSleeveModal?: () => void;
   onSelectExistingCopy?: (copy: UserCard, sleeveId?: string) => void;
 }
-
-import { RARITY_SELECT_OPTIONS, CONDITION_SELECT_OPTIONS } from './syncModal.constants';
 
 export const SyncCardFormDrawer: React.FC<SyncCardFormDrawerProps> = ({
   form,
   onChange,
+  locations = [],
+  defaultDeckFitSleeveName,
+  defaultDeckFitId,
   defaultDeckSleeveName,
+  defaultDeckRegularId,
+  defaultDeckOverSleeveName,
+  defaultDeckOverId,
+  defaultStorageLocationId,
+  defaultCompartmentIndex = 0,
   availableSleeves = [],
   availableCopies = [],
+  onOpenNewSleeveModal,
   onSelectExistingCopy,
 }) => {
   const mode = form.mode || 'new';
-
-  const sleeveOptions = [
-    {
-      value: 'inherit',
-      label: defaultDeckSleeveName
-        ? `🎴 ${defaultDeckSleeveName} (Funda del Mazo)`
-        : '🎴 Funda estándar del mazo',
-    },
-    { value: 'none', label: '🚫 Sin funda' },
-    ...availableSleeves.map((s) => ({
-      value: s.id,
-      label: `🎴 ${s.name} (${s.brand || 'Genérica'} - ${s.color_pattern || 'Color'})`,
-    })),
-  ];
 
   return (
     <div className="p-3 bg-zinc-100/70 dark:bg-zinc-950/70 rounded-xl border border-zinc-200 dark:border-zinc-800/80 space-y-3 mt-2 text-xs">
@@ -83,48 +99,14 @@ export const SyncCardFormDrawer: React.FC<SyncCardFormDrawerProps> = ({
       )}
 
       {mode === 'take_existing' && availableCopies.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-            Copias disponibles en inventario:
-          </p>
-          <div className="space-y-1.5 max-h-48 overflow-y-auto scrollbar-thin">
-            {availableCopies.map((copy) => {
-              const isSelected = form.selected_user_card_id === copy.id;
-              return (
-                <div
-                  key={copy.id}
-                  onClick={() => {
-                    onChange({ selected_user_card_id: copy.id });
-                    onSelectExistingCopy?.(copy, form.sleeve_id || 'inherit');
-                  }}
-                  className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
-                    isSelected
-                      ? 'bg-red-500/10 border-red-500/40 text-red-700 dark:text-red-300 ring-1 ring-red-500/30'
-                      : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[9px] font-black uppercase">
-                        {copy.rarity || 'Common'}
-                      </span>
-                      <span className="text-[10px] font-mono text-zinc-500">{copy.condition || 'Near Mint'}</span>
-                      {copy.is_proxy && (
-                        <span className="text-[9px] px-1 bg-amber-500/10 text-amber-600 rounded font-bold">Proxy</span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
-                      {copy.sleeve_brand ? `Funda: ${copy.sleeve_brand}` : 'Sin funda'}
-                    </p>
-                  </div>
-                  <span className={`p-1 rounded-lg ${isSelected ? 'bg-red-600 text-white' : 'text-zinc-400'}`}>
-                    <Check className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <SyncCardExistingCopiesPicker
+          availableCopies={availableCopies}
+          selectedUserCardId={form.selected_user_card_id}
+          onSelectCopy={(copy) => {
+            onChange({ selected_user_card_id: copy.id });
+            onSelectExistingCopy?.(copy, form.sleeve_id || 'inherit');
+          }}
+        />
       ) : (
         <div className="space-y-2.5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -155,18 +137,32 @@ export const SyncCardFormDrawer: React.FC<SyncCardFormDrawerProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono mb-1">
-              Funda Asignada
-            </label>
-            <PremiumDropdown
-              value={form.sleeve_id || 'inherit'}
-              onChange={(val) => onChange({ sleeve_id: val })}
-              size="sm"
-              align="full"
-              options={sleeveOptions}
-            />
-          </div>
+          <SyncCardSleevePicker
+            sleeveType={form.sleeve_type || 'none'}
+            sleeveFitId={form.sleeve_fit_id}
+            sleeveRegularId={form.sleeve_regular_id}
+            sleeveOverId={form.sleeve_over_id}
+            sleeveAction={form.sleeve_action || 'deduct'}
+            sleeveFitAction={form.sleeve_fit_action || form.sleeve_action || 'deduct'}
+            sleeveRegularAction={form.sleeve_regular_action || form.sleeve_action || 'deduct'}
+            sleeveOverAction={form.sleeve_over_action || form.sleeve_action || 'deduct'}
+            availableSleeves={availableSleeves}
+            defaultDeckFitSleeveName={defaultDeckFitSleeveName}
+            defaultDeckFitId={defaultDeckFitId}
+            defaultDeckSleeveName={defaultDeckSleeveName}
+            defaultDeckRegularId={defaultDeckRegularId}
+            defaultDeckOverSleeveName={defaultDeckOverSleeveName}
+            defaultDeckOverId={defaultDeckOverId}
+            onOpenNewSleeveModal={onOpenNewSleeveModal}
+            onChange={(updates) => onChange(updates)}
+          />
+
+          <SyncCardLocationPicker
+            locations={locations}
+            selectedLocationId={form.storage_location_id !== undefined ? form.storage_location_id : defaultStorageLocationId}
+            selectedCompartmentIndex={form.compartment_index !== undefined ? form.compartment_index : defaultCompartmentIndex}
+            onChange={(updates) => onChange(updates)}
+          />
 
           <div className="flex items-center justify-between pt-1 border-t border-zinc-200 dark:border-zinc-800">
             <label className="flex items-center gap-2 cursor-pointer select-none">
