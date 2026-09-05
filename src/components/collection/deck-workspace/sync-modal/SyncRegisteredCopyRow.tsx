@@ -2,10 +2,10 @@
 
 import React from 'react';
 import { DeckCardPhysicalCopy } from '@/types/collection';
-import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
+import { PremiumDropdown, type DropdownOption } from '@/components/ui/PremiumDropdown';
 import { CardSubstitution } from './SyncRegisteredCardDrawer';
 import { RARITY_SELECT_OPTIONS, CONDITION_SELECT_OPTIONS } from './syncModal.constants';
-import { RefreshCw, AlertTriangle, Undo2, ArrowRight } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Undo2, ArrowRight, Plane } from 'lucide-react';
 
 interface SyncRegisteredCopyRowProps {
   idx: number;
@@ -68,8 +68,9 @@ export const SyncRegisteredCopyRow: React.FC<SyncRegisteredCopyRowProps> = ({
       {currentSub && (
         <div className="p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-2.5 mt-1">
           <div>
-            <label className="block text-[9.5px] font-mono font-bold text-zinc-500 uppercase mb-1">
-              Destino de la copia actual saliente:
+            <label className="text-[9.5px] font-mono font-bold text-zinc-500 uppercase mb-1 flex items-center gap-1">
+              <Plane className="w-3 h-3 text-zinc-400 shrink-0" />
+              <span>Destino copia saliente:</span>
             </label>
             <PremiumDropdown
               value={currentSub.destinationType === 'location' ? currentSub.targetLocationId || 'inbox' : currentSub.destinationType}
@@ -94,9 +95,9 @@ export const SyncRegisteredCopyRow: React.FC<SyncRegisteredCopyRowProps> = ({
           )}
 
           <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 space-y-2">
-            <span className="block text-[9.5px] font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center gap-1">
-              <ArrowRight className="w-3 h-3" />
-              Nueva copia que entra al mazo:
+            <span className="text-[9.5px] font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center gap-1">
+              <ArrowRight className="w-3 h-3 shrink-0" />
+              <span>Copia entrante al mazo:</span>
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

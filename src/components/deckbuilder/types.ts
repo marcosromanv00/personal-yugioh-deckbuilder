@@ -36,6 +36,8 @@ export interface Card {
   attribute?: string | null;
   userCardsGroup?: import('@/types/collection').UserCard[];
   is_grayscale_shared?: boolean;
+  fromScope?: SearchScope;
+  fromSection?: 'main' | 'extra' | 'side' | 'extras' | 'pool';
 }
 
 export interface DeckCardPhysicalCopy {
@@ -51,6 +53,7 @@ export interface DeckCardPhysicalCopy {
   binder_page?: number;
   binder_slot?: number;
   compartment_index?: number;
+  source_status?: 'existing' | 'staged';
 }
 
 export interface DeckCard {
@@ -122,3 +125,5 @@ export interface HoverCardBase {
   average_copies?: number;
   usage_percent?: number;
 }
+
+export type SearchScope = 'global' | 'collection' | 'staged' | 'recent' | 'meta' | 'suggested';

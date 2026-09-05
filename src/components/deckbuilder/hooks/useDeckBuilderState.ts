@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Card, DeckCard, DeckCardPhysicalCopy, ArchetypeItem, BreakdownCardItem, BanlistAlert, Replacement, HistoryItem } from '../types';
+import { Card, DeckCard, DeckCardPhysicalCopy, ArchetypeItem, BreakdownCardItem, Replacement, HistoryItem, SearchScope } from '../types';
+import { useRecentCardsHistory } from './useRecentCardsHistory';
 import { FilterState } from '../CardFilters';
 import { StorageLocation, SleeveInventory, DeckSleeve, Deck, UserCard } from '@/types/collection';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 import { UnregisteredAction, UnregisteredCardItem } from '../components/UnregisteredCardsModal';
+import { reorderDeckCardsList } from '@/lib/deck/deck-order.utils';
+import { computeBanlistAlerts } from '@/lib/deck/banlist.utils';
 
 export interface YgoApiCardDetails {
   id: number;
@@ -126,7 +129,11 @@ export function useDeckBuilderState() {
   const [detectedArchetypes, setDetectedArchetypes] = useState<{ name: string; count: number }[]>([]);
   const [activeArchetypeTab, setActiveArchetypeTab] = useState<string>('');
 
-  const [banlistAlerts, setBanlistAlerts] = useState<BanlistAlert[]>([]);
+  // banlistAlerts computado dinámicamente y de forma reactiva (Zero-Effect)
+  const banlistAlerts = useMemo(
+    () => computeBanlistAlerts(deckCards, format),
+    [deckCards, format]
+  );
   const [replacements, setReplacements] = useState<Record<number, Replacement[]>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -167,6 +174,10 @@ export function useDeckBuilderState() {
   const [availableSleeves, setAvailableSleeves] = useState<SleeveInventory[]>([]);
   const [selectedMainSleeveId, setSelectedMainSleeveId] = useState<string>('');
   const [selectedExtraSleeveId, setSelectedExtraSleeveId] = useState<string>('');
+  const [mainSleeveMode, setMainSleeveMode] = useState<'take' | 'add'>('take');
+  const [mainSleeveAddedQty, setMainSleeveAddedQty] = useState<number>(60);
+  const [extraSleeveMode, setExtraSleeveMode] = useState<'take' | 'add'>('take');
+  const [extraSleeveAddedQty, setExtraSleeveAddedQty] = useState<number>(15);
 
   // Historial de cartas
   const [cardHistory, setCardHistory] = useState<HistoryItem[]>([]);
@@ -185,7 +196,8 @@ export function useDeckBuilderState() {
     }
     return [];
   });
-  const [searchScope, setSearchScope] = useState<'global' | 'collection' | 'staged'>('global');
+  const { recentCards, addRecentCard, clearRecentCards } = useRecentCardsHistory();
+  const [searchScope, setSearchScope] = useState<SearchScope>('global');
   const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
 
   const handleToggleFavorite = (cardId: number) => {
@@ -259,7 +271,6 @@ export function useDeckBuilderState() {
           return detected.length > 0 ? detected[0].name : primaryArch;
         });
 
-        setBanlistAlerts(json.banlistAlerts || []);
         setReplacements(json.replacements || {});
 
         // Precarga dinámica del nombre basada en el balance de arquetipos detectados (solo si se crea desde cero sin deckId)
@@ -282,7 +293,7 @@ export function useDeckBuilderState() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [deckId, setDetectedArchetypes, setInferredArchetype, setActiveArchetypeTab, setBanlistAlerts, setReplacements, setDeckName]);
+  }, [deckId, setDetectedArchetypes, setInferredArchetype, setActiveArchetypeTab, setReplacements, setDeckName]);
 
   const triggerSync = useCallback(async (silent = false) => {
     setIsSyncing(true);
@@ -469,7 +480,7 @@ export function useDeckBuilderState() {
     setActiveArchetypeBreakdown(null);
   };
 
-  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: 'global' | 'collection' | 'staged', favs: boolean, limitVal: number) => {
+  const executeSearch = useCallback(async (query: string, type: string, adv: FilterState, scope: SearchScope, favs: boolean, limitVal: number) => {
     if (searchAbortControllerRef.current) {
       searchAbortControllerRef.current.abort();
     }
@@ -478,6 +489,78 @@ export function useDeckBuilderState() {
 
     setIsSearching(true);
     try {
+      if (scope === 'recent') {
+        const q = query.trim().toLowerCase();
+        let list = recentCards;
+        if (q) {
+          list = list.filter((c) =>
+            c.name.toLowerCase().includes(q) ||
+            String(c.id).includes(q) ||
+            (c.desc && c.desc.toLowerCase().includes(q)) ||
+            (c.archetype && c.archetype.toLowerCase().includes(q))
+          );
+        }
+        const typeToUse = type !== 'All' ? type : adv.type;
+        if (typeToUse) {
+          list = list.filter((c) => c.type === typeToUse);
+        }
+        if (adv.attribute) {
+          list = list.filter((c) => c.attribute?.toLowerCase() === adv.attribute.toLowerCase());
+        }
+        if (adv.race) {
+          list = list.filter((c) => c.race?.toLowerCase() === adv.race.toLowerCase());
+        }
+        if (adv.level) {
+          list = list.filter((c) => c.level === parseInt(adv.level));
+        }
+        if (adv.archetype) {
+          list = list.filter((c) => c.archetype?.toLowerCase().includes(adv.archetype.toLowerCase()));
+        }
+        setSearchResults(list);
+        return;
+      }
+
+      if (scope === 'meta') {
+        if (sidebarBreakdownCards.length > 0) {
+          let list: Card[] = sidebarBreakdownCards.map((b) => ({
+            id: b.id,
+            name: b.name,
+            type: b.type,
+            image_url: b.image_url || `https://images.ygoprodeck.com/images/cards/${b.id}.jpg`,
+            image_url_small: b.image_url_small || b.image_url,
+            average_copies: b.average_copies,
+            usage_percent: b.usage_percent,
+          }));
+          const q = query.trim().toLowerCase();
+          if (q) {
+            list = list.filter((c) => c.name.toLowerCase().includes(q) || String(c.id).includes(q));
+          }
+          const typeToUse = type !== 'All' ? type : adv.type;
+          if (typeToUse) {
+            list = list.filter((c) => c.type === typeToUse);
+          }
+          setSearchResults(list);
+          return;
+        }
+      }
+
+      if (scope === 'suggested') {
+        const arch = inferredArchetype || (deckCards[0]?.archetype ?? '');
+        if (arch && arch !== 'Híbrido / Staples') {
+          let url = `/api/cards?limit=${limitVal}&archetype=${encodeURIComponent(arch)}`;
+          if (query) url += `&q=${encodeURIComponent(query)}`;
+          const typeToUse = type !== 'All' ? type : adv.type;
+          if (typeToUse) url += `&type=${typeToUse}`;
+
+          const res = await fetch(url, { signal: controller.signal });
+          if (res.ok) {
+            const json = await res.json();
+            setSearchResults(json.data || []);
+            return;
+          }
+        }
+      }
+
       if (scope === 'collection') {
         let url = `/api/collection/cards?limit=${limitVal}`;
         if (query) url += `&q=${encodeURIComponent(query)}`;
@@ -631,7 +714,7 @@ export function useDeckBuilderState() {
         setIsSearching(false);
       }
     }
-  }, [favoriteCardIds, setIsSearching, setSearchResults, allUserCards]);
+  }, [favoriteCardIds, setIsSearching, setSearchResults, allUserCards, recentCards, sidebarBreakdownCards, inferredArchetype, deckCards]);
 
     const pushHistory = (currentCards: DeckCard[]) => {
       setHistoryStack(prev => [...prev.slice(-14), currentCards]);
@@ -710,7 +793,11 @@ export function useDeckBuilderState() {
       URL.revokeObjectURL(url);
     }, [deckCards, deckName]);
 
-  const addCardToDeck = useCallback((card: Card, targetSection?: 'main' | 'extra' | 'side' | 'extras') => {
+  const addCardToDeck = useCallback((
+    card: Card,
+    targetSection?: 'main' | 'extra' | 'side' | 'extras',
+    selectedCopy?: import('@/types/collection').UserCard
+  ) => {
     let section: 'main' | 'extra' | 'side' | 'extras' = 'main';
 
     if (targetSection) {
@@ -763,80 +850,47 @@ export function useDeckBuilderState() {
       return [historyCard, ...filtered].slice(0, 15);
     });
 
-    // Auto-asignación inteligente de copia física basada en conteo de capacidad real
-    const assignedCounts: Record<string, number> = {};
-    deckCards.forEach(c => {
-      c.physical_copies?.forEach(pc => {
-        if (pc.user_card_id) {
-          assignedCounts[pc.user_card_id] = (assignedCounts[pc.user_card_id] || 0) + 1;
-        }
-      });
-    });
-
-    const ownedForCard = allUserCards.filter(uc => uc.card_id === card.id);
-    const availableUnassigned = ownedForCard.filter(uc => {
-      const alreadyAssigned = assignedCounts[uc.id] || 0;
-      const totalCapacity = uc.quantity || 1;
-      return alreadyAssigned < totalCapacity;
-    });
-
-    availableUnassigned.sort((a, b) => {
-      // 1. Prioridad a cartas ya asignadas a este deck si está activo
-      const aThisDeck = deckId && a.deck_id === deckId ? 0 : 1;
-      const bThisDeck = deckId && b.deck_id === deckId ? 0 : 1;
-      if (aThisDeck !== bThisDeck) return aThisDeck - bThisDeck;
-
-      // 2. Prioridad a cartas libres (sin mazo asignado)
-      const aInDeck = a.deck_id ? 1 : 0;
-      const bInDeck = b.deck_id ? 1 : 0;
-      if (aInDeck !== bInDeck) return aInDeck - bInDeck;
-
-      // 3. No-proxy sobre proxy
-      const aProxy = a.is_proxy ? 1 : 0;
-      const bProxy = b.is_proxy ? 1 : 0;
-      if (aProxy !== bProxy) return aProxy - bProxy;
-
-      // 4. Mayor rareza primero
-      const weightDiff = getRarityWeight(b.rarity) - getRarityWeight(a.rarity);
-      if (weightDiff !== 0) return weightDiff;
-
-      return 0;
-    });
-
-    const pickedUserCard = availableUnassigned[0];
+    // Invariante de negocio: Toda carta sin selectedCopy (Buscador Global, Bulk, .YDK) entra como staged / nueva
     let newPhysicalCopy: import('../types').DeckCardPhysicalCopy;
 
-    if (pickedUserCard) {
-      const loc = locations.find(l => l.id === pickedUserCard.storage_location_id);
+    if (selectedCopy) {
+      const loc = locations.find(l => l.id === selectedCopy.storage_location_id);
       const locName = loc ? loc.name : 'Inbox / Sin clasificar';
       newPhysicalCopy = {
-        user_card_id: pickedUserCard.id,
-        storage_location_id: pickedUserCard.storage_location_id,
+        user_card_id: selectedCopy.id,
+        storage_location_id: selectedCopy.storage_location_id,
         location_name: locName,
-        rarity: pickedUserCard.rarity || 'Common',
-        condition: pickedUserCard.condition || 'Near Mint',
-        is_proxy: Boolean(pickedUserCard.is_proxy),
-        is_in_active_deck: Boolean(pickedUserCard.deck_id),
-        active_deck_id: pickedUserCard.deck_id || undefined,
-        active_deck_name: pickedUserCard.deck_details?.name || (pickedUserCard.deck_id ? 'Deck Activo' : undefined),
-        binder_page: pickedUserCard.binder_page,
-        binder_slot: pickedUserCard.binder_slot,
-        compartment_index: pickedUserCard.compartment_index
+        rarity: selectedCopy.rarity || 'Common',
+        condition: selectedCopy.condition || 'Near Mint',
+        is_proxy: Boolean(selectedCopy.is_proxy),
+        is_in_active_deck: Boolean(selectedCopy.deck_id),
+        active_deck_id: selectedCopy.deck_id || undefined,
+        active_deck_name: selectedCopy.deck_details?.name || (selectedCopy.deck_id ? 'Deck Activo' : undefined),
+        binder_page: selectedCopy.binder_page,
+        binder_slot: selectedCopy.binder_slot,
+        compartment_index: selectedCopy.compartment_index,
+        source_status: 'existing' as const,
       };
     } else {
       newPhysicalCopy = {
         is_proxy: true,
-        rarity: 'Receta / Proxy'
+        rarity: 'Receta / Proxy',
+        source_status: 'staged' as const,
       };
     }
 
     setDeckCards(prev => {
+      const totalInDeck = prev
+        .filter(c => c.id === card.id && c.section !== 'extras')
+        .reduce((sum, c) => sum + (c.count || 0), 0);
+
+      if (totalInDeck >= 3) {
+        alert('No puedes jugar más de 3 copias de una misma carta en el mazo.');
+        return prev;
+      }
+
       const existing = prev.find(c => c.id === card.id && c.section === section);
       if (existing) {
-        if (existing.count >= 3) {
-          alert('No puedes jugar más de 3 copias de una misma carta.');
-          return prev;
-        }
         const currentCopies = existing.physical_copies || [];
         return prev.map(c => (c.id === card.id && c.section === section) ? {
           ...c,
@@ -863,13 +917,15 @@ export function useDeckBuilderState() {
         physical_copies: [newPhysicalCopy]
       }];
     });
-  }, [format, deckCards, allUserCards, locations]);
+    addRecentCard(card);
+  }, [format, deckCards, locations, addRecentCard]);
 
   const removeCardFromDeck = useCallback((cardId: number, section: 'main' | 'extra' | 'side' | 'extras') => {
     pushHistory(deckCards);
 
     const existing = deckCards.find(c => c.id === cardId && c.section === section);
     if (existing) {
+      addRecentCard(existing);
       const historyCard: HistoryItem = {
         id: existing.id,
         name: existing.name,
@@ -897,13 +953,14 @@ export function useDeckBuilderState() {
       }
       return prev.filter(c => !(c.id === cardId && c.section === section));
     });
-  }, [deckCards]);
+  }, [deckCards, addRecentCard]);
 
   const removeCopyFromDeck = useCallback((cardId: number, section: 'main' | 'extra' | 'side' | 'extras', copyIndex: number) => {
     pushHistory(deckCards);
     setDeckCards(prev => {
       const existing = prev.find(c => c.id === cardId && c.section === section);
       if (!existing) return prev;
+      addRecentCard(existing);
       if (existing.count <= 1) {
         return prev.filter(c => !(c.id === cardId && c.section === section));
       }
@@ -919,7 +976,7 @@ export function useDeckBuilderState() {
         physical_copies: currentCopies
       } : c);
     });
-  }, [deckCards]);
+  }, [deckCards, addRecentCard]);
 
   const handleUpdateCardPhysicalCopy = useCallback((
     cardId: number,
@@ -964,6 +1021,19 @@ export function useDeckBuilderState() {
       });
     });
   }, [allUserCards, locations]);
+
+  const reorderDeckCards = useCallback((
+    sourceCardId: number,
+    sourceSection: 'main' | 'extra' | 'side' | 'extras',
+    targetCardId: number,
+    targetSection: 'main' | 'extra' | 'side' | 'extras',
+    position: 'before' | 'after' = 'before'
+  ) => {
+    pushHistory(deckCards);
+    setDeckCards(prev =>
+      reorderDeckCardsList(prev, sourceCardId, sourceSection, targetCardId, targetSection, position)
+    );
+  }, [deckCards]);
 
   const handleResolveConflictAction = useCallback((
     userCardId: string,
@@ -1401,8 +1471,11 @@ export function useDeckBuilderState() {
   const getUnregisteredCardsList = useCallback((): UnregisteredCardItem[] => {
     const list: UnregisteredCardItem[] = [];
     deckCards.forEach(card => {
-      const owned = userInventoryCounts[card.id] || 0;
-      if (owned < card.count || owned === 0) {
+      const stagedCount = (card.physical_copies || []).filter(
+        cp => !cp.user_card_id || cp.source_status === 'staged'
+      ).length;
+      if (stagedCount > 0) {
+        const owned = userInventoryCounts[card.id] || 0;
         list.push({
           id: card.id,
           name: card.name,
@@ -1410,7 +1483,7 @@ export function useDeckBuilderState() {
           section: card.section,
           image_url: card.image_url,
           owned,
-          missing: Math.max(0, card.count - owned),
+          missing: stagedCount,
         });
       }
     });
@@ -1442,13 +1515,16 @@ export function useDeckBuilderState() {
       if (overrideActions) {
         deckCards.forEach(c => {
           const act = overrideActions[c.id];
+          const stagedCount = (c.physical_copies || []).filter(
+            cp => !cp.user_card_id || cp.source_status === 'staged'
+          ).length;
           if (act === 'register') {
-            const owned = userInventoryCounts[c.id] || 0;
-            const deficit = Math.max(1, c.count - owned);
+            const deficit = stagedCount > 0 ? stagedCount : Math.max(1, c.count - (userInventoryCounts[c.id] || 0));
             inventoryCardsToAdd.push({ id: c.id, count: deficit });
           } else if (act === 'take_collection') {
             const available = allUserCards.filter(uc => uc.card_id === c.id);
-            available.slice(0, c.count).forEach(uc => {
+            const needed = stagedCount > 0 ? stagedCount : c.count;
+            available.slice(0, needed).forEach(uc => {
               if (uc.id && !uc.is_proxy) assignedUserCardIds.push(uc.id);
             });
           }
@@ -1648,7 +1724,12 @@ export function useDeckBuilderState() {
               const msRes = await fetch(`/api/decks/${savedDeckId}/sleeves`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sleeve_id: selectedMainSleeveId, section_type: 'main_side' })
+                body: JSON.stringify({ 
+                  sleeve_id: selectedMainSleeveId, 
+                  section_type: 'main_side',
+                  action_mode: mainSleeveMode,
+                  added_quantity: mainSleeveAddedQty
+                })
               });
               if (!msRes.ok) {
                 const err = await msRes.json();
@@ -1662,7 +1743,12 @@ export function useDeckBuilderState() {
               const esRes = await fetch(`/api/decks/${savedDeckId}/sleeves`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sleeve_id: selectedExtraSleeveId, section_type: 'extra' })
+                body: JSON.stringify({ 
+                  sleeve_id: selectedExtraSleeveId, 
+                  section_type: 'extra',
+                  action_mode: extraSleeveMode,
+                  added_quantity: extraSleeveAddedQty
+                })
               });
               if (!esRes.ok) {
                 const err = await esRes.json();
@@ -1751,7 +1837,7 @@ export function useDeckBuilderState() {
     setCardsToRegister(updated);
   };
 
-  const handleImportYdkOrBulk = async (rawInput: string, linkWithCollection: boolean = true) => {
+  const handleImportYdkOrBulk = async (rawInput: string) => {
     if (!rawInput.trim()) return;
 
     const lines = rawInput.split(/\r?\n/);
@@ -1856,22 +1942,14 @@ export function useDeckBuilderState() {
       };
     });
 
-    if (linkWithCollection) {
-      const hasAnyMatches = parsedCardList.some(c => allUserCards.some(uc => uc.card_id === c.id));
-      if (hasAnyMatches) {
-        setPendingParsedYdkCards(parsedCardList);
-        setIsCollectionLinkModalOpen(true);
-        return;
-      }
-    }
-
-    // Si linkWithCollection es falso o no hay cartas en colección, cargar directamente como proxies/nuevas
+    // Toda carta importada por YDK o Bulk entra directamente como nueva / staged
     const directMappedCards: DeckCard[] = parsedCardList.map(item => {
       const physicalCopies: import('../types').DeckCardPhysicalCopy[] = [];
       for (let i = 0; i < item.count; i++) {
         physicalCopies.push({
           is_proxy: true,
-          rarity: 'Common'
+          rarity: 'Receta / Proxy',
+          source_status: 'staged',
         });
       }
       return {
@@ -2139,13 +2217,24 @@ export function useDeckBuilderState() {
     availableSleeves,
     selectedMainSleeveId,
     setSelectedMainSleeveId,
+    mainSleeveMode,
+    setMainSleeveMode,
+    mainSleeveAddedQty,
+    setMainSleeveAddedQty,
     selectedExtraSleeveId,
     setSelectedExtraSleeveId,
+    extraSleeveMode,
+    setExtraSleeveMode,
+    extraSleeveAddedQty,
+    setExtraSleeveAddedQty,
     cardHistory,
     favoriteCardIds,
     handleToggleFavorite,
     searchScope,
     setSearchScope,
+    recentCards,
+    addRecentCard,
+    clearRecentCards,
     onlyFavorites,
     setOnlyFavorites,
     sidebarBreakdownCards,
@@ -2172,6 +2261,7 @@ export function useDeckBuilderState() {
     executeSearch,
     addCardToDeck,
     removeCardFromDeck,
+    reorderDeckCards,
     addRecommendedCard,
     handleOpenSaveModal,
     handleOpenLoadModal,

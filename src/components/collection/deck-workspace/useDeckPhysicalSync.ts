@@ -1,9 +1,9 @@
-'use client';
-
 import { useState, useMemo } from 'react';
-import { UserCard, Deck, DeckCardDetail, DeckCardPhysicalCopy } from '@/types/collection';
+import { UserCard, Deck, DeckCardDetail } from '@/types/collection';
 import { useToast } from '@/components/ui/ToastProvider';
 import { calculateSectionBalances, buildDeckSavePayload, assignCopyReducer, unassignCopyReducer, hasStagedCopies } from './deckWorkspacePhysical.utils';
+import { extractSleevesToAddStock } from './sync-modal/syncModalSleeveStock.utils';
+import { SyncSavePayloadData } from './sync-modal/syncModalSave.utils';
 
 interface UseDeckPhysicalSyncProps {
   currentDeck: Deck | null;
@@ -24,20 +24,9 @@ interface UseDeckPhysicalSyncProps {
 
 export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
   const {
-    currentDeck,
-    deckCards,
-    setDeckCards,
-    userCards,
-    setUserCards,
-    setHasMutated,
-    storageLocationId,
-    compartmentIndex,
-    name,
-    format,
-    isActive,
-    sleevesPayload,
-    onSuccess,
-    setInitialDeckCards,
+    currentDeck, deckCards, setDeckCards, userCards, setUserCards, setHasMutated,
+    storageLocationId, compartmentIndex, name, format, isActive, sleevesPayload,
+    onSuccess, setInitialDeckCards,
   } = props;
 
   const toast = useToast();
@@ -81,9 +70,7 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
   }, [deckCards, assignDrawerSection]);
 
   // Todas las cartas pendientes para el modal de sincronización
-  const allPendingCards = useMemo(() => {
-    return deckCards.filter(hasStagedCopies);
-  }, [deckCards]);
+  const allPendingCards = useMemo(() => deckCards.filter(hasStagedCopies), [deckCards]);
 
   // Copias desvinculadas para el modal de sincronización
   const unassignedUserCards = useMemo(() => {
@@ -94,27 +81,11 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
 
   // Guardado atómico
   const executeAtomicSave = async ({
-    inventoryCardsToAdd = [],
-    deletedUserCardIds = [],
-    relocatedUserCards = [],
-    additionalAssignedIds = [],
+    inventoryCardsToAdd = [], deletedUserCardIds = [], relocatedUserCards = [], additionalAssignedIds = [],
   }: {
-    inventoryCardsToAdd?: Array<{
-      id: number;
-      count: number;
-      rarity: string;
-      condition: string;
-      is_proxy: boolean;
-      section: string;
-      sleeve_id?: string | null;
-      sleeve_type?: string;
-    }>;
+    inventoryCardsToAdd?: SyncSavePayloadData['inventoryCardsToAdd'];
     deletedUserCardIds?: string[];
-    relocatedUserCards?: Array<{
-      id: string;
-      storage_location_id: string | null;
-      compartment_index?: number | null;
-    }>;
+    relocatedUserCards?: Array<{ id: string; storage_location_id: string | null; compartment_index?: number | null }>;
     additionalAssignedIds?: string[];
   }) => {
     if (!currentDeck) return;
@@ -125,17 +96,8 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
       const payload = buildDeckSavePayload({
         deckId: currentDeck.id,
         name: name.trim() || currentDeck.name,
-        format,
-        isActive,
-        storageLocationId,
-        compartmentIndex,
-        sleevesPayload,
-        deckCards,
-        assignedUserCardIds: allAssignedIds,
-        unassignedUserCardIds,
-        deletedUserCardIds,
-        relocatedUserCards,
-        inventoryCardsToAdd,
+        format, isActive, storageLocationId, compartmentIndex, sleevesPayload, deckCards,
+        assignedUserCardIds: allAssignedIds, unassignedUserCardIds, deletedUserCardIds, relocatedUserCards, inventoryCardsToAdd,
       });
 
       const res = await fetch('/api/decks', {
@@ -147,6 +109,23 @@ export function useDeckPhysicalSync(props: UseDeckPhysicalSyncProps) {
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         throw new Error(json.error || 'Error al guardar el mazo');
+      }
+
+      // Si se añadieron fundas con modo "Sumar al inventario", incrementar su stock atómicamente
+      if (inventoryCardsToAdd.length > 0) {
+        const sleevesToAdd = extractSleevesToAddStock(inventoryCardsToAdd);
+        const entries = Object.entries(sleevesToAdd);
+        if (entries.length > 0) {
+          await Promise.all(
+            entries.map(([sleeveId, add_quantity]) =>
+              fetch('/api/collection/sleeve-inventory', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: sleeveId, add_quantity }),
+              })
+            )
+          );
+        }
       }
 
       setInitialDeckCards(deckCards);

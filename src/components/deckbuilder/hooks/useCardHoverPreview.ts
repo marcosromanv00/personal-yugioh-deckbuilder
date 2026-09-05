@@ -24,69 +24,19 @@ export function useCardHoverPreview() {
     setIsPreviewOpen(false);
   }, []);
 
-  /**
-   * Fetches and opens the card preview.
-   * Shared by both desktop (hover) and mobile (long press) paths.
-   */
-  const _fetchAndOpenPreview = useCallback(async (card: HoverCardBase) => {
-    setIsPreviewOpen(true);
-    isPreviewOpenRef.current = true;
-    setIsLoadingPreview(true);
-    setHoveredCard(card);
-    setModalActionMessage(null);
-
-    try {
-      const res = await fetch(`/api/cards?id=${card.id}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.data && json.data.length > 0) {
-          setPreviewCard(json.data[0]);
-        } else {
-          setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
-        }
-      } else {
-        setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
-      }
-    } catch (err) {
-      console.error('Error fetching preview card details:', err);
-      setPreviewCard({ type: 'Unknown', image_url: '', ...card } as Card);
-    } finally {
-      setIsLoadingPreview(false);
-    }
+  /** Hover preview disabled per user request in favor of CardDetailPanel */
+  const handleCardMouseEnter = useCallback((_card: HoverCardBase) => {
+    // Disabled: details are centralized in the right panel upon selection
   }, []);
-
-  /** Desktop: hover 1.5s trigger */
-  const handleCardMouseEnter = useCallback((card: HoverCardBase) => {
-    if (isPreviewOpenRef.current) return;
-
-    isHoveringRef.current = true;
-
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-
-    hoverTimerRef.current = setTimeout(async () => {
-      if (!isHoveringRef.current) return;
-      await _fetchAndOpenPreview(card);
-    }, 1500);
-  }, [_fetchAndOpenPreview]);
 
   const handleCardMouseLeave = useCallback(() => {
-    if (!isPreviewOpenRef.current) {
-      isHoveringRef.current = false;
-    }
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
+    // Disabled
   }, []);
 
-  /**
-   * Mobile/Tablet: immediate trigger (no delay).
-   * Call this from useLongPress onLongPress callback.
-   */
-  const openPreviewForCard = useCallback(async (card: HoverCardBase) => {
-    if (isPreviewOpenRef.current) return;
-    await _fetchAndOpenPreview(card);
-  }, [_fetchAndOpenPreview]);
+  /** Disabled: details are centralized in the right panel upon selection */
+  const openPreviewForCard = useCallback((_card: HoverCardBase) => {
+    // Disabled
+  }, []);
 
   useEffect(() => {
     return () => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { StorageLocation, UserCard, SleeveInventory, Deck, CompartmentsConfig, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
-import { Card, HoverCardBase } from '@/components/deckbuilder/types';
+import { Card, HoverCardBase, SearchScope } from '@/components/deckbuilder/types';
 import { FilterState } from '@/components/deckbuilder/CardFilters';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
@@ -16,6 +16,7 @@ import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 import { computeCrossContainerDuplicateMap } from '@/lib/collectionSuggestions';
 import { getCachedContainerCards, setCachedContainerCards } from '@/lib/cache/containerCardsCache';
 import { GridCardGroup, DeckInContainer, RightPanelMode, AISubView, DetailsCopiesMode, MobileTab, ContainerHistoryAction } from './types';
+import { useRecentCardsHistory } from '@/components/deckbuilder/hooks/useRecentCardsHistory';
 
 interface UseContainerWorkspaceStateProps {
   isOpen: boolean;
@@ -69,12 +70,15 @@ export const useContainerWorkspaceState = ({
   // Estados de Búsqueda
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra'>('All');
-  const [searchScope, setSearchScope] = useState<'global' | 'collection' | 'staged'>('global');
+  const [searchScope, setSearchScope] = useState<SearchScope>('global');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [searchResults, setSearchResults] = useState<Card[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchViewMode, setSearchViewMode] = useState<'grid' | 'list'>('grid');
   const [searchLimit, setSearchLimit] = useState(45);
+
+  // Historial unificado de cartas recientes
+  const { recentCards, addRecentCard, clearRecentCards } = useRecentCardsHistory();
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>({
     type: '',
     attribute: '',
@@ -713,7 +717,7 @@ export const useContainerWorkspaceState = ({
     query: string,
     type: string,
     adv: FilterState,
-    scope: 'global' | 'collection' | 'staged',
+    scope: SearchScope,
     favs: boolean,
     limitVal: number
   ) => {
@@ -756,6 +760,38 @@ export const useContainerWorkspaceState = ({
           });
         });
         setSearchResults(mappedCards);
+        setIsSearching(false);
+        return;
+      }
+
+      if (scope === 'recent') {
+        const q = query.trim().toLowerCase();
+        let list = recentCards;
+        if (q) {
+          list = list.filter((c) =>
+            c.name.toLowerCase().includes(q) ||
+            String(c.id).includes(q) ||
+            (c.desc && c.desc.toLowerCase().includes(q)) ||
+            (c.archetype && c.archetype.toLowerCase().includes(q))
+          );
+        }
+        const typeToUse = type !== 'All' ? type : adv.type;
+        if (typeToUse) {
+          list = list.filter((c) => c.type === typeToUse);
+        }
+        if (adv.attribute) {
+          list = list.filter((c) => c.attribute?.toLowerCase() === adv.attribute.toLowerCase());
+        }
+        if (adv.race) {
+          list = list.filter((c) => c.race?.toLowerCase() === adv.race.toLowerCase());
+        }
+        if (adv.level) {
+          list = list.filter((c) => c.level === parseInt(adv.level));
+        }
+        if (adv.archetype) {
+          list = list.filter((c) => c.archetype?.toLowerCase().includes(adv.archetype.toLowerCase()));
+        }
+        setSearchResults(list);
         setIsSearching(false);
         return;
       }
@@ -943,6 +979,7 @@ export const useContainerWorkspaceState = ({
   // Añadir carta al contenedor
   const handleAddCardToContainer = async (card: Card | HoverCardBase, page?: number, slot?: number) => {
     try {
+      addRecentCard(card);
       const cardObj = card as Card;
 
       // 1. Si es un Binder con página y slot especificados
@@ -2668,6 +2705,9 @@ export const useContainerWorkspaceState = ({
     setSearchViewMode,
     searchLimit,
     setSearchLimit,
+    recentCards,
+    addRecentCard,
+    clearRecentCards,
     advancedFilters,
     setAdvancedFilters,
     selectedSearchCard,

@@ -19,7 +19,7 @@ export function enrichDeckCardsWithPhysicalCopies(
 
   for (const uc of userCardsInDeck) {
     const rawSec = (uc.deck_section as string | null | undefined);
-    const sec = rawSec === 'pool' || rawSec === 'extras' ? 'extras' : uc.deck_section || 'main';
+    const sec = (!rawSec || rawSec === 'pool' || rawSec === 'extras') ? 'extras' : rawSec;
     const key = `${uc.card_id}_${sec}`;
     const list = copyMap.get(key) || [];
     list.push(uc);

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles, FileText, Upload, Check, AlertCircle, Camera } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles, FileText, Upload, Check, AlertCircle, Camera, Clock } from 'lucide-react';
 import { CardFilters, FilterState } from '../CardFilters';
-import { Card, HoverCardBase } from '../types';
+import { Card, HoverCardBase, SearchScope } from '../types';
+import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import dynamic from 'next/dynamic';
 import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
 import type { YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
@@ -39,8 +40,10 @@ interface SearchPanelProps {
   isMobile?: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  searchScope: 'global' | 'collection' | 'staged';
-  setSearchScope: (scope: 'global' | 'collection' | 'staged') => void;
+  searchScope: SearchScope;
+  setSearchScope: (scope: SearchScope) => void;
+  recentCardsCount?: number;
+  onClearRecentCards?: () => void;
   showStagedTab?: boolean;
   stagedCardsCount?: number;
   onlyFavorites: boolean;
@@ -63,6 +66,7 @@ interface SearchPanelProps {
   locations?: StorageLocation[];
 
   addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras', selectedCopy?: UserCard) => void;
+  onDropRemoveCard?: (cardId: number, fromSection: 'main' | 'extra' | 'side' | 'extras', copyIndex?: number) => void;
   openPreviewForCard?: (card: HoverCardBase) => void;
   handleDragCardStart: (e: React.DragEvent, cardData: Card) => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
@@ -81,6 +85,7 @@ interface SearchResultsListProps {
   handleDragCardStart: (e: React.DragEvent, cardData: Card) => void;
   handleCardMouseEnter: (card: HoverCardBase) => void;
   handleCardMouseLeave: () => void;
+  searchScope?: SearchScope;
 }
 
 
@@ -96,6 +101,7 @@ const SearchResultsList = React.memo(({
   handleDragCardStart,
   handleCardMouseEnter,
   handleCardMouseLeave,
+  searchScope,
 }: SearchResultsListProps) => {
   const getOwnedCount = (card: Card) => {
     if (card.userCardsGroup && card.userCardsGroup.length > 0) {
@@ -114,15 +120,27 @@ const SearchResultsList = React.memo(({
   }
 
   if (searchResults.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 px-4 text-center bg-zinc-50 dark:bg-zinc-950/40 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-        <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 mb-2">
-          🔍
+    if (searchScope === 'recent') {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+          <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mb-2">
+            <Clock className="w-5 h-5 text-zinc-400" />
+          </div>
+          <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200">No hay cartas recientes aún</p>
+          <p className="text-[10px] text-zinc-400 mt-1 max-w-56 leading-relaxed">
+            Las cartas que agregues, retires o consultes aparecerán aquí para un acceso rápido.
+          </p>
         </div>
-        <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">No se encontraron cartas</p>
-        <p className="text-[11px] text-zinc-500 mt-1 max-w-xs leading-relaxed">
-          Intenta buscar por nombre en inglés o limpia los filtros avanzados aplicados.
-        </p>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mb-2">
+          <AlertCircle className="w-5 h-5" />
+        </div>
+        <p className="text-xs font-bold text-zinc-500">No se encontraron cartas</p>
+        <p className="text-[10px] text-zinc-400 mt-1">Prueba ajustando los términos o filtros</p>
       </div>
     );
   }
@@ -136,7 +154,16 @@ const SearchResultsList = React.memo(({
             <div 
               key={`${card.id}-${idx}`}
               draggable={!isMobile}
-              onDragStart={!isMobile ? (e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup }) : undefined}
+              onDragStart={!isMobile ? (e) => handleDragCardStart(e, { 
+                id: card.id, 
+                name: card.name, 
+                type: card.type, 
+                image_url: card.image_url_small || card.image_url, 
+                image_url_small: card.image_url_small, 
+                archetype: card.archetype, 
+                fromScope: searchScope,
+                userCardsGroup: searchScope === 'collection' ? card.userCardsGroup : undefined 
+              }) : undefined}
               onClick={() => addCardToDeck(card)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -179,7 +206,16 @@ const SearchResultsList = React.memo(({
           <div 
             key={`${card.id}-${idx}`}
             draggable={!isMobile}
-            onDragStart={(e) => handleDragCardStart(e, { id: card.id, name: card.name, type: card.type, image_url: card.image_url_small || card.image_url, image_url_small: card.image_url_small, archetype: card.archetype, userCardsGroup: card.userCardsGroup })}
+            onDragStart={(e) => handleDragCardStart(e, { 
+              id: card.id, 
+              name: card.name, 
+              type: card.type, 
+              image_url: card.image_url_small || card.image_url, 
+              image_url_small: card.image_url_small, 
+              archetype: card.archetype, 
+              fromScope: searchScope,
+              userCardsGroup: searchScope === 'collection' ? card.userCardsGroup : undefined 
+            })}
             onClick={() => addCardToDeck(card)}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -274,6 +310,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   setSearchQuery,
   searchScope,
   setSearchScope,
+  recentCardsCount = 0,
+  onClearRecentCards,
   showStagedTab = false,
   stagedCardsCount = 0,
   onlyFavorites,
@@ -294,11 +332,53 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   allUserCards = [],
   locations = [],
   addCardToDeck,
+  onDropRemoveCard,
   openPreviewForCard,
   handleDragCardStart,
   handleCardMouseEnter,
   handleCardMouseLeave,
 }) => {
+  const [isDragOverRemove, setIsDragOverRemove] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  const handlePanelDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes('application/json')) {
+      setIsDragOverRemove(true);
+    }
+  };
+
+  const handlePanelDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handlePanelDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragOverRemove(false);
+    }
+  };
+
+  const handlePanelDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragOverRemove(false);
+    const jsonStr = e.dataTransfer.getData('application/json');
+    if (!jsonStr) return;
+    try {
+      const cardObj = JSON.parse(jsonStr);
+      if (cardObj?.id && cardObj?.fromSection && onDropRemoveCard) {
+        onDropRemoveCard(cardObj.id, cardObj.fromSection, cardObj.copyIndex);
+      }
+    } catch (err) {
+      console.error('Error al soltar carta para remover:', err);
+    }
+  };
+
   const [copyPickerState, setCopyPickerState] = useState<{
     card: Card;
     targetSection: 'main' | 'extra' | 'side' | 'extras';
@@ -306,11 +386,19 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   } | null>(null);
 
   const handleAddCardWithCopyCheck = (card: Card, targetSec: 'main' | 'extra' | 'side' | 'extras' = 'main') => {
+    // Si NO estamos en "Mi Colección", TODA carta se presume NUEVA: jamás vincular con cartas existentes
+    if (searchScope !== 'collection') {
+      addCardToDeck(card, targetSec);
+      return;
+    }
+
+    // ÚNICAMENTE en "Mi Colección": el usuario elige manualmente la variante/rareza que quiere
     const copies = (card.userCardsGroup && card.userCardsGroup.length > 0)
       ? card.userCardsGroup
       : (allUserCards ? allUserCards.filter(uc => uc.card_id === card.id) : []);
 
-    if (copies.length > 1 && locations && locations.length > 0) {
+    if (copies.length > 0 && locations && locations.length > 0) {
+      // SIEMPRE abrir selector de variantes/rarezas en Mi Colección (incluso si hay 1 sola copia) para confirmación explícita
       setCopyPickerState({ card, targetSection: targetSec, copies });
     } else if (copies.length === 1) {
       addCardToDeck(card, targetSec, copies[0]);
@@ -322,7 +410,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'search' | 'bulk'>('search');
   // Sub-mode for bulk tab: ydk = file/.ydk/names, ids = raw numeric IDs
   const [bulkMode, setBulkMode] = useState<'ydk' | 'ids'>('ydk');
-  const [bulkLinkWithCollection, setBulkLinkWithCollection] = useState(true);
+  const [bulkLinkWithCollection, setBulkLinkWithCollection] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [analyzingBulk, setAnalyzingBulk] = useState(false);
   const [bulkSuccessMsg, setBulkSuccessMsg] = useState('');
@@ -561,12 +649,28 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   return (
     <section
       style={(!isMobile && leftPanelOpen) ? { width: `${leftPanelWidth}px` } : {}}
-      className={`flex flex-col h-full min-h-0 gap-3 ${
+      onDragEnter={handlePanelDragEnter}
+      onDragOver={handlePanelDragOver}
+      onDragLeave={handlePanelDragLeave}
+      onDrop={handlePanelDrop}
+      className={`relative flex flex-col h-full min-h-0 gap-3 transition-colors ${
         isMobile
           ? 'w-full'
-          : `bg-white dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm transition-all overflow-hidden ${leftPanelOpen ? 'p-3.5' : 'w-10 min-w-10 p-2 items-center'}`
+          : `bg-white dark:bg-zinc-900/90 border rounded-2xl shadow-sm transition-all overflow-hidden ${
+              isDragOverRemove
+                ? 'border-red-500 ring-2 ring-red-500/50 bg-red-500/5'
+                : 'border-zinc-200 dark:border-zinc-800'
+            } ${leftPanelOpen ? 'p-3.5' : 'w-10 min-w-10 p-2 items-center'}`
       }`}
     >
+      {/* Drop Zone Visual Feedback para remover del mazo */}
+      {isDragOverRemove && (
+        <div className="absolute inset-x-3 top-3 z-30 p-2 rounded-xl bg-red-600/95 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg backdrop-blur-xs pointer-events-none animate-in fade-in">
+          <span>🗑️</span>
+          <span>Soltar aquí para retirar del mazo</span>
+        </div>
+      )}
+
       {/* Panel header — hidden on mobile (title is in MobileBottomSheet) */}
       {!isMobile && (
         <div className={`border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center shrink-0 ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
@@ -967,7 +1071,19 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               <input
                 type="text"
                 inputMode={/^\d+$/.test(localQuery.trim()) && localQuery.trim().length > 0 ? 'numeric' : 'search'}
-                placeholder={searchScope === 'staged' ? "Buscar por nombre o ID..." : searchScope === 'collection' ? "Buscar en mi colección (nombre o ID)..." : "Nombre o ID de carta (ej: 89631139)..."}
+                placeholder={
+                  searchScope === 'staged'
+                    ? "Buscar por nombre o ID..."
+                    : searchScope === 'collection'
+                    ? "Buscar en mi colección (nombre o ID)..."
+                    : searchScope === 'recent'
+                    ? "Filtrar en cartas recientes..."
+                    : searchScope === 'meta'
+                    ? "Buscar cartas del meta..."
+                    : searchScope === 'suggested'
+                    ? "Buscar en sugerencias..."
+                    : "Nombre o ID de carta (ej: 89631139)..."
+                }
                 value={localQuery}
                 onChange={(e) => setLocalQuery(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs focus:outline-none transition-colors"
@@ -1002,37 +1118,32 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           </div>
 
 
-          <div className={`grid ${showStagedTab ? 'grid-cols-3' : 'grid-cols-2'} gap-1 bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0`}>
-            <button
-              onClick={() => setSearchScope('global')}
-              className={`py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                searchScope === 'global'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-              }`}
-            >
-              🌐 Base Global
-            </button>
-            <button
-              onClick={() => setSearchScope('collection')}
-              className={`py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                searchScope === 'collection'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-              }`}
-            >
-              📦 Mi Colección
-            </button>
-            {showStagedTab && (
+          {/* Selector de Ámbito de Búsqueda (Dropdown Unificado) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex-1 min-w-0">
+              <PremiumDropdown
+                value={searchScope}
+                onChange={(val) => setSearchScope(val as SearchScope)}
+                options={[
+                  { value: 'global', label: '🌐 Global' },
+                  { value: 'collection', label: '📦 Colección' },
+                  { value: 'recent', label: `🕒 Recientes${recentCardsCount > 0 ? ` (${recentCardsCount})` : ''}` },
+                  { value: 'meta', label: '📈 Meta MDM' },
+                  { value: 'suggested', label: '✨ Sugeridas' },
+                  ...(showStagedTab ? [{ value: 'staged', label: `📥 Pendientes (${stagedCardsCount})` }] : []),
+                ]}
+                size="sm"
+                triggerClassName="bg-zinc-100 dark:bg-zinc-950 font-bold border-zinc-200 dark:border-zinc-800 rounded-xl"
+              />
+            </div>
+            {searchScope === 'recent' && recentCardsCount > 0 && onClearRecentCards && (
               <button
-                onClick={() => setSearchScope('staged')}
-                className={`py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                  searchScope === 'staged'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                }`}
+                type="button"
+                onClick={onClearRecentCards}
+                className="px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 hover:bg-red-500/10 hover:border-red-500/30 text-zinc-500 hover:text-red-500 text-[10px] font-bold uppercase transition-colors cursor-pointer shrink-0"
+                title="Limpiar historial de recientes"
               >
-                📥 Pendientes ({stagedCardsCount})
+                Limpiar
               </button>
             )}
           </div>
@@ -1075,23 +1186,25 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             ))}
           </div>
 
-          <CardFilters
-            filters={advancedFilters}
-            onFilterChange={setAdvancedFilters}
-            onReset={() => setAdvancedFilters({
-              type: '',
-              attribute: '',
-              race: '',
-              level: '',
-              atkMin: '',
-              atkMax: '',
-              defMin: '',
-              defMax: '',
-              archetype: ''
-            })}
-          />
+          <div className="relative z-20 shrink-0">
+            <CardFilters
+              filters={advancedFilters}
+              onFilterChange={setAdvancedFilters}
+              onReset={() => setAdvancedFilters({
+                type: '',
+                attribute: '',
+                race: '',
+                level: '',
+                atkMin: '',
+                atkMax: '',
+                defMin: '',
+                defMax: '',
+                archetype: ''
+              })}
+            />
+          </div>
 
-          <div className={`flex-1 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin ${isMobile ? 'max-h-none' : 'max-h-125 lg:max-h-155'}`}>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin">
             <SearchResultsList
               searchResults={searchResults}
               isSearching={isSearching}
@@ -1104,6 +1217,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               handleDragCardStart={handleDragCardStart}
               handleCardMouseEnter={handleCardMouseEnter}
               handleCardMouseLeave={handleCardMouseLeave}
+              searchScope={searchScope}
             />
 
             {searchResults.length > 0 && searchResults.length >= searchLimit && (

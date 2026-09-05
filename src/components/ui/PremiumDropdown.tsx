@@ -3,33 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check } from 'lucide-react';
+import { DropdownOption, PremiumDropdownProps } from './dropdown.types';
+import { calculateDropdownDirection } from './dropdown.utils';
 
-export interface DropdownOption<T = string> {
-  value: T;
-  label: string;
-  badge?: string | number;
-  icon?: React.ReactNode;
-  description?: string;
-  highlight?: boolean;
-}
-
-export interface PremiumDropdownProps<T = string> {
-  options: DropdownOption<T>[];
-  value: T;
-  onChange: (value: T) => void;
-  icon?: React.ReactNode;
-  label?: string;
-  placeholder?: string;
-  className?: string;
-  triggerClassName?: string;
-  menuClassName?: string;
-  menuWidth?: string;
-  size?: 'xs' | 'sm' | 'md';
-  align?: 'left' | 'right' | 'full';
-  disabled?: boolean;
-  maxMenuHeight?: string;
-  direction?: 'auto' | 'down' | 'up';
-}
+export type { DropdownOption, PremiumDropdownProps };
 
 export const PremiumDropdown = <T extends string | number>({
   options,
@@ -57,25 +34,12 @@ export const PremiumDropdown = <T extends string | number>({
     setIsOpen((prev) => {
       const nextOpen = !prev;
       if (nextOpen && containerRef.current) {
-        if (direction === 'up' || direction === 'down') {
-          setComputedDirection(direction);
-        } else {
-          const rect = containerRef.current.getBoundingClientRect();
-          const viewportHeight = window.innerHeight;
-          const spaceBelow = viewportHeight - rect.bottom;
-          const spaceAbove = rect.top;
-          if (spaceBelow < 220 && spaceAbove > spaceBelow) {
-            setComputedDirection('up');
-          } else {
-            setComputedDirection('down');
-          }
-        }
+        setComputedDirection(calculateDropdownDirection(containerRef.current, direction));
       }
       return nextOpen;
     });
   };
 
-  // Cerrar al hacer clic fuera o presionar Escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -103,14 +67,14 @@ export const PremiumDropdown = <T extends string | number>({
 
   let paddingClasses = 'px-3 py-2.5 sm:py-1.5 text-xs min-h-11 sm:min-h-8';
   if (size === 'xs') {
-    paddingClasses = 'px-2.5 py-2 sm:py-1 text-[11px] min-h-10 sm:min-h-7';
+    paddingClasses = 'px-2.5 py-2 sm:py-1 text-xs min-h-10 sm:min-h-7';
   } else if (size === 'md') {
     paddingClasses = 'px-3.5 py-3 sm:py-2 text-xs min-h-12 sm:min-h-9';
   }
 
   const alignClass =
     align === 'full'
-      ? 'w-full left-0 right-0'
+      ? `left-0 min-w-full ${menuWidth}`
       : align === 'right'
       ? `right-0 ${menuWidth}`
       : `left-0 ${menuWidth}`;
@@ -122,7 +86,6 @@ export const PremiumDropdown = <T extends string | number>({
 
   return (
     <div className={`relative inline-block text-left ${isOpen ? 'z-60' : 'z-10'} ${align === 'full' ? 'w-full' : ''} ${className}`} ref={containerRef}>
-      {/* Botón Trigger del Dropdown */}
       <button
         type="button"
         disabled={disabled}
@@ -137,85 +100,80 @@ export const PremiumDropdown = <T extends string | number>({
       >
         <div className="flex items-center gap-1.5 min-w-0 truncate">
           {icon && <span className="shrink-0 text-zinc-500 dark:text-zinc-400">{icon}</span>}
-          {label && <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase">{label}:</span>}
-          <span className="truncate text-xs sm:text-[11.5px] font-bold">
+          {label && <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500 uppercase">{label}:</span>}
+          <span className="truncate text-xs font-bold">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           {selectedOption?.badge !== undefined && (
-            <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 shrink-0">
+            <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full font-mono font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 shrink-0">
               {selectedOption.badge}
             </span>
           )}
         </div>
-
-        <motion.span
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.15, ease: 'easeInOut' }}
-          className="shrink-0 ml-1 text-zinc-400 dark:text-zinc-500"
-        >
-          <ChevronDown className="w-3.5 h-3.5" />
-        </motion.span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 transition-transform duration-200 shrink-0 ${
+            isOpen ? 'rotate-180 text-zinc-700 dark:text-zinc-200' : ''
+          }`}
+        />
       </button>
 
-      {/* Menú Desplegable Flotante Sólido con Framer Motion */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: computedDirection === 'up' ? 4 : -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: computedDirection === 'up' ? 4 : -4, scale: 0.98 }}
+            initial={{ opacity: 0, scale: 0.95, y: computedDirection === 'up' ? 6 : -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: computedDirection === 'up' ? 6 : -6 }}
             transition={{ duration: 0.12, ease: 'easeOut' }}
-            className={`absolute z-70 ${positionClass} ${alignClass} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl shadow-black/50 p-1.5 space-y-0.5 ${maxMenuHeight} overflow-y-auto scrollbar-thin font-sans ${menuClassName}`}
+            className={`absolute ${alignClass} ${positionClass} bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl py-1.5 z-60 ${menuClassName}`}
           >
-            {options.map((option) => {
-              const isSelected = option.value === value;
-              return (
-                <button
-                  key={String(option.value)}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 sm:py-1.5 rounded-xl text-left text-xs font-bold transition-all cursor-pointer group select-none touch-manipulation ${
-                    isSelected
-                      ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/80'
-                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-zinc-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {option.icon && (
-                      <span className={`shrink-0 ${isSelected ? 'text-red-500' : 'text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200'}`}>
-                        {option.icon}
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-[11.5px] font-bold">{option.label}</p>
-                      {option.description && (
-                        <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 truncate leading-tight mt-0.5">
-                          {option.description}
-                        </p>
-                      )}
+            <div className={`${maxMenuHeight} overflow-y-auto scrollbar-thin px-1 space-y-0.5`}>
+              {options.map((option) => {
+                const isSelected = option.value === value;
+                return (
+                  <button
+                    key={String(option.value)}
+                    type="button"
+                    onClick={() => {
+                      onChange(option.value);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 sm:py-1.5 rounded-xl text-xs font-medium transition-colors text-left select-none cursor-pointer touch-manipulation ${
+                      isSelected
+                        ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-bold'
+                        : option.highlight
+                        ? 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 hover:text-zinc-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {option.icon && <span className="shrink-0 text-zinc-500">{option.icon}</span>}
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{option.label}</span>
+                        {option.description && (
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500 truncate">
+                            {option.description}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    {option.badge !== undefined && (
-                      <span
-                        className={`text-[9.5px] px-1.5 py-0.2 rounded-md font-mono font-bold ${
-                          isSelected
-                            ? 'bg-red-600 text-white'
-                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 group-hover:bg-zinc-200 dark:group-hover:bg-zinc-700'
-                        }`}
-                      >
-                        {option.badge}
-                      </span>
-                    )}
-                    {isSelected && <Check className="w-3.5 h-3.5 text-red-500" />}
-                  </div>
-                </button>
-              );
-            })}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {option.badge !== undefined && (
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded-md font-mono font-bold ${
+                            isSelected
+                              ? 'bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-300'
+                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                          }`}
+                        >
+                          {option.badge}
+                        </span>
+                      )}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-red-600 dark:text-red-400 stroke-[2.5]" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

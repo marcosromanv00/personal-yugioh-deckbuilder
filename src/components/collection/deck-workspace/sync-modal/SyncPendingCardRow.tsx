@@ -17,6 +17,8 @@ interface SyncPendingCardRowProps {
   onUpdateForm: (fields: Partial<NewCardRegistrationForm>) => void;
   locations: StorageLocation[];
   defaultDeckSleeveName?: string;
+  defaultStorageLocationId?: string | null;
+  defaultCompartmentIndex?: number | null;
   availableSleeves?: SleeveInventory[];
   availableCopies?: UserCard[];
   substitutions: Record<string, CardSubstitution>;
@@ -35,6 +37,8 @@ export const SyncPendingCardRow: React.FC<SyncPendingCardRowProps> = React.memo(
   onUpdateForm,
   locations,
   defaultDeckSleeveName,
+  defaultStorageLocationId,
+  defaultCompartmentIndex,
   availableSleeves = [],
   availableCopies = [],
   substitutions,
@@ -143,7 +147,10 @@ export const SyncPendingCardRow: React.FC<SyncPendingCardRowProps> = React.memo(
           cardId={card.card_id}
           form={form}
           onChange={onUpdateForm}
+          locations={locations}
           defaultDeckSleeveName={defaultDeckSleeveName}
+          defaultStorageLocationId={defaultStorageLocationId}
+          defaultCompartmentIndex={defaultCompartmentIndex}
           availableSleeves={availableSleeves}
           availableCopies={availableCopies}
           onSelectExistingCopy={onSelectExistingCopy}

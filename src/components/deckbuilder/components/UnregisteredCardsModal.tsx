@@ -9,7 +9,8 @@ import {
   Box, 
   Check, 
   FolderPlus,
-  Inbox
+  Inbox,
+  Plane
 } from 'lucide-react';
 import { StorageLocation } from '@/types/collection';
 
@@ -128,8 +129,8 @@ export const UnregisteredCardsModal: React.FC<UnregisteredCardsModalProps> = ({
           {/* Banner de Ubicación de Destino */}
           <div className="px-5 py-3 bg-zinc-100/70 dark:bg-zinc-950/70 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-2 text-xs">
             <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-300">
-              <Box className="w-4 h-4 text-red-500 shrink-0" />
-              <span>Destino físico del mazo:</span>
+              <Plane className="w-4 h-4 text-red-500 shrink-0" />
+              <span>Destino del mazo:</span>
               <span className="font-bold text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
                 {locationName} {targetLocation && `• ${laneName}`}
               </span>

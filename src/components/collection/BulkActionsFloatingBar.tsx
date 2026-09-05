@@ -11,7 +11,8 @@ import {
   Scissors, 
   Check, 
   Layers, 
-  AlertTriangle 
+  AlertTriangle,
+  Plane
 } from 'lucide-react';
 import { StorageLocation, CardCondition, CardStatusFlag, SleeveType } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
@@ -244,8 +245,9 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
 
               <div className="p-5 space-y-4 overflow-visible">
                 <div>
-                  <label className="block text-[11px] font-mono font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5">
-                    Contenedor de Destino:
+                  <label className="text-[11px] font-mono font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <Plane className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                    <span>Destino:</span>
                   </label>
                   <PremiumDropdown
                     value={targetLocationId}
@@ -256,7 +258,7 @@ export const BulkActionsFloatingBar: React.FC<BulkActionsFloatingBarProps> = ({
                     align="full"
                     size="md"
                     options={[
-                      { value: 'inbox', label: '📥 Bandeja Sin Clasificar (Inbox)' },
+                      { value: 'inbox', label: '📥 Inbox (Sin clasificar)' },
                       ...locations.map((loc) => ({
                         value: loc.id,
                         label: `${loc.type === 'binder' ? '📖' : '📦'} ${loc.name} (${loc.type === 'binder' ? 'Binder' : 'Caja'})${loc.id === currentLocationId ? ' [Actual]' : ''}`,

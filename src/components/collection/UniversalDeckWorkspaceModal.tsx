@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { RelocateDeckCardModal } from './deck-workspace/RelocateDeckCardModal';
 import { AssignPendingDrawer } from './deck-workspace/AssignPendingDrawer';
 import { DeckWorkspaceSyncModal } from './deck-workspace/DeckWorkspaceSyncModal';
+import { SearchCardCopyPickerModal } from '@/components/deckbuilder/components/SearchCardCopyPickerModal';
 
 export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalProps> = (props) => {
   const {
@@ -143,6 +144,7 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                   const cardObj = JSON.parse(jsonStr);
                   if (cardObj?.id && cardObj?.fromSection) {
                     state.handleRemoveCardFromDeck(cardObj.id, cardObj.fromSection);
+                    state.addRecentCard(cardObj);
                     toast.info(`Carta retirada del mazo: ${cardObj.name || `#${cardObj.id}`}`);
                   }
                 } catch (err) {
@@ -174,6 +176,8 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
                 setSearchViewMode={state.setSearchViewMode}
                 searchLimit={state.searchLimit}
                 setSearchLimit={state.setSearchLimit}
+                recentCardsCount={state.recentCards.length}
+                onClearRecentCards={state.clearRecentCards}
                 format={state.format as 'TCG' | 'Master Duel' | 'Duel Links'}
                 allUserCards={state.userCards}
                 locations={locations}
@@ -463,13 +467,46 @@ export const UniversalDeckWorkspaceModal: React.FC<UniversalDeckWorkspaceModalPr
           pendingCards={state.deckCards}
           unassignedUserCards={state.unassignedUserCards}
           locations={locations}
+          storageLocationId={state.storageLocationId}
+          compartmentIndex={state.compartmentIndex}
           availableSleeves={state.availableSleeves}
           userCards={state.userCards}
+          mainProtection={state.mainProtection}
+          mainSleeveFitId={state.mainSleeveFitId}
           mainSleeveId={state.mainSleeveId}
+          mainSleeveOverId={state.mainSleeveOverId}
+          extraProtection={state.extraProtection}
+          extraSleeveFitId={state.extraSleeveFitId}
           extraSleeveId={state.extraSleeveId}
+          extraSleeveOverId={state.extraSleeveOverId}
+          poolProtection={state.poolProtection}
+          poolSleeveFitId={state.poolSleeveFitId}
+          poolSleeveId={state.poolSleeveId}
+          poolSleeveOverId={state.poolSleeveOverId}
+          onOpenNewSleeveModal={() => state.openSleeveModal('main_side', 'create')}
           onConfirmSave={state.executeAtomicSave}
           isSaving={state.isSavingSync}
         />
+
+        {/* Modal Selector de Copia Física al Arrastrar desde Mi Colección */}
+        {state.dropCopyPickerState && (
+          <SearchCardCopyPickerModal
+            isOpen={Boolean(state.dropCopyPickerState)}
+            onClose={() => state.setDropCopyPickerState(null)}
+            card={state.dropCopyPickerState.card}
+            copies={state.dropCopyPickerState.copies}
+            locations={locations}
+            targetSection={state.dropCopyPickerState.targetSection === 'pool' ? 'extras' : state.dropCopyPickerState.targetSection}
+            onSelectCopy={(copy) => {
+              state.handleAddCardToDeck(state.dropCopyPickerState!.card, state.dropCopyPickerState!.targetSection, copy);
+              state.setDropCopyPickerState(null);
+            }}
+            onSelectGeneric={() => {
+              state.handleAddCardToDeck(state.dropCopyPickerState!.card, state.dropCopyPickerState!.targetSection);
+              state.setDropCopyPickerState(null);
+            }}
+          />
+        )}
 
         {/* Diálogo de Confirmación para Cambios No Guardados en Ficha Técnica o Lista de Cartas */}
         <ConfirmDialog

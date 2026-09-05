@@ -16,6 +16,7 @@ import {
   BarChart3,
   BrainCircuit,
   Box,
+  ShieldAlert,
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -47,16 +48,22 @@ import { DeckActionsDropdown } from './components/DeckActionsDropdown';
 import { SortDropdown } from './components/SortDropdown';
 import { DeckCard, Card, HoverCardBase } from './types';
 import { getSleeveColorHex } from '@/lib/sleeves';
+import { BanlistWarningModal } from './components/BanlistWarningModal';
+import { checkBanlistViolationOnAdd, BanlistStatus } from '@/lib/deck/banlist.utils';
+import { SaveDeckModalSkeleton } from './components/SaveDeckModalSkeleton';
 
 // Code-split dynamic modals (loaded on demand to keep initial bundle lightweight)
-const SaveDeckModal = dynamic(() => import('./components/SaveDeckModal').then(m => m.SaveDeckModal), { ssr: false });
+const SaveDeckModal = dynamic(() => import('./components/SaveDeckModal').then(m => m.SaveDeckModal), {
+  ssr: false,
+  loading: () => <SaveDeckModalSkeleton />,
+});
 const LoadDeckModal = dynamic(() => import('./components/LoadDeckModal').then(m => m.LoadDeckModal), { ssr: false });
 const UnregisteredCardsModal = dynamic(() => import('./components/UnregisteredCardsModal').then(m => m.UnregisteredCardsModal), { ssr: false });
-const CardPreviewModal = dynamic(() => import('./components/CardPreviewModal').then(m => m.CardPreviewModal), { ssr: false });
 const YdkCollectionLinkModal = dynamic(() => import('./components/YdkCollectionLinkModal').then(m => m.YdkCollectionLinkModal), { ssr: false });
 const ExordioAnalyticsDashboard = dynamic(() => import('./exordio/ExordioAnalyticsDashboard').then(m => m.ExordioAnalyticsDashboard), { ssr: false });
 const AICopilotModal = dynamic(() => import('./ai/AICopilotModal').then(m => m.AICopilotModal), { ssr: false });
 const YdkUploadModal = dynamic(() => import('@/components/collection/YdkUploadModal').then(m => m.YdkUploadModal), { ssr: false });
+const SearchCardCopyPickerModal = dynamic(() => import('./components/SearchCardCopyPickerModal').then(m => m.SearchCardCopyPickerModal), { ssr: false });
 
 const preloadSaveModal = () => { void import('./components/SaveDeckModal'); };
 
@@ -91,6 +98,11 @@ export default function DeckBuilder() {
   } = state;
 
   const [sortBy, setSortBy] = useState<string>('default');
+  const [dropCopyPickerState, setDropCopyPickerState] = useState<{
+    card: Card;
+    targetSection: 'main' | 'extra' | 'side' | 'extras';
+    copies: import('@/types/collection').UserCard[];
+  } | null>(null);
 
   const getSortedCards = (cards: DeckCard[]) => {
     const sorted = [...cards];
@@ -220,11 +232,12 @@ export default function DeckBuilder() {
     (card: Card | DeckCard | HoverCardBase) => {
       setSelectedDetailCard(card);
       setActiveRightTab('detail');
+      state.addRecentCard(card);
       if (!resize.rightPanelOpen) {
         resize.setRightPanelOpen(true);
       }
     },
-    [resize]
+    [resize, state]
   );
 
   const handleUpdateDeckCard = useCallback(
@@ -362,23 +375,68 @@ export default function DeckBuilder() {
   }, [canUndo, canRedo, handleUndo, handleRedo, handleQuickSaveClick, toast]);
 
 
-  // Wrapper para añadir cartas con Toast y botón de deshacer
-  const handleAddCardWithFeedback = useCallback(
-    (card: Card, targetSection?: 'main' | 'extra' | 'side' | 'extras') => {
-      state.addCardToDeck(card, targetSection);
+  // Estado para modal de advertencia de Banlist
+  const [banlistWarningState, setBanlistWarningState] = useState<{
+    card: Card;
+    targetSection?: 'main' | 'extra' | 'side' | 'extras';
+    selectedCopy?: import('@/types/collection').UserCard;
+    limit: number;
+    status: BanlistStatus;
+    currentCopies: number;
+  } | null>(null);
+
+  // Ejecución pura de adición con feedback
+  const executeAddCard = useCallback(
+    (
+      card: Card,
+      targetSection?: 'main' | 'extra' | 'side' | 'extras',
+      selectedCopy?: import('@/types/collection').UserCard
+    ) => {
+      state.addCardToDeck(card, targetSection, selectedCopy);
       setSelectedDetailCard(card);
       setActiveRightTab('detail');
-      toast.success(`+1 ${card.name}`, {
-        duration: 3000,
-        action: {
-          label: 'Deshacer',
-          onClick: () => {
-            state.handleUndo();
+      state.addRecentCard(card);
+      toast.success(
+        `+1 ${card.name}${selectedCopy?.rarity ? ` (${selectedCopy.rarity})` : ''}`,
+        {
+          duration: 3000,
+          action: {
+            label: 'Deshacer',
+            onClick: () => {
+              state.handleUndo();
+            },
           },
-        },
-      });
+        }
+      );
     },
     [state, toast]
+  );
+
+  // Wrapper para añadir cartas con validación preventiva de Banlist
+  const handleAddCardWithFeedback = useCallback(
+    (
+      card: Card,
+      targetSection?: 'main' | 'extra' | 'side' | 'extras',
+      selectedCopy?: import('@/types/collection').UserCard,
+      bypassBanlist = false
+    ) => {
+      if (!bypassBanlist) {
+        const violation = checkBanlistViolationOnAdd(card, state.deckCards, state.format);
+        if (violation.isViolated) {
+          setBanlistWarningState({
+            card,
+            targetSection,
+            selectedCopy,
+            limit: violation.limit,
+            status: violation.status,
+            currentCopies: violation.currentCopies,
+          });
+          return;
+        }
+      }
+      executeAddCard(card, targetSection, selectedCopy);
+    },
+    [state.deckCards, state.format, executeAddCard]
   );
 
   // Wrapper para remover cartas con Toast y botón de deshacer
@@ -401,6 +459,47 @@ export default function DeckBuilder() {
     [state, toast]
   );
 
+  // Retiro de carta al soltar en el panel lateral izquierdo
+  const handleDropRemoveCard = useCallback(
+    (cardId: number, fromSection: 'main' | 'extra' | 'side' | 'extras', copyIndex?: number) => {
+      const targetCard = state.deckCards.find((c) => c.id === cardId && c.section === fromSection);
+      if (typeof copyIndex === 'number' && state.removeCopyFromDeck) {
+        state.removeCopyFromDeck(cardId, fromSection, copyIndex);
+      } else {
+        state.removeCardFromDeck(cardId, fromSection);
+      }
+      if (targetCard) {
+        toast.info(`Retirada del mazo: ${targetCard.name}`, {
+          duration: 3000,
+          action: {
+            label: 'Deshacer',
+            onClick: () => {
+              state.handleUndo();
+            },
+          },
+        });
+      }
+    },
+    [state, toast]
+  );
+
+  // Reordenación en grilla de cartas
+  const handleReorderCard = useCallback(
+    (
+      sourceCardId: number,
+      sourceSection: 'main' | 'extra' | 'side' | 'extras',
+      targetCardId: number,
+      targetSection: 'main' | 'extra' | 'side' | 'extras',
+      position: 'before' | 'after'
+    ) => {
+      state.reorderDeckCards(sourceCardId, sourceSection, targetCardId, targetSection, position);
+      if (sortBy !== 'default') {
+        setSortBy('default');
+      }
+    },
+    [state, sortBy]
+  );
+
   // Drag and drop helper payload mapping
   const handleDragCardStart = (
     e: React.DragEvent,
@@ -409,17 +508,22 @@ export default function DeckBuilder() {
       name: string;
       type?: string;
       image_url?: string;
+      image_url_small?: string;
       archetype?: string;
-      fromSection?: 'main' | 'extra' | 'side' | 'extras';
+      fromSection?: 'main' | 'extra' | 'side' | 'extras' | 'pool';
+      fromScope?: import('./types').SearchScope;
+      userCardsGroup?: import('@/types/collection').UserCard[];
     }
   ) => {
     const payload = JSON.stringify({
       id: cardData.id,
       name: cardData.name,
       type: cardData.type || 'Monster',
-      image_url: cardData.image_url || '',
+      image_url: cardData.image_url || cardData.image_url_small || '',
       archetype: cardData.archetype,
       fromSection: cardData.fromSection,
+      fromScope: cardData.fromScope,
+      userCardsGroup: cardData.userCardsGroup,
     });
     e.dataTransfer.setData('application/json', payload);
     e.dataTransfer.setData('text/plain', String(cardData.id));
@@ -441,6 +545,28 @@ export default function DeckBuilder() {
               state.addCardToDeck(cardObj, targetSection);
             }
           } else {
+            // Dragged from search
+            const violation = checkBanlistViolationOnAdd(cardObj, state.deckCards, state.format);
+            if (violation.isViolated) {
+              setBanlistWarningState({
+                card: cardObj,
+                targetSection,
+                limit: violation.limit,
+                status: violation.status,
+                currentCopies: violation.currentCopies,
+              });
+              return;
+            }
+
+            if (cardObj.fromScope === 'collection') {
+              const copies = (cardObj.userCardsGroup && cardObj.userCardsGroup.length > 0)
+                ? cardObj.userCardsGroup
+                : (state.allUserCards ? state.allUserCards.filter((uc: import('@/types/collection').UserCard) => uc.card_id === cardObj.id) : []);
+              if (copies.length > 0 && state.locations && state.locations.length > 0) {
+                setDropCopyPickerState({ card: cardObj, targetSection, copies });
+                return;
+              }
+            }
             state.addCardToDeck(cardObj, targetSection);
           }
           return;
@@ -632,6 +758,7 @@ export default function DeckBuilder() {
     removeCopyFromDeck: state.removeCopyFromDeck,
     handleDragCardStart,
     handleDropCardOnSection,
+    onReorderCard: handleReorderCard,
     handleCardMouseEnter: preview.handleCardMouseEnter,
     handleCardMouseLeave: preview.handleCardMouseLeave,
     openPreviewForCard: preview.openPreviewForCard,
@@ -641,12 +768,12 @@ export default function DeckBuilder() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans antialiased transition-colors duration-200">
+    <div className="flex flex-col min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans antialiased transition-colors duration-200">
 
       {/* ══════════════════════════════════════════════════════════════
           UNIFIED EXORDIO HEADER — Perfectly Centered & Polished
       ══════════════════════════════════════════════════════════════ */}
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-6 h-16 flex items-center shadow-xs">
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-6 h-16 shrink-0 flex items-center shadow-xs">
         <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
           
           {/* ZONA IZQUIERDA: Marca Exordio DeckLab + Dropdown de Formato */}
@@ -788,6 +915,7 @@ export default function DeckBuilder() {
               isSyncing={state.isSyncing}
               isSavedDeck={Boolean(state.deckId)}
               onDeleteDeck={() => setIsDeleteActiveDeckConfirmOpen(true)}
+              onPreloadSave={preloadSaveModal}
             />
 
             {/* Switcher de Ambiente Colección Ideal (Icono minimalista) */}
@@ -815,7 +943,7 @@ export default function DeckBuilder() {
       {state.activeView === 'builder' ? (
         <>
           {/* ── DESKTOP (lg+): 3-column resizable panel layout ── */}
-          <div className="hidden lg:flex flex-1 flex-row gap-3 p-6 sm:p-8 max-w-full w-full overflow-hidden">
+          <div className="hidden lg:flex flex-1 min-h-0 flex-row gap-3 p-3 lg:p-4 max-w-full w-full overflow-hidden">
             {/* SEARCH PANEL */}
             <SearchPanel
               leftPanelOpen={resize.leftPanelOpen}
@@ -826,6 +954,8 @@ export default function DeckBuilder() {
               setSearchQuery={state.setSearchQuery}
               searchScope={state.searchScope}
               setSearchScope={state.setSearchScope}
+              recentCardsCount={state.recentCards.length}
+              onClearRecentCards={state.clearRecentCards}
               onlyFavorites={state.onlyFavorites}
               setOnlyFavorites={state.setOnlyFavorites}
               searchType={state.searchType}
@@ -842,6 +972,7 @@ export default function DeckBuilder() {
               addCardToDeck={handleAddCardWithFeedback}
               openPreviewForCard={preview.openPreviewForCard}
               handleDragCardStart={handleDragCardStart}
+              onDropRemoveCard={handleDropRemoveCard}
               handleCardMouseEnter={preview.handleCardMouseEnter}
               handleCardMouseLeave={preview.handleCardMouseLeave}
             />
@@ -854,7 +985,7 @@ export default function DeckBuilder() {
             )}
 
             {/* MAIN DECKBOARD */}
-            <section className="flex-1 min-w-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 overflow-hidden shadow-sm transition-colors">
+            <section className="flex-1 min-w-0 h-full min-h-0 flex flex-col gap-3 lg:gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 lg:p-5 overflow-hidden shadow-sm transition-colors">
               <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 shrink-0">
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
@@ -930,7 +1061,18 @@ export default function DeckBuilder() {
                     </button>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs font-bold">
+                <div className="flex flex-wrap gap-2 text-xs font-bold items-center">
+                  {state.banlistAlerts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveRightTab('analysis')}
+                      className="flex items-center gap-1.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-600 dark:text-red-400 py-1 px-2.5 rounded-xl shadow-xs transition-colors cursor-pointer text-xs font-bold"
+                      title={state.banlistAlerts.map(a => a.message).join('\n')}
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                      <span>{state.banlistAlerts.length} {state.banlistAlerts.length === 1 ? 'Alerta' : 'Alertas'} Banlist</span>
+                    </button>
+                  )}
                   {[
                     { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
                     { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
@@ -944,7 +1086,7 @@ export default function DeckBuilder() {
                 </div>
               </div>
 
-              <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-thin">
+              <div className="flex-1 min-h-0 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-thin">
                 <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
                 <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} sleeveColorHex={extraSleeveColorHex} {...sharedDeckSectionProps} />
                 <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
@@ -1001,9 +1143,9 @@ export default function DeckBuilder() {
           </div>
 
           {/* ── TABLET (md–lg): 2-column layout — Search + Deck, Meta as icon drawer ── */}
-          <div className="hidden md:flex lg:hidden flex-1 flex-row gap-3 p-4 max-w-full w-full overflow-hidden">
+          <div className="hidden md:flex lg:hidden flex-1 min-h-0 flex-row gap-3 p-4 max-w-full w-full overflow-hidden">
             {/* Search Panel — fixed width on tablet */}
-            <div className="w-72 shrink-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
+            <div className="w-72 shrink-0 h-full min-h-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
                 <h2 className="font-black text-xs uppercase tracking-wider text-zinc-900 dark:text-zinc-100">🔍 Buscar</h2>
               </div>
@@ -1017,6 +1159,8 @@ export default function DeckBuilder() {
                   setSearchQuery={state.setSearchQuery}
                   searchScope={state.searchScope}
                   setSearchScope={state.setSearchScope}
+                  recentCardsCount={state.recentCards.length}
+                  onClearRecentCards={state.clearRecentCards}
                   onlyFavorites={state.onlyFavorites}
                   setOnlyFavorites={state.setOnlyFavorites}
                   searchType={state.searchType}
@@ -1031,7 +1175,9 @@ export default function DeckBuilder() {
                   setSearchLimit={state.setSearchLimit}
                   format={state.format}
                   addCardToDeck={handleAddCardWithFeedback}
+                  openPreviewForCard={preview.openPreviewForCard}
                   handleDragCardStart={handleDragCardStart}
+                  onDropRemoveCard={handleDropRemoveCard}
                   handleCardMouseEnter={preview.handleCardMouseEnter}
                   handleCardMouseLeave={preview.handleCardMouseLeave}
                 />
@@ -1039,15 +1185,26 @@ export default function DeckBuilder() {
             </div>
 
             {/* Deck + Meta column */}
-            <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-hidden">
+            <div className="flex-1 min-w-0 h-full min-h-0 flex flex-col gap-3 overflow-hidden">
               {/* Deck board */}
-              <section className="flex-1 min-w-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 overflow-hidden shadow-sm">
+              <section className="flex-1 min-w-0 h-full min-h-0 flex flex-col gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 overflow-hidden shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 gap-2 shrink-0">
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="font-black text-sm uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100">📋 Lista de Cartas</h2>
                   <SortDropdown value={sortBy} onChange={setSortBy} />
                 </div>
-                <div className="flex flex-wrap gap-1.5 text-xs font-bold">
+                <div className="flex flex-wrap gap-1.5 text-xs font-bold items-center">
+                    {state.banlistAlerts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveRightTab('analysis')}
+                        className="flex items-center gap-1.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-600 dark:text-red-400 py-0.5 px-2 rounded-lg shadow-xs transition-colors cursor-pointer text-xs font-bold"
+                        title={state.banlistAlerts.map(a => a.message).join('\n')}
+                      >
+                        <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                        <span>{state.banlistAlerts.length} Banlist</span>
+                      </button>
+                    )}
                     {[
                       { label: 'Main', count: mainCardsCount, max: state.format === 'Duel Links' ? 30 : 60 },
                       { label: 'Extra', count: extraCardsCount, max: state.format === 'Duel Links' ? 8 : 15 },
@@ -1059,7 +1216,7 @@ export default function DeckBuilder() {
                     ))}
                   </div>
                 </div>
-                <div className="flex-1 flex flex-col gap-5 overflow-y-auto pr-2 scrollbar-thin">
+                <div className="flex-1 min-h-0 flex flex-col gap-5 overflow-y-auto pr-2 scrollbar-thin">
                   <DeckSection title="Main Deck" section="main" cardsCount={mainCardsCount} maxSize={state.format === 'Duel Links' ? 30 : 60} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
                   <DeckSection title="Extra Deck" section="extra" cardsCount={extraCardsCount} maxSize={state.format === 'Duel Links' ? 8 : 15} sleeveColorHex={extraSleeveColorHex} {...sharedDeckSectionProps} />
                   <DeckSection title="Side Deck" section="side" cardsCount={sideCardsCount} maxSize={15} sleeveColorHex={mainSleeveColorHex} {...sharedDeckSectionProps} />
@@ -1165,6 +1322,8 @@ export default function DeckBuilder() {
                   setSearchQuery={state.setSearchQuery}
                   searchScope={state.searchScope}
                   setSearchScope={state.setSearchScope}
+                  recentCardsCount={state.recentCards.length}
+                  onClearRecentCards={state.clearRecentCards}
                   onlyFavorites={state.onlyFavorites}
                   setOnlyFavorites={state.setOnlyFavorites}
                   searchType={state.searchType}
@@ -1180,6 +1339,7 @@ export default function DeckBuilder() {
                   format={state.format}
                   addCardToDeck={handleAddCardWithFeedback}
                   handleDragCardStart={handleDragCardStart}
+                  onDropRemoveCard={handleDropRemoveCard}
                   handleCardMouseEnter={preview.handleCardMouseEnter}
                   handleCardMouseLeave={preview.handleCardMouseLeave}
                 />
@@ -1420,7 +1580,7 @@ export default function DeckBuilder() {
         </>
       ) : state.activeView === 'exordio' ? (
         /* EXORDIO ANALYTICS HUB VIEW */
-        <div className="flex-1 w-full pb-20 md:pb-8">
+        <div className="flex-1 min-h-0 w-full pb-20 md:pb-8 overflow-y-auto">
           <ExordioAnalyticsDashboard
             deckCards={state.deckCards}
             inferredArchetype={state.inferredArchetype}
@@ -1432,7 +1592,7 @@ export default function DeckBuilder() {
         </div>
       ) : (
         /* ARCHETYPES BREAKDOWNS LIST VIEW */
-        <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 md:pb-8">
+        <div className="flex-1 min-h-0 p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 md:pb-8 overflow-y-auto">
           <div className="space-y-6">
             {/* Barra de Retorno Rápido al Constructor en Móvil y Tablet */}
             <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
@@ -1541,25 +1701,6 @@ export default function DeckBuilder() {
         handleCardMouseEnter={preview.handleCardMouseEnter}
         handleCardMouseLeave={preview.handleCardMouseLeave}
       />
-
-      {/* DETAILED CARD PREVIEW TECHNICAL SHEET MODAL */}
-      {preview.isPreviewOpen && (
-        <CardPreviewModal
-          isOpen={preview.isPreviewOpen}
-          onClose={preview.closePreview}
-          isLoadingPreview={preview.isLoadingPreview}
-          previewCard={preview.previewCard}
-          hoveredCard={preview.hoveredCard}
-          favoriteCardIds={state.favoriteCardIds}
-          handleToggleFavorite={state.handleToggleFavorite}
-          userInventoryCounts={state.userInventoryCounts}
-          userProxyCounts={state.userProxyCounts}
-          handleAddProxy={handleAddProxyWrapper}
-          handleRemoveFromCollection={handleRemoveFromCollectionWrapper}
-          isActionLoading={preview.isActionLoading}
-          modalActionMessage={preview.modalActionMessage}
-        />
-      )}
 
       {/* UNIFIED AI COPILOT MODAL (Synthesizer & Live Judge) */}
       {isAICopilotOpen && (
@@ -1731,8 +1872,16 @@ export default function DeckBuilder() {
           availableSleeves={state.availableSleeves}
           selectedMainSleeveId={state.selectedMainSleeveId}
           setSelectedMainSleeveId={state.setSelectedMainSleeveId}
+          mainSleeveMode={state.mainSleeveMode}
+          setMainSleeveMode={state.setMainSleeveMode}
+          mainSleeveAddedQty={state.mainSleeveAddedQty}
+          setMainSleeveAddedQty={state.setMainSleeveAddedQty}
           selectedExtraSleeveId={state.selectedExtraSleeveId}
           setSelectedExtraSleeveId={state.setSelectedExtraSleeveId}
+          extraSleeveMode={state.extraSleeveMode}
+          setExtraSleeveMode={state.setExtraSleeveMode}
+          extraSleeveAddedQty={state.extraSleeveAddedQty}
+          setExtraSleeveAddedQty={state.setExtraSleeveAddedQty}
           handleSaveDeck={state.handleSaveDeck}
           handleExcludeExisting={state.handleExcludeExisting}
           extractionPickList={state.extractionPickList}
@@ -1748,6 +1897,48 @@ export default function DeckBuilder() {
           savedDecks={state.savedDecks}
           handleLoadDeck={state.handleLoadDeck}
           handleDeleteDeck={state.handleDeleteDeck}
+        />
+      )}
+
+      {/* MODAL SELECTOR DE COPIA FÍSICA AL ARRASTRAR DESDE MI COLECCIÓN */}
+      {dropCopyPickerState && (
+        <SearchCardCopyPickerModal
+          isOpen={Boolean(dropCopyPickerState)}
+          onClose={() => setDropCopyPickerState(null)}
+          card={dropCopyPickerState.card}
+          copies={dropCopyPickerState.copies}
+          locations={state.locations}
+          targetSection={dropCopyPickerState.targetSection}
+          onSelectCopy={(copy) => {
+            state.addCardToDeck(dropCopyPickerState.card, dropCopyPickerState.targetSection, copy);
+            setDropCopyPickerState(null);
+          }}
+          onSelectGeneric={() => {
+            state.addCardToDeck(dropCopyPickerState.card, dropCopyPickerState.targetSection);
+            setDropCopyPickerState(null);
+          }}
+        />
+      )}
+
+      {/* MODAL DE ADVERTENCIA INTERACTIVA DE BANLIST */}
+      {banlistWarningState && (
+        <BanlistWarningModal
+          isOpen={Boolean(banlistWarningState)}
+          cardName={banlistWarningState.card.name}
+          cardImageUrl={banlistWarningState.card.image_url || banlistWarningState.card.image_url_small}
+          format={state.format}
+          status={banlistWarningState.status}
+          limit={banlistWarningState.limit}
+          currentCopies={banlistWarningState.currentCopies}
+          onConfirm={() => {
+            executeAddCard(
+              banlistWarningState.card,
+              banlistWarningState.targetSection,
+              banlistWarningState.selectedCopy
+            );
+            setBanlistWarningState(null);
+          }}
+          onCancel={() => setBanlistWarningState(null)}
         />
       )}
     </div>

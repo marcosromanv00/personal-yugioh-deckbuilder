@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertCircle, Layers, Boxes, Plus, Trash2, Scissors, ArrowRightLeft, Inbox } from 'lucide-react';
+import { AlertCircle, Layers, Boxes, Plus, Trash2, Scissors, ArrowRightLeft, Inbox, Plane } from 'lucide-react';
 import { StorageLocation, UserCard } from '@/types/collection';
 import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
 import { getCategoryBadgeStyle, getLanguageDisplay, DispersedCardSummary } from '@/lib/collectionUtils';
@@ -505,8 +505,9 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
 
       {/* Destino / Status flag */}
       <div>
-        <label className="block text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-          Destino / Clasificación
+        <label className="text-[10.5px] font-mono font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <Plane className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          <span>Destino / Clasificación</span>
         </label>
         <PremiumDropdown
           value={selectedUserCard.status_flag || 'collection'}
@@ -514,10 +515,10 @@ export const ContainerCardDetailsInspector: React.FC<ContainerCardDetailsInspect
           align="full"
           size="md"
           options={[
-            { value: 'collection', label: 'Colección Permanente' },
+            { value: 'collection', label: 'Colección' },
             { value: 'trade_sale', label: 'Venta / Trade' },
-            { value: 'bulk', label: 'Bulk (Sobrantes)' },
-            { value: 'workshop', label: 'Taller / Decks Activos' },
+            { value: 'bulk', label: 'Bulk' },
+            { value: 'workshop', label: 'Taller' },
           ]}
         />
       </div>

@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, CheckCircle2, ArrowRight, Sparkles, Layers, Box, Loader2, 
-  Check, Search, Filter, HelpCircle, ShieldAlert, ArrowUpRight 
+  Check, Search, Filter, HelpCircle, ShieldAlert, ArrowUpRight, Home, Plane
 } from 'lucide-react';
 import { useIdealEnvironment } from '@/context/IdealEnvironmentContext';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -343,12 +343,14 @@ export function PhysicalStagingAssistantModal({ isOpen: propIsOpen, onClose: pro
 
                           {/* Origen -> Destino */}
                           <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-zinc-600 dark:text-zinc-400">
-                            <span className="px-2 py-0.5 rounded-md bg-zinc-200/60 dark:bg-zinc-800/80 font-mono">
-                              Origen: {card.from_location}
+                            <span className="px-2 py-0.5 rounded-md bg-zinc-200/60 dark:bg-zinc-800/80 font-mono flex items-center gap-1">
+                              <Home className="w-3 h-3 text-zinc-400 shrink-0" />
+                              <span>{card.from_location}</span>
                             </span>
                             <ArrowRight className="w-3 h-3 text-red-500 shrink-0" />
-                            <span className="px-2 py-0.5 rounded-md bg-red-600/10 text-red-600 dark:text-red-400 border border-red-500/20 font-mono font-bold">
-                              Destino: {card.to_location}
+                            <span className="px-2 py-0.5 rounded-md bg-red-600/10 text-red-600 dark:text-red-400 border border-red-500/20 font-mono font-bold flex items-center gap-1">
+                              <Plane className="w-3 h-3 text-red-500 shrink-0" />
+                              <span>{card.to_location}</span>
                             </span>
                           </div>
                         </div>

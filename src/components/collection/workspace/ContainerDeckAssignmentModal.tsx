@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Swords, Layers, Box, Check, Loader2, X } from 'lucide-react';
+import { Swords, Layers, Box, Check, Loader2, X, Home, Plane } from 'lucide-react';
 import { StorageLocation, UserCard, Deck } from '@/types/collection';
 import { PremiumDropdown, DropdownOption } from '@/components/ui/PremiumDropdown';
 import { DeckInContainer } from './types';
@@ -332,7 +332,10 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
                   {selectedDeck && (
                     <div className="p-3 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1.5 shadow-2xs animate-fade-in">
                       <div className="flex items-center justify-between font-mono text-[11px]">
-                        <span className="text-zinc-500 font-bold">Ubicación actual:</span>
+                        <span className="text-zinc-500 font-bold flex items-center gap-1">
+                          <Home className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                          <span>Actual:</span>
+                        </span>
                         <b className="text-zinc-800 dark:text-zinc-200">
                           {selectedDeck.storage_location_id
                             ? selectedDeck.storage_location_id === loc?.id
@@ -342,7 +345,10 @@ export const ContainerDeckAssignmentModal: React.FC<ContainerDeckAssignmentModal
                         </b>
                       </div>
                       <div className="flex items-center justify-between font-mono text-[11px]">
-                        <span className="text-zinc-500 font-bold">Destino:</span>
+                        <span className="text-zinc-500 font-bold flex items-center gap-1">
+                          <Plane className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          <span>Destino:</span>
+                        </span>
                         <b className="text-red-600 dark:text-red-400">
                           {loc?.name} • C{assignCompartmentIdx + 1} ({loc?.compartments?.names?.[assignCompartmentIdx] || `Carril ${assignCompartmentIdx + 1}`})
                         </b>
