@@ -104,6 +104,20 @@ export const ExordioAnalyticsDashboard: React.FC<ExordioAnalyticsDashboardProps>
     <div className="w-full flex flex-col p-4 md:p-6 transition-colors">
       {/* Barra Táctica Superior: Diapositivas + Acceso Rápido a Grafo & Combos */}
       <div className="max-w-6xl mx-auto w-full mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/80 shadow-md backdrop-blur-md">
+        
+        {/* Botón Volver al Taller siempre visible cuando onClose está provisto */}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display min-h-11 touch-manipulation shrink-0 self-start sm:self-center"
+            title="Regresar al Taller de Construcción de Decks"
+          >
+            <span>←</span>
+            <span>Taller</span>
+          </button>
+        )}
+
         {/* Selector de Diapositivas Estilo Broadcast */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-thin">
           {tabs.map((tab) => {
