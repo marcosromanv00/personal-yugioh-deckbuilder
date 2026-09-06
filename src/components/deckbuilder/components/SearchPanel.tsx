@@ -65,6 +65,8 @@ interface SearchPanelProps {
   allUserCards?: UserCard[];
   locations?: StorageLocation[];
 
+  assignedDraftUserCardIds?: Set<string>;
+  activeContextName?: string;
   addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras', selectedCopy?: UserCard) => void;
   onDropRemoveCard?: (cardId: number, fromSection: 'main' | 'extra' | 'side' | 'extras', copyIndex?: number) => void;
   openPreviewForCard?: (card: HoverCardBase) => void;
@@ -331,6 +333,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   onSelectAllStaged,
   allUserCards = [],
   locations = [],
+  assignedDraftUserCardIds,
+  activeContextName,
   addCardToDeck,
   onDropRemoveCard,
   openPreviewForCard,
@@ -1260,6 +1264,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           copies={copyPickerState.copies}
           locations={locations}
           targetSection={copyPickerState.targetSection}
+          assignedDraftUserCardIds={assignedDraftUserCardIds}
+          activeContextName={activeContextName}
           onSelectCopy={(copy) => {
             addCardToDeck(copyPickerState.card, copyPickerState.targetSection, copy);
             setCopyPickerState(null);

@@ -57,8 +57,10 @@ export function useDeckBuilderState() {
   const isManualDeckNameRef = useRef(false);
   const [deckDescription, setDeckDescription] = useState('');
   const [deckId, setDeckId] = useState<string | null>(null);
+  const [loadedVariants, setLoadedVariants] = useState<import('@/types/collection').DeckVariant[]>([]);
   const [searchLimit, setSearchLimit] = useState(45);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>('');
+  const lastSavedDeckCardsRef = useRef<DeckCard[]>([]);
 
   const handleUpdateDeckName = (name: string, isManual = true) => {
     if (!name.trim()) {
@@ -810,12 +812,10 @@ export function useDeckBuilderState() {
     const maxMainSize = format === 'Duel Links' ? 30 : 60;
     const maxExtraSize = format === 'Duel Links' ? 8 : 15;
     const maxSideSize = 15;
-    const maxExtrasSize = 30;
 
     const mainCount = deckCards.filter(c => c.section === 'main').reduce((acc, c) => acc + c.count, 0);
     const extraCount = deckCards.filter(c => c.section === 'extra').reduce((acc, c) => acc + c.count, 0);
     const sideCount = deckCards.filter(c => c.section === 'side').reduce((acc, c) => acc + c.count, 0);
-    const extrasCount = deckCards.filter(c => c.section === 'extras').reduce((acc, c) => acc + c.count, 0);
 
     if (section === 'main' && mainCount >= maxMainSize) {
       alert(`El Main Deck ha alcanzado el límite máximo (${maxMainSize} cartas).`);
@@ -827,10 +827,6 @@ export function useDeckBuilderState() {
     }
     if (section === 'side' && sideCount >= maxSideSize) {
       alert(`El Side Deck ha alcanzado el límite máximo (${maxSideSize} cartas).`);
-      return;
-    }
-    if (section === 'extras' && extrasCount >= maxExtrasSize) {
-      alert(`La sección Extras ha alcanzado el límite máximo (${maxExtrasSize} cartas).`);
       return;
     }
 
@@ -1270,6 +1266,7 @@ export function useDeckBuilderState() {
     setTargetLocationId(selected.storage_location_id || 'inbox');
     setSelectedLaneIndex(selected.compartment_index || 0);
     setSaveIsActive(Boolean(selected.is_active));
+    setLoadedVariants(selected.variants || []);
 
     // Mapear copias físicas reales asignadas a este deck desde el inventario
     const userCardsInDeck = allUserCards.filter(uc => 
@@ -1395,7 +1392,7 @@ export function useDeckBuilderState() {
         const mainSleeve = assigned.find(a => a.section_type === 'main_side');
         const extraSleeve = assigned.find(a => a.section_type === 'extra');
         setSelectedMainSleeveId(mainSleeve?.sleeve_id || '');
-        setSelectedExtraSleeveId(extraSleeve?.sleeve_id || '');
+        lastSavedDeckCardsRef.current = initialMappedCards;
         setLastSavedSnapshot(JSON.stringify({
           deckName: selected.name,
           deckDescription: selected.description || '',
@@ -1415,7 +1412,7 @@ export function useDeckBuilderState() {
         }));
       } else {
         setSelectedMainSleeveId('');
-        setSelectedExtraSleeveId('');
+        lastSavedDeckCardsRef.current = initialMappedCards;
         setLastSavedSnapshot(JSON.stringify({
           deckName: selected.name,
           deckDescription: selected.description || '',
@@ -1467,6 +1464,35 @@ export function useDeckBuilderState() {
     }
     return deckCards.length > 0 || isManualDeckName;
   }, [lastSavedSnapshot, currentSnapshot, deckCards.length, isManualDeckName]);
+
+  const assignedDraftUserCardIds = useMemo(() => {
+    const ids = new Set<string>();
+    deckCards.forEach((c) => {
+      c.physical_copies?.forEach((pc) => {
+        if (pc.user_card_id) {
+          ids.add(pc.user_card_id);
+        }
+      });
+    });
+    return ids;
+  }, [deckCards]);
+
+  const handleDiscardChanges = useCallback(() => {
+    if (lastSavedDeckCardsRef.current.length > 0) {
+      setDeckCards(lastSavedDeckCardsRef.current);
+    } else if (lastSavedSnapshot) {
+      try {
+        const parsed = JSON.parse(lastSavedSnapshot);
+        if (parsed.cards && Array.isArray(parsed.cards)) {
+          setDeckCards(parsed.cards);
+        }
+      } catch (err) {
+        console.error('Error al descartar cambios:', err);
+      }
+    } else {
+      setDeckCards([]);
+    }
+  }, [lastSavedSnapshot]);
 
   const getUnregisteredCardsList = useCallback((): UnregisteredCardItem[] => {
     const list: UnregisteredCardItem[] = [];
@@ -1597,6 +1623,7 @@ export function useDeckBuilderState() {
           }
         }
 
+        lastSavedDeckCardsRef.current = deckCards;
         setLastSavedSnapshot(JSON.stringify({
           deckName,
           deckDescription,
@@ -1762,6 +1789,7 @@ export function useDeckBuilderState() {
           }
         }
 
+        lastSavedDeckCardsRef.current = deckCards;
         setLastSavedSnapshot(JSON.stringify({
           deckName,
           deckDescription,
@@ -1805,6 +1833,7 @@ export function useDeckBuilderState() {
           setDeckId(null);
           setDeckCards([]);
           setLastSavedSnapshot('');
+          lastSavedDeckCardsRef.current = [];
         }
         return true;
       }
@@ -1824,6 +1853,7 @@ export function useDeckBuilderState() {
     setSelectedMainSleeveId('');
     setSelectedExtraSleeveId('');
     setLastSavedSnapshot('');
+    setLoadedVariants([]);
   };
 
   const handleExcludeExisting = () => {
@@ -2289,8 +2319,12 @@ export function useDeckBuilderState() {
     canRedo: redoStack.length > 0,
     exportYdkFile,
     isDirty,
+    assignedDraftUserCardIds,
+    handleDiscardChanges,
     currentSnapshot,
     lastSavedSnapshot,
     setLastSavedSnapshot,
+    loadedVariants,
+    setLoadedVariants,
   };
 }

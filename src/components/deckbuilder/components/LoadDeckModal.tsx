@@ -81,6 +81,11 @@ export const LoadDeckModal: React.FC<LoadDeckModalProps> = ({
                         <span className="text-[9px] px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 font-mono font-bold shrink-0">
                           {deck.format}
                         </span>
+                        {deck.variants && deck.variants.length > 0 && (
+                          <span className="text-[9px] px-2 py-0.5 rounded-md bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 font-mono font-bold shrink-0">
+                            {deck.variants.length} variantes
+                          </span>
+                        )}
                       </div>
                       {deck.description && (
                         <p className="text-xs text-zinc-500 mt-1 line-clamp-1">{deck.description}</p>
