@@ -127,3 +127,5 @@ export interface HoverCardBase {
 }
 
 export type SearchScope = 'global' | 'collection' | 'staged' | 'recent' | 'meta' | 'suggested';
+
+export type { DeckVariant, DeckVariantCard, VariantDiffSummary } from '@/types/collection';
