@@ -90,9 +90,14 @@ export const DeckWorkspaceHeader: React.FC<DeckWorkspaceHeaderProps> = ({
               <h2 className="text-sm font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100 truncate">
                 {name || currentDeck?.name || 'Mazo'}
               </h2>
-              <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 shrink-0">
+              <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 shrink-0">
                 {format}
               </span>
+              {currentDeck?.variants && currentDeck.variants.length > 0 && (
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/80 shrink-0">
+                  {currentDeck.variants.length} variantes
+                </span>
+              )}
               {isActive ? (
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 shrink-0">
                   Activo

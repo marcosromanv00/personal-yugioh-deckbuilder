@@ -14,6 +14,8 @@ interface SearchCardCopyPickerModalProps {
   copies: UserCard[];
   locations: StorageLocation[];
   targetSection: 'main' | 'extra' | 'side' | 'extras';
+  assignedDraftUserCardIds?: Set<string>;
+  activeContextName?: string;
   onSelectCopy: (copy: UserCard) => void;
   onSelectGeneric: () => void;
 }
@@ -25,25 +27,34 @@ export const SearchCardCopyPickerModal: React.FC<SearchCardCopyPickerModalProps>
   copies,
   locations,
   targetSection,
+  assignedDraftUserCardIds,
+  activeContextName,
   onSelectCopy,
   onSelectGeneric,
 }) => {
   if (!isOpen || !card) return null;
 
   const getLocationLabel = (copy: UserCard) => {
+    if (copy.id && assignedDraftUserCardIds?.has(copy.id)) {
+      return { 
+        text: `En borrador: ${activeContextName || 'Mazo actual'}`, 
+        isConflict: true, 
+        isDraftInCurrentDeck: true 
+      };
+    }
     if (!copy.storage_location_id) {
-      return { text: 'Bandeja Sin Clasificar (Inbox)', isConflict: false };
+      return { text: 'Bandeja Sin Clasificar (Inbox)', isConflict: false, isDraftInCurrentDeck: false };
     }
     const loc = locations.find(l => l.id === copy.storage_location_id);
     const locName = loc ? loc.name : 'Contenedor externo';
     if (copy.binder_page && copy.binder_slot) {
-      return { text: `${locName} • Pág. ${copy.binder_page}, Ranura ${copy.binder_slot}`, isConflict: false };
+      return { text: `${locName} • Pág. ${copy.binder_page}, Ranura ${copy.binder_slot}`, isConflict: false, isDraftInCurrentDeck: false };
     }
     if (copy.deck_id) {
-      return { text: `${locName} • Asignada a otro mazo`, isConflict: true };
+      return { text: `${locName} • Asignada a otro mazo`, isConflict: true, isDraftInCurrentDeck: false };
     }
     const compName = loc?.compartments?.names?.[copy.compartment_index || 0] || `Carril ${(copy.compartment_index || 0) + 1}`;
-    return { text: `${locName} • ${compName}`, isConflict: false };
+    return { text: `${locName} • ${compName}`, isConflict: false, isDraftInCurrentDeck: false };
   };
 
   const sectionName = targetSection === 'extras' ? 'Reserva' : targetSection.toUpperCase();
@@ -95,11 +106,21 @@ export const SearchCardCopyPickerModal: React.FC<SearchCardCopyPickerModalProps>
           <div className="p-3 sm:p-4 space-y-2 max-h-72 overflow-y-auto scrollbar-thin">
             {copies.map((copy, index) => {
               const locInfo = getLocationLabel(copy);
+              const isAlreadyAssigned = Boolean(copy.id && assignedDraftUserCardIds?.has(copy.id));
+
               return (
                 <div
                   key={copy.id || index}
-                  onClick={() => onSelectCopy(copy)}
-                  className="p-2.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 dark:hover:border-red-500/70 bg-zinc-50/50 dark:bg-zinc-950/40 hover:bg-red-50/30 dark:hover:bg-red-950/20 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                  onClick={() => {
+                    if (!isAlreadyAssigned) {
+                      onSelectCopy(copy);
+                    }
+                  }}
+                  className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                    isAlreadyAssigned
+                      ? 'border-amber-400/50 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20 opacity-85 cursor-not-allowed'
+                      : 'border-zinc-200 dark:border-zinc-800 hover:border-red-500 dark:hover:border-red-500/70 bg-zinc-50/50 dark:bg-zinc-950/40 hover:bg-red-50/30 dark:hover:bg-red-950/20 cursor-pointer group'
+                  }`}
                 >
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -114,28 +135,44 @@ export const SearchCardCopyPickerModal: React.FC<SearchCardCopyPickerModalProps>
                           Proxy
                         </span>
                       )}
+                      {isAlreadyAssigned && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[9px] font-mono font-bold tracking-wider uppercase border border-amber-300 dark:border-amber-700/60">
+                          En Borrador
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400 truncate">
                       {locInfo.isConflict ? (
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${isAlreadyAssigned ? 'text-amber-500' : 'text-amber-500'}`} />
                       ) : (
                         <Box className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                       )}
-                      <span className="truncate">{locInfo.text}</span>
+                      <span className={`truncate ${isAlreadyAssigned ? 'font-medium text-amber-700 dark:text-amber-300' : ''}`}>
+                        {locInfo.text}
+                      </span>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectCopy(copy);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer shadow-xs min-h-9 touch-manipulation"
-                  >
-                    Asignar
-                  </button>
+                  {isAlreadyAssigned ? (
+                    <span
+                      title="Esta copia física ya está asignada en el borrador de esta baraja"
+                      className="px-3 py-1.5 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-bold uppercase tracking-wider transition-all shrink-0 select-none border border-zinc-300 dark:border-zinc-700 min-h-9 flex items-center justify-center cursor-not-allowed"
+                    >
+                      Asignada
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectCopy(copy);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer shadow-xs min-h-9 touch-manipulation"
+                    >
+                      Asignar
+                    </button>
+                  )}
                 </div>
               );
             })}

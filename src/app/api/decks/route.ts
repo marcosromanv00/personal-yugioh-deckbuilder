@@ -92,6 +92,27 @@ export async function GET(req: NextRequest) {
           section_type,
           quantity_used,
           sleeve_details:yg_sleeves (*)
+        ),
+        variants:yg_deck_variants (
+          id,
+          deck_id,
+          name,
+          description,
+          is_active,
+          created_at,
+          updated_at,
+          cards:yg_deck_variant_cards (
+            card_id,
+            count,
+            proxy_count,
+            section,
+            card_details:yg_cards (
+              name,
+              type,
+              image_url,
+              image_url_small
+            )
+          )
         )
       `)
       .order('created_at', { ascending: false });

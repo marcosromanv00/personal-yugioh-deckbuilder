@@ -318,6 +318,56 @@ export interface SleeveInventoryFormData {
   notes?: string;
 }
 
+export interface DeckVariantCard {
+  card_id: number;
+  count: number;
+  proxy_count?: number;
+  section: 'main' | 'extra' | 'side' | 'extras';
+  card_details?: UserCard['card_details'];
+}
+
+export interface DeckVariant {
+  id: string;
+  deck_id: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  cards: DeckVariantCard[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VariantDiffSummary {
+  toRemoveFromActive: Array<{
+    card_id: number;
+    name: string;
+    image_url: string;
+    fromSection: 'main' | 'extra' | 'side';
+    count: number;
+  }>;
+  toAddToActive: Array<{
+    card_id: number;
+    name: string;
+    image_url: string;
+    toSection: 'main' | 'extra' | 'side';
+    count: number;
+    sourceLocation?: {
+      locationId: string | null;
+      locationName: string;
+      compartmentIndex?: number;
+      deckName?: string;
+      isCrossDeckLoan?: boolean;
+    };
+    isMissing?: boolean;
+  }>;
+  unchangedCore: Array<{
+    card_id: number;
+    name: string;
+    section: 'main' | 'extra' | 'side';
+    count: number;
+  }>;
+}
+
 export interface Deck {
   id: string;
   name: string;
@@ -329,6 +379,8 @@ export interface Deck {
   created_at: string;
   cards?: DeckCardDetail[];
   sleeves?: ({ sleeve_id: string; section?: string; section_type?: string; sleeve_details?: SleeveInventory } | DeckSleeve)[];
+  variants?: DeckVariant[];
+  active_variant_id?: string;
 }
 export interface YdkParseResult {
   mainDeckCardIds: number[];

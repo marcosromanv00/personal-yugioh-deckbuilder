@@ -15,6 +15,8 @@ import {
 
 interface DeckActionsDropdownProps {
   onSave: () => void;
+  onQuickSave?: () => void;
+  onCreateNewVariant?: () => void;
   onLoad: () => void;
   onCreateWithAI?: () => void;
   onImportYdk: () => void;
@@ -24,12 +26,16 @@ interface DeckActionsDropdownProps {
   hasCards: boolean;
   isSyncing: boolean;
   isSavedDeck?: boolean;
+  isDirty?: boolean;
+  activeVariantName?: string;
   onDeleteDeck?: () => void;
   onPreloadSave?: () => void;
 }
 
 export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
   onSave,
+  onQuickSave,
+  onCreateNewVariant,
   onLoad,
   onCreateWithAI,
   onImportYdk,
@@ -39,6 +45,8 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
   hasCards,
   isSyncing,
   isSavedDeck,
+  isDirty,
+  activeVariantName,
   onDeleteDeck,
   onPreloadSave,
 }) => {
@@ -55,6 +63,8 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const itemClass = "flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer";
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -69,80 +79,76 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xl p-1.5 z-50 text-xs text-zinc-700 dark:text-zinc-200 animate-in fade-in zoom-in-95 duration-100">
-          {/* CREAR DECK CON IA */}
+        <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xl p-1.5 z-60 text-xs text-zinc-700 dark:text-zinc-200 animate-in fade-in zoom-in-95 duration-100">
           {onCreateWithAI && (
             <button
-              onClick={() => {
-                onCreateWithAI();
-                setIsOpen(false);
-              }}
+              onClick={() => { onCreateWithAI(); setIsOpen(false); }}
               className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl font-bold bg-linear-to-r from-purple-500/10 to-red-500/10 hover:from-purple-500/20 hover:to-red-500/20 text-purple-700 dark:text-purple-300 transition-all text-left cursor-pointer border border-purple-500/20 mb-1"
             >
               <Wand2 className="w-4 h-4 text-purple-500 shrink-0" />
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <span>Crear Deck con IA</span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-purple-500 text-[9px] text-white font-mono font-bold">
-                    PRO
-                  </span>
+                  <span className="px-1.5 py-0.2 rounded-md bg-purple-500 text-[9px] text-white font-mono font-bold">PRO</span>
                 </div>
-                <p className="text-[10px] text-purple-600/80 dark:text-purple-400/80 font-normal">
-                  Sintetizador & Generador
-                </p>
+                <p className="text-[10px] text-purple-600/80 dark:text-purple-400/80 font-normal">Sintetizador & Generador</p>
               </div>
             </button>
           )}
 
-          <button
-            onClick={() => {
-              onSave();
-              setIsOpen(false);
-            }}
-            onMouseEnter={onPreloadSave}
-            onFocus={onPreloadSave}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer"
-          >
-            <Save className="w-4 h-4 text-emerald-500" />
-            <div className="flex-1 flex justify-between items-center">
-              <span>Guardar Deck</span>
-              <span className="text-[10px] text-zinc-400 font-mono">Ctrl+S</span>
-            </div>
-          </button>
+          {isSavedDeck ? (
+            <>
+              <button
+                onClick={() => { if (onQuickSave) onQuickSave(); else onSave(); setIsOpen(false); }}
+                className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold transition-colors text-left cursor-pointer ${
+                  isDirty ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60' : 'hover:bg-zinc-100 dark:hover:bg-zinc-900'
+                }`}
+              >
+                <Save className="w-4 h-4 text-emerald-500" />
+                <div className="flex-1 flex justify-between items-center">
+                  <span>{activeVariantName ? `Guardar ${activeVariantName}` : 'Guardar Cambios'}</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">Ctrl+S</span>
+                </div>
+              </button>
 
-          <button
-            onClick={() => {
-              onLoad();
-              setIsOpen(false);
-            }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer"
-          >
+              {onCreateNewVariant && (
+                <button onClick={() => { onCreateNewVariant(); setIsOpen(false); }} className={itemClass}>
+                  <Save className="w-4 h-4 text-amber-500" />
+                  <span>Guardar como Nueva Variante...</span>
+                </button>
+              )}
+
+              <button onClick={() => { onSave(); setIsOpen(false); }} onMouseEnter={onPreloadSave} onFocus={onPreloadSave} className={itemClass}>
+                <Save className="w-4 h-4 text-cyan-500" />
+                <span>Guardar como Nuevo Deck...</span>
+              </button>
+            </>
+          ) : (
+            <button onClick={() => { onSave(); setIsOpen(false); }} onMouseEnter={onPreloadSave} onFocus={onPreloadSave} className={itemClass}>
+              <Save className="w-4 h-4 text-emerald-500" />
+              <div className="flex-1 flex justify-between items-center">
+                <span>Guardar Deck</span>
+                <span className="text-[10px] text-zinc-400 font-mono">Ctrl+S</span>
+              </div>
+            </button>
+          )}
+
+          <button onClick={() => { onLoad(); setIsOpen(false); }} className={itemClass}>
             <FolderOpen className="w-4 h-4 text-purple-500" />
             <span>Cargar Deck Guardado</span>
           </button>
 
           <div className="my-1 border-t border-zinc-100 dark:border-zinc-900" />
 
-          <button
-            onClick={() => {
-              onImportYdk();
-              setIsOpen(false);
-            }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer"
-          >
+          <button onClick={() => { onImportYdk(); setIsOpen(false); }} className={itemClass}>
             <Upload className="w-4 h-4 text-cyan-500" />
             <span>Importar Archivo .YDK</span>
           </button>
 
           <button
-            onClick={() => {
-              if (hasCards) {
-                onExportYdk();
-                setIsOpen(false);
-              }
-            }}
+            onClick={() => { if (hasCards) { onExportYdk(); setIsOpen(false); } }}
             disabled={!hasCards}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+            className={`${itemClass} disabled:opacity-40 disabled:pointer-events-none`}
           >
             <Download className="w-4 h-4 text-emerald-500" />
             <span>Exportar Archivo .YDK</span>
@@ -150,25 +156,13 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
 
           <div className="my-1 border-t border-zinc-100 dark:border-zinc-900" />
 
-          <button
-            onClick={() => {
-              onSyncMeta();
-              setIsOpen(false);
-            }}
-            disabled={isSyncing}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer disabled:opacity-40"
-          >
+          <button onClick={() => { onSyncMeta(); setIsOpen(false); }} disabled={isSyncing} className={`${itemClass} disabled:opacity-40`}>
             <RefreshCw className={`w-4 h-4 text-amber-500 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar Meta MDM'}</span>
           </button>
 
           <button
-            onClick={() => {
-              if (hasCards) {
-                onClear();
-                setIsOpen(false);
-              }
-            }}
+            onClick={() => { if (hasCards) { onClear(); setIsOpen(false); } }}
             disabled={!hasCards}
             className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
           >
@@ -178,10 +172,7 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
 
           {isSavedDeck && onDeleteDeck && (
             <button
-              onClick={() => {
-                onDeleteDeck();
-                setIsOpen(false);
-              }}
+              onClick={() => { onDeleteDeck(); setIsOpen(false); }}
               className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors text-left cursor-pointer border-t border-zinc-100 dark:border-zinc-900 mt-1 pt-2"
             >
               <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
