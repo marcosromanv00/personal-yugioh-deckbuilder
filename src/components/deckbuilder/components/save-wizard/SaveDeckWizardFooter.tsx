@@ -39,12 +39,25 @@ export const SaveDeckWizardFooter: React.FC<SaveDeckWizardFooterProps> = ({
       </button>
 
       <div className="flex items-center gap-2">
+        {currentStep < totalSteps && canProceed && (
+          <button
+            type="button"
+            disabled={loadingDecks}
+            onClick={onSave}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-bold transition-all cursor-pointer min-h-11 sm:min-h-9 touch-manipulation"
+            title="Guardar baraja directamente con las opciones actuales"
+          >
+            <Check className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Guardar Directo</span>
+          </button>
+        )}
+
         {currentStep < totalSteps ? (
           <button
             type="button"
             disabled={!canProceed}
             onClick={onNext}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all min-h-11 sm:min-h-9 touch-manipulation ${
               canProceed
                 ? 'bg-red-600 hover:bg-red-500 text-white shadow-md shadow-red-600/20 cursor-pointer'
                 : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed'
@@ -58,7 +71,7 @@ export const SaveDeckWizardFooter: React.FC<SaveDeckWizardFooterProps> = ({
             type="button"
             disabled={loadingDecks}
             onClick={onSave}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-red-600/30 transition-all cursor-pointer min-h-11 sm:min-h-9 touch-manipulation"
           >
             <Check className="w-4 h-4" />
             <span>{loadingDecks ? 'Guardando...' : 'Guardar Baraja'}</span>

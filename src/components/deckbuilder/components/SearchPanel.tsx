@@ -1,408 +1,64 @@
-import React, { useState, useRef } from 'react';
-import { Search, Heart, LayoutGrid, List, X, Loader2, ChevronDown, Sparkles, FileText, Upload, Check, AlertCircle, Camera, Clock } from 'lucide-react';
-import { CardFilters, FilterState } from '../CardFilters';
-import { Card, HoverCardBase, SearchScope } from '../types';
-import { PremiumDropdown } from '@/components/ui/PremiumDropdown';
+import React, { useState, useEffect } from 'react';
+import { Search, Upload } from 'lucide-react';
+import { Card } from '../types';
 import dynamic from 'next/dynamic';
-import { sanitizeBulkInput } from '@/lib/bulkSanitizer';
-import type { YgoDetectedCard } from '@/components/scanner/CardCodeScannerModal';
-import { CardImage } from '@/components/ui/CardImage';
-import { StorageLocation, UserCard } from '@/types/collection';
+import { UserCard } from '@/types/collection';
 import { SearchCardCopyPickerModal } from './SearchCardCopyPickerModal';
+import { SearchPanelProps, ParsedBulkItem } from './search/searchPanel.types';
+import { renderBanlistBadge } from './search/searchPanel.utils';
+import { SearchPanelHeader } from './search/SearchPanelHeader';
+import { SearchBulkImportTab } from './search/SearchBulkImportTab';
+import { SearchPanelSingleTab } from './search/SearchPanelSingleTab';
+import { useSearchBulkImport } from './search/useSearchBulkImport';
+import { useSearchPanelDrag } from './search/useSearchPanelDrag';
+
+export type { ParsedBulkItem };
 
 const CardCodeScannerModal = dynamic(
-  () => import('@/components/scanner/CardCodeScannerModal').then(m => m.CardCodeScannerModal),
+  () => import('@/components/scanner/CardCodeScannerModal').then((m) => m.CardCodeScannerModal),
   { ssr: false }
 );
 
-const preloadScanner = () => {
-  void import('@/components/scanner/CardCodeScannerModal');
-};
-
-export interface ParsedBulkItem {
-  id: string;
-  card_id: number;
-  name: string;
-  type: string;
-  image_url: string;
-  image_url_small?: string;
-  quantity: number;
-  selected: boolean;
-  section: 'main' | 'extra' | 'side' | 'extras';
-  linkWithCollection?: boolean;
-}
-
-interface SearchPanelProps {
-  leftPanelOpen: boolean;
-  setLeftPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  leftPanelWidth: number;
-  /** When true, renders inside a MobileBottomSheet — hides collapse controls */
-  isMobile?: boolean;
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
-  searchScope: SearchScope;
-  setSearchScope: (scope: SearchScope) => void;
-  recentCardsCount?: number;
-  onClearRecentCards?: () => void;
-  showStagedTab?: boolean;
-  stagedCardsCount?: number;
-  onlyFavorites: boolean;
-  onlyFavoritesSetOnlyFavorites?: React.Dispatch<React.SetStateAction<boolean>>;
-  setOnlyFavorites: React.Dispatch<React.SetStateAction<boolean>>;
-  searchType: 'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra';
-  setSearchType: (type: 'All' | 'Monster' | 'Spell' | 'Trap' | 'Extra') => void;
-  advancedFilters: FilterState;
-  setAdvancedFilters: React.Dispatch<React.SetStateAction<FilterState>>;
-  searchResults: Card[];
-  isSearching: boolean;
-  searchViewMode: 'grid' | 'list';
-  setSearchViewMode: (mode: 'grid' | 'list') => void;
-  searchLimit: number;
-  setSearchLimit: React.Dispatch<React.SetStateAction<number>>;
-  format?: 'Master Duel' | 'TCG' | 'Duel Links';
-  userInventoryCounts?: Record<number, number>;
-  onSelectAllStaged?: () => void;
-  allUserCards?: UserCard[];
-  locations?: StorageLocation[];
-
-  assignedDraftUserCardIds?: Set<string>;
-  activeContextName?: string;
-  addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras', selectedCopy?: UserCard) => void;
-  onDropRemoveCard?: (cardId: number, fromSection: 'main' | 'extra' | 'side' | 'extras', copyIndex?: number) => void;
-  openPreviewForCard?: (card: HoverCardBase) => void;
-  handleDragCardStart: (e: React.DragEvent, cardData: Card) => void;
-  handleCardMouseEnter: (card: HoverCardBase) => void;
-  handleCardMouseLeave: () => void;
-}
-
-interface SearchResultsListProps {
-  searchResults: Card[];
-  isSearching: boolean;
-  searchViewMode: 'grid' | 'list';
-  isMobile: boolean;
-  getBanlistBadge: (card: Card) => React.ReactNode;
-  userInventoryCounts?: Record<number, number>;
-  addCardToDeck: (card: Card, section?: 'main' | 'extra' | 'side' | 'extras', selectedCopy?: UserCard) => void;
-  openPreviewForCard?: (card: HoverCardBase) => void;
-  handleDragCardStart: (e: React.DragEvent, cardData: Card) => void;
-  handleCardMouseEnter: (card: HoverCardBase) => void;
-  handleCardMouseLeave: () => void;
-  searchScope?: SearchScope;
-}
-
-
-const SearchResultsList = React.memo(({
-  searchResults,
-  isSearching,
-  searchViewMode,
-  isMobile,
-  getBanlistBadge,
-  userInventoryCounts,
-  addCardToDeck,
-  openPreviewForCard,
-  handleDragCardStart,
-  handleCardMouseEnter,
-  handleCardMouseLeave,
-  searchScope,
-}: SearchResultsListProps) => {
-  const getOwnedCount = (card: Card) => {
-    if (card.userCardsGroup && card.userCardsGroup.length > 0) {
-      return card.userCardsGroup.reduce((sum, uc) => sum + (uc.quantity || 1), 0);
-    }
-    return userInventoryCounts?.[card.id] || 0;
-  };
-
-  if (isSearching && searchResults.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Loader2 className="w-6 h-6 animate-spin text-red-600 mb-2" />
-        <span className="text-xs font-mono text-zinc-400">Consultando base de cartas...</span>
-      </div>
-    );
-  }
-
-  if (searchResults.length === 0) {
-    if (searchScope === 'recent') {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mb-2">
-            <Clock className="w-5 h-5 text-zinc-400" />
-          </div>
-          <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200">No hay cartas recientes aún</p>
-          <p className="text-[10px] text-zinc-400 mt-1 max-w-56 leading-relaxed">
-            Las cartas que agregues, retires o consultes aparecerán aquí para un acceso rápido.
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mb-2">
-          <AlertCircle className="w-5 h-5" />
-        </div>
-        <p className="text-xs font-bold text-zinc-500">No se encontraron cartas</p>
-        <p className="text-[10px] text-zinc-400 mt-1">Prueba ajustando los términos o filtros</p>
-      </div>
-    );
-  }
-
-  if (searchViewMode === 'grid') {
-    return (
-      <div className={`grid gap-2 ${isMobile ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-4 xl:grid-cols-5'}`}>
-        {searchResults.map((card, idx) => {
-          const ownedCount = getOwnedCount(card);
-          return (
-            <div 
-              key={`${card.id}-${idx}`}
-              draggable={!isMobile}
-              onDragStart={!isMobile ? (e) => handleDragCardStart(e, { 
-                id: card.id, 
-                name: card.name, 
-                type: card.type, 
-                image_url: card.image_url_small || card.image_url, 
-                image_url_small: card.image_url_small, 
-                archetype: card.archetype, 
-                fromScope: searchScope,
-                userCardsGroup: searchScope === 'collection' ? card.userCardsGroup : undefined 
-              }) : undefined}
-              onClick={() => addCardToDeck(card)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if (openPreviewForCard) {
-                  openPreviewForCard(card as HoverCardBase);
-                }
-              }}
-              onMouseEnter={!isMobile ? () => handleCardMouseEnter(card as HoverCardBase) : undefined}
-              onMouseLeave={!isMobile ? handleCardMouseLeave : undefined}
-              className="relative aspect-[3/4.4] bg-white dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group flex flex-col justify-between p-1 overflow-hidden cursor-pointer card-tap touch-manipulation shadow-xs"
-            >
-              <div className="relative flex-1 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-900">
-                <CardImage 
-                  src={card.image_url_small || card.image_url} 
-                  alt={card.name} 
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
-                />
-                {getBanlistBadge(card)}
-                {ownedCount > 0 && (
-                  <div className="absolute top-1 right-1 bg-red-950/90 text-red-300 font-mono text-[9px] px-1.5 py-0.5 rounded border border-red-500/40 font-black shadow-xs">
-                    {ownedCount}x
-                  </div>
-                )}
-              </div>
-              <div className="mt-1 transition-all text-center min-w-0 px-0.5">
-                <p className="text-[9.5px] font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-red-500 transition-colors truncate leading-tight">{card.name}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      {searchResults.map((card, idx) => {
-        const ownedCount = getOwnedCount(card);
-        return (
-          <div 
-            key={`${card.id}-${idx}`}
-            draggable={!isMobile}
-            onDragStart={(e) => handleDragCardStart(e, { 
-              id: card.id, 
-              name: card.name, 
-              type: card.type, 
-              image_url: card.image_url_small || card.image_url, 
-              image_url_small: card.image_url_small, 
-              archetype: card.archetype, 
-              fromScope: searchScope,
-              userCardsGroup: searchScope === 'collection' ? card.userCardsGroup : undefined 
-            })}
-            onClick={() => addCardToDeck(card)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              if (openPreviewForCard) {
-                openPreviewForCard(card as HoverCardBase);
-              }
-            }}
-            onMouseEnter={() => handleCardMouseEnter(card as HoverCardBase)}
-            onMouseLeave={handleCardMouseLeave}
-            className="flex gap-3 p-3 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-red-500 transition-all duration-200 group cursor-pointer shadow-xs touch-manipulation"
-          >
-            <div className="w-14 h-20 rounded-lg overflow-hidden shadow-xs group-hover:scale-105 transition-transform shrink-0">
-              <CardImage 
-                src={card.image_url_small || card.image_url} 
-                alt={card.name} 
-                className="w-full h-full object-contain" 
-              />
-            </div>
-            <div className="flex-1 flex flex-col justify-between min-w-0">
-              <div>
-                <div className="flex items-center justify-between gap-1">
-                  <p className="text-xs sm:text-sm font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-red-500 transition-colors">{card.name}</p>
-                  {ownedCount > 0 && (
-                    <span className="text-[10px] font-mono font-bold text-red-500 shrink-0">
-                      {ownedCount}x
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-zinc-500 font-mono font-bold truncate mt-0.5">
-                  #{card.id} • {card.type} • {card.archetype || 'Genérica'}
-                </p>
-              </div>
-              
-              <div className="flex gap-1.5 mt-2">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'main'); }}
-                  className="flex-1 py-2 px-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs touch-manipulation min-h-10"
-                  title="Añadir al Deck principal o Extra (Auto)"
-                >
-                  + Agregar
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'side'); }}
-                  className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
-                  title="Añadir a Side Deck"
-                >
-                  + Side
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extra'); }}
-                  className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
-                  title="Añadir a Extra Deck"
-                >
-                  + Extra
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); addCardToDeck(card, 'extras'); }}
-                  className="px-2.5 py-2 bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/50 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer touch-manipulation min-h-10"
-                  title="Añadir a Reserva / Cartas Extra del Arquetipo"
-                >
-                  + Reserva
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}, (prev, next) => {
-  return (
-    prev.isSearching === next.isSearching &&
-    prev.searchViewMode === next.searchViewMode &&
-    prev.isMobile === next.isMobile &&
-    prev.searchResults === next.searchResults &&
-    prev.userInventoryCounts === next.userInventoryCounts
-  );
-});
-
-SearchResultsList.displayName = 'SearchResultsList';
-
 export const SearchPanel: React.FC<SearchPanelProps> = ({
-  leftPanelOpen,
-  setLeftPanelOpen,
-  leftPanelWidth,
-  isMobile = false,
-  searchQuery,
-  setSearchQuery,
-  searchScope,
-  setSearchScope,
-  recentCardsCount = 0,
-  onClearRecentCards,
-  showStagedTab = false,
-  stagedCardsCount = 0,
-  onlyFavorites,
-  setOnlyFavorites,
-  searchType,
-  setSearchType,
-  advancedFilters,
-  setAdvancedFilters,
-  searchResults,
-  isSearching,
-  searchViewMode,
-  setSearchViewMode,
-  searchLimit,
-  setSearchLimit,
-  format,
-  userInventoryCounts = {},
-  onSelectAllStaged,
-  allUserCards = [],
-  locations = [],
-  assignedDraftUserCardIds,
-  activeContextName,
-  addCardToDeck,
-  onDropRemoveCard,
-  openPreviewForCard,
-  handleDragCardStart,
-  handleCardMouseEnter,
-  handleCardMouseLeave,
+  leftPanelOpen, setLeftPanelOpen, leftPanelWidth, isMobile = false,
+  searchQuery, setSearchQuery, searchScope, setSearchScope,
+  recentCardsCount = 0, onClearRecentCards, showStagedTab = false, stagedCardsCount = 0,
+  onlyFavorites, setOnlyFavorites, searchType, setSearchType,
+  advancedFilters, setAdvancedFilters, searchResults, isSearching,
+  searchViewMode, setSearchViewMode, searchLimit, setSearchLimit,
+  format, userInventoryCounts = {}, onSelectAllStaged,
+  allUserCards = [], locations = [], assignedDraftUserCardIds, activeContextName,
+  addCardToDeck, onDropRemoveCard, openPreviewForCard,
+  handleDragCardStart, handleCardMouseEnter, handleCardMouseLeave,
 }) => {
-  const [isDragOverRemove, setIsDragOverRemove] = useState(false);
-  const dragCounterRef = useRef(0);
+  const { isDragOverRemove, panelDragHandlers } = useSearchPanelDrag(onDropRemoveCard);
+  const [activeTab, setActiveTab] = useState<'search' | 'bulk'>('search');
+  const [localQuery, setLocalQuery] = useState(searchQuery);
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery);
 
-  const handlePanelDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current++;
-    if (e.dataTransfer.types.includes('application/json')) {
-      setIsDragOverRemove(true);
-    }
-  };
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery);
+    setLocalQuery(searchQuery);
+  }
 
-  const handlePanelDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handlePanelDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current--;
-    if (dragCounterRef.current <= 0) {
-      dragCounterRef.current = 0;
-      setIsDragOverRemove(false);
-    }
-  };
-
-  const handlePanelDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current = 0;
-    setIsDragOverRemove(false);
-    const jsonStr = e.dataTransfer.getData('application/json');
-    if (!jsonStr) return;
-    try {
-      const cardObj = JSON.parse(jsonStr);
-      if (cardObj?.id && cardObj?.fromSection && onDropRemoveCard) {
-        onDropRemoveCard(cardObj.id, cardObj.fromSection, cardObj.copyIndex);
-      }
-    } catch (err) {
-      console.error('Error al soltar carta para remover:', err);
-    }
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localQuery !== searchQuery) setSearchQuery(localQuery);
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [localQuery, searchQuery, setSearchQuery]);
 
   const [copyPickerState, setCopyPickerState] = useState<{
-    card: Card;
-    targetSection: 'main' | 'extra' | 'side' | 'extras';
-    copies: UserCard[];
+    card: Card; targetSection: 'main' | 'extra' | 'side' | 'extras'; copies: UserCard[];
   } | null>(null);
 
   const handleAddCardWithCopyCheck = (card: Card, targetSec: 'main' | 'extra' | 'side' | 'extras' = 'main') => {
-    // Si NO estamos en "Mi Colección", TODA carta se presume NUEVA: jamás vincular con cartas existentes
     if (searchScope !== 'collection') {
       addCardToDeck(card, targetSec);
       return;
     }
-
-    // ÚNICAMENTE en "Mi Colección": el usuario elige manualmente la variante/rareza que quiere
-    const copies = (card.userCardsGroup && card.userCardsGroup.length > 0)
-      ? card.userCardsGroup
-      : (allUserCards ? allUserCards.filter(uc => uc.card_id === card.id) : []);
-
+    const copies = card.userCardsGroup?.length ? card.userCardsGroup : allUserCards ? allUserCards.filter((uc) => uc.card_id === card.id) : [];
     if (copies.length > 0 && locations && locations.length > 0) {
-      // SIEMPRE abrir selector de variantes/rarezas en Mi Colección (incluso si hay 1 sola copia) para confirmación explícita
       setCopyPickerState({ card, targetSection: targetSec, copies });
     } else if (copies.length === 1) {
       addCardToDeck(card, targetSec, copies[0]);
@@ -411,263 +67,18 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'search' | 'bulk'>('search');
-  // Sub-mode for bulk tab: ydk = file/.ydk/names, ids = raw numeric IDs
-  const [bulkMode, setBulkMode] = useState<'ydk' | 'ids'>('ydk');
-  const [bulkLinkWithCollection, setBulkLinkWithCollection] = useState(false);
-  const [bulkText, setBulkText] = useState('');
-  const [analyzingBulk, setAnalyzingBulk] = useState(false);
-  const [bulkSuccessMsg, setBulkSuccessMsg] = useState('');
-  const [bulkErrorMsg, setBulkErrorMsg] = useState('');
-  const [unmatchedBulkCards, setUnmatchedBulkCards] = useState<string[]>([]);
-  const [parsedBulkItems, setParsedBulkItems] = useState<ParsedBulkItem[]>([]);
-  const [fileName, setFileName] = useState('');
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-
-  const handleScannerCardRegistered = (card: YgoDetectedCard, quantity: number) => {
-    const lineToAdd = Array(quantity).fill(card.id.toString()).join('\n');
-    setBulkText((prev) => (prev.trim() ? `${prev.trim()}\n${lineToAdd}` : lineToAdd));
-
-    const cardObj: Card = {
-      id: card.id,
-      name: card.name,
-      type: card.type,
-      desc: card.desc || '',
-      image_url: card.image_url,
-      image_url_small: card.image_url_small || card.image_url,
-      archetype: card.archetype,
-      atk: card.atk,
-      def: card.def,
-      level: card.level,
-      attribute: card.attribute,
-      race: card.race,
-    };
-
-    const typeLower = (card.type || '').toLowerCase();
-    const isExtra = typeLower.includes('fusion') || typeLower.includes('synchro') || typeLower.includes('xyz') || typeLower.includes('link');
-    const targetSection = isExtra ? 'extra' : 'main';
-
-    for (let i = 0; i < quantity; i++) {
-      addCardToDeck(cardObj, targetSection);
-    }
-
-    setBulkSuccessMsg(`¡${card.name} (${quantity}x) agregada directamente al mazo!`);
-  };
-
-
-  const [localQuery, setLocalQuery] = React.useState(searchQuery);
-  const [prevSearchQuery, setPrevSearchQuery] = React.useState(searchQuery);
-
-  if (searchQuery !== prevSearchQuery) {
-    setPrevSearchQuery(searchQuery);
-    setLocalQuery(searchQuery);
-  }
-
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localQuery !== searchQuery) {
-        setSearchQuery(localQuery);
-      }
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [localQuery, searchQuery, setSearchQuery]);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const raw = (event.target?.result as string) || '';
-      setBulkText(sanitizeBulkInput(raw, bulkMode === 'ids'));
-    };
-    reader.readAsText(file);
-  };
-
-  const handleProcessBulkText = async () => {
-    const cleanedText = sanitizeBulkInput(bulkText, bulkMode === 'ids');
-    setBulkText(cleanedText);
-
-    if (!cleanedText.trim()) return;
-
-    setAnalyzingBulk(true);
-    setBulkErrorMsg('');
-    setBulkSuccessMsg('');
-    setUnmatchedBulkCards([]);
-    setParsedBulkItems([]);
-
-    try {
-      const res = await fetch('/api/collection/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          text: cleanedText,
-          bulkText: cleanedText,
-          isIdsMode: bulkMode === 'ids'
-        }),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        const parsed = json.parsed || [];
-        const unmatched = json.unmatched || [];
-        setUnmatchedBulkCards(unmatched);
-
-        if (parsed.length === 0) {
-          setBulkErrorMsg('No se detectaron cartas válidas en el texto ingresado.');
-          return;
-        }
-
-        const items: ParsedBulkItem[] = parsed.map((item: { card_id: number; name: string; type?: string; section?: string; image_url?: string; image_url_small?: string; quantity?: number }, idx: number) => {
-          const type = (item.type || '').toLowerCase();
-          const isExtra = type.includes('fusion') || type.includes('synchro') || type.includes('xyz') || type.includes('link');
-          const section = (item.section && item.section !== 'main') 
-            ? (item.section as 'main' | 'extra' | 'side' | 'extras') 
-            : (isExtra ? 'extra' : 'main');
-
-          return {
-            id: `bulk-${item.card_id}-${idx}`,
-            card_id: item.card_id,
-            name: item.name,
-            type: item.type || 'Monster',
-            image_url: item.image_url || item.image_url_small || `https://images.ygoprodeck.com/images/cards/${item.card_id}.jpg`,
-            image_url_small: item.image_url_small || item.image_url,
-            quantity: Math.min(3, Math.max(1, item.quantity || 1)),
-            selected: true,
-            section,
-            linkWithCollection: bulkLinkWithCollection,
-          };
-        });
-
-        setParsedBulkItems(items);
-        setBulkSuccessMsg(`Se encontraron ${items.length} tipos de cartas en el lote.`);
-      } else {
-        const errJson = await res.json();
-        setBulkErrorMsg(errJson.error || 'Error al analizar el lote.');
-      }
-    } catch (err: unknown) {
-      const error = err as Error;
-      setBulkErrorMsg(error.message || 'Error procesando texto bulk.');
-    } finally {
-      setAnalyzingBulk(false);
-    }
-  };
-
-
-  const toggleBulkItem = (id: string) => {
-    setParsedBulkItems(prev => prev.map(item => item.id === id ? { ...item, selected: !item.selected } : item));
-  };
-
-  const toggleBulkItemLink = (id: string) => {
-    setParsedBulkItems(prev => prev.map(item => item.id === id ? { ...item, linkWithCollection: item.linkWithCollection === false ? true : false } : item));
-  };
-
-  const updateBulkItemQty = (id: string, delta: number) => {
-    setParsedBulkItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.min(3, Math.max(1, item.quantity + delta));
-        return { ...item, quantity: newQty };
-      }
-      return item;
-    }));
-  };
-
-  const selectAllBulkItems = (val: boolean) => {
-    setParsedBulkItems(prev => prev.map(item => ({ ...item, selected: val })));
-  };
-
-  const confirmAddParsedBulkToDeck = () => {
-    const selectedItems = parsedBulkItems.filter(i => i.selected);
-    if (selectedItems.length === 0) return;
-
-    let addedTotalCount = 0;
-    selectedItems.forEach(item => {
-      const cardObj: Card = {
-        id: item.card_id,
-        name: item.name,
-        type: item.type,
-        image_url: item.image_url,
-        image_url_small: item.image_url_small
-      };
-
-      for (let q = 0; q < item.quantity; q++) {
-        addCardToDeck(cardObj, item.section);
-        addedTotalCount++;
-      }
-    });
-
-    setBulkSuccessMsg(`¡Éxito! Se agregaron ${addedTotalCount} cartas seleccionadas al editor de baraja.`);
-    setParsedBulkItems([]);
-    setBulkText('');
-    setFileName('');
-  };
-
-
-
-  const getBanlistBadge = (card: Card) => {
-    const status =
-      format === 'TCG' ? card.ban_tcg :
-      format === 'Master Duel' ? card.ban_master_duel :
-      card.ban_duel_links;
-
-    if (!status || status === 'Unlimited') return null;
-
-    if (status === 'Forbidden') {
-      return (
-        <div
-          className="absolute top-1 left-1 bg-black border-2 border-red-600 text-red-500 font-sans font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
-          title="Prohibida (0 copias)"
-        >
-          🚫
-        </div>
-      );
-    }
-
-    if (status === 'Limited') {
-      return (
-        <div
-          className="absolute top-1 left-1 bg-black border-2 border-red-500 text-yellow-400 font-sans font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
-          title="Limitada (1 copia)"
-        >
-          1
-        </div>
-      );
-    }
-
-    if (status === 'Semi-Limited') {
-      return (
-        <div
-          className="absolute top-1 left-1 bg-black border-2 border-blue-500 text-yellow-400 font-sans font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md shadow-black/80 z-20 select-none"
-          title="Semi-limitada (2 copias)"
-        >
-          2
-        </div>
-      );
-    }
-
-    return null;
-  };
+  const bulk = useSearchBulkImport(addCardToDeck);
 
   return (
     <section
-      style={(!isMobile && leftPanelOpen) ? { width: `${leftPanelWidth}px` } : {}}
-      onDragEnter={handlePanelDragEnter}
-      onDragOver={handlePanelDragOver}
-      onDragLeave={handlePanelDragLeave}
-      onDrop={handlePanelDrop}
+      style={!isMobile && leftPanelOpen ? { width: `${leftPanelWidth}px` } : {}}
+      {...panelDragHandlers}
       className={`relative flex flex-col h-full min-h-0 gap-3 transition-colors ${
-        isMobile
-          ? 'w-full'
-          : `bg-white dark:bg-zinc-900/90 border rounded-2xl shadow-sm transition-all overflow-hidden ${
-              isDragOverRemove
-                ? 'border-red-500 ring-2 ring-red-500/50 bg-red-500/5'
-                : 'border-zinc-200 dark:border-zinc-800'
-            } ${leftPanelOpen ? 'p-3.5' : 'w-10 min-w-10 p-2 items-center'}`
+        isMobile ? 'w-full' : `bg-white dark:bg-zinc-900/90 border rounded-2xl shadow-sm transition-all overflow-hidden ${
+          isDragOverRemove ? 'border-red-500 ring-2 ring-red-500/50 bg-red-500/5' : 'border-zinc-200 dark:border-zinc-800'
+        } ${leftPanelOpen ? 'p-3.5' : 'w-10 min-w-10 p-2 items-center'}`
       }`}
     >
-      {/* Drop Zone Visual Feedback para remover del mazo */}
       {isDragOverRemove && (
         <div className="absolute inset-x-3 top-3 z-30 p-2 rounded-xl bg-red-600/95 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg backdrop-blur-xs pointer-events-none animate-in fade-in">
           <span>🗑️</span>
@@ -675,94 +86,19 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         </div>
       )}
 
-      {/* Panel header — hidden on mobile (title is in MobileBottomSheet) */}
-      {!isMobile && (
-        <div className={`border-b border-zinc-200 dark:border-zinc-800 pb-2.5 flex items-center shrink-0 ${leftPanelOpen ? 'justify-between' : 'justify-center flex-col gap-2'}`}>
-          {leftPanelOpen && (
-            <h2 className="font-black text-xs uppercase tracking-wider flex items-center gap-2 text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
-              <span>🔍</span>
-              <span>Buscar Cartas</span>
-            </h2>
-          )}
-          <div className="flex items-center gap-1">
-            {leftPanelOpen && (
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                <button
-                  onClick={() => setSearchViewMode('grid')}
-                  className={`p-1 rounded transition-colors cursor-pointer ${
-                    searchViewMode === 'grid'
-                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                  }`}
-                  title="Vista Cuadrícula"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setSearchViewMode('list')}
-                  className={`p-1 rounded transition-colors cursor-pointer ${
-                    searchViewMode === 'list'
-                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                  }`}
-                  title="Vista Lista"
-                >
-                  <List className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-            <button
-              onClick={() => setLeftPanelOpen(p => !p)}
-              className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
-              title={leftPanelOpen ? 'Colapsar panel de búsqueda' : 'Expandir panel de búsqueda'}
-            >
-              {leftPanelOpen ? <X className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div>
-      )}
+      <SearchPanelHeader
+        isMobile={isMobile} leftPanelOpen={leftPanelOpen} setLeftPanelOpen={setLeftPanelOpen}
+        searchViewMode={searchViewMode} setSearchViewMode={setSearchViewMode} resultsCount={searchResults.length}
+      />
 
-      {/* Mobile: inline view/sort controls */}
-      {isMobile && (
-        <div className="flex items-center justify-between mb-1 shrink-0">
-          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-950 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <button
-              onClick={() => setSearchViewMode('grid')}
-              className={`p-1.5 rounded transition-colors cursor-pointer touch-manipulation ${
-                searchViewMode === 'grid'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-              }`}
-              title="Vista Cuadrícula"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setSearchViewMode('list')}
-              className={`p-1.5 rounded transition-colors cursor-pointer touch-manipulation ${
-                searchViewMode === 'list'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-              }`}
-              title="Vista Lista"
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
-          <span className="text-[10px] text-zinc-500">{searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''}</span>
-        </div>
-      )}
       {leftPanelOpen ? (
         <>
-          {/* Main Search Panel Mode Switcher: Single Card Search vs Bulk Import */}
           <div className="grid grid-cols-2 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('search')}
               className={`py-1.5 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                activeTab === 'search'
-                  ? 'bg-red-600 text-white shadow-xs'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                activeTab === 'search' ? 'bg-red-600 text-white shadow-xs' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               <Search className="w-3.5 h-3.5" />
@@ -772,9 +108,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               type="button"
               onClick={() => setActiveTab('bulk')}
               className={`py-1.5 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                activeTab === 'bulk'
-                  ? 'bg-red-600 text-white shadow-xs'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                activeTab === 'bulk' ? 'bg-red-600 text-white shadow-xs' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               <Upload className="w-3.5 h-3.5" />
@@ -783,479 +117,39 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           </div>
 
           {activeTab === 'bulk' ? (
-            <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col justify-between space-y-3 scrollbar-thin">
-              <div className="space-y-3 flex-1">
-                {/* Sub-switch: .ydk/Nombre vs IDs */}
-                <div className="grid grid-cols-2 gap-0.5 p-0.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => { setBulkMode('ydk'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
-                    className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                      bulkMode === 'ydk'
-                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <FileText className="w-3 h-3" />
-                    <span>.YDK / Nombre</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setBulkMode('ids'); setBulkText(''); setFileName(''); setParsedBulkItems([]); setBulkSuccessMsg(''); setBulkErrorMsg(''); }}
-                    className={`py-1 px-2 rounded-md text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                      bulkMode === 'ids'
-                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs'
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <span>#</span>
-                    <span>IDs Numéricos</span>
-                  </button>
-                </div>
-
-                {bulkMode === 'ydk' && (
-                  <div className="border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-red-500 rounded-xl p-3 text-center bg-zinc-50 dark:bg-zinc-950 transition-colors shrink-0">
-                    <input
-                      type="file"
-                      accept=".ydk,.txt"
-                      onChange={handleFileUpload}
-                      id="search-bulk-file-input"
-                      className="hidden"
-                    />
-                    <label htmlFor="search-bulk-file-input" className="cursor-pointer flex flex-col items-center justify-center">
-                      <Upload className="w-5 h-5 text-red-600 dark:text-red-500 mb-1" />
-                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                        {fileName ? fileName : 'Subir archivo .ydk o .txt'}
-                      </span>
-                      <span className="text-[10px] text-zinc-400">Archivos YDK o texto con IDs/nombres</span>
-                    </label>
-                  </div>
-                )}
-
-                <div className="shrink-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[10px] font-black uppercase text-zinc-500 font-mono">
-                      {bulkMode === 'ids' ? 'Pega IDs numéricos (uno por línea):' : 'O pega lista de nombres, IDs o formato YDK:'}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setIsScannerOpen(true)}
-                      onMouseEnter={preloadScanner}
-                      onFocus={preloadScanner}
-                      className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 border border-red-500/30 text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer"
-                      title="Escanear código de 8 dígitos con cámara"
-                    >
-                      <Camera className="w-3 h-3" />
-                      <span>Cámara</span>
-                    </button>
-                  </div>
-                  <textarea
-                    rows={4}
-                    inputMode={bulkMode === 'ids' ? 'numeric' : 'text'}
-                    placeholder={
-                      bulkMode === 'ids'
-                        ? '89631139\n46986414\n24094653\n14558127'
-                        : 'Ejemplos:\n3x Ash Blossom & Joyous Spring\n1x Blue-Eyes Twin Burst Dragon\n#main\n46986414'
-                    }
-                    value={bulkText}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const sanitized = bulkMode === 'ids' ? sanitizeBulkInput(raw, true, true) : raw;
-                      setBulkText(sanitized);
-                    }}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-mono text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-red-500"
-                  />
-                </div>
-
-                <label className="flex items-start gap-2 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={bulkLinkWithCollection}
-                    onChange={(e) => setBulkLinkWithCollection(e.target.checked)}
-                    className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer mt-0.5 shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1">
-                      <span>🔗</span>
-                      <span>Enlazar con Mi Colección</span>
-                    </p>
-                    <p className="text-[9.5px] text-zinc-500 font-mono leading-tight mt-0.5">
-                      Asigna tus cartas físicas de mayor rareza disponibles y detecta cartas en otros mazos.
-                    </p>
-                  </div>
-                </label>
-
-                {bulkErrorMsg && (
-                  <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-2 shrink-0">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                    <span>{bulkErrorMsg}</span>
-                  </div>
-                )}
-
-                {bulkSuccessMsg && (
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 shrink-0">
-                    <Check className="w-4 h-4 shrink-0 text-emerald-500" />
-                    <span>{bulkSuccessMsg}</span>
-                  </div>
-                )}
-
-                {unmatchedBulkCards.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-medium shrink-0">
-                    <strong className="block font-bold">No reconocidas ({unmatchedBulkCards.length}):</strong>
-                    <span className="text-[11px] font-mono">{unmatchedBulkCards.slice(0, 5).join(', ')}{unmatchedBulkCards.length > 5 ? '...' : ''}</span>
-                  </div>
-                )}
-
-                {parsedBulkItems.length > 0 && (
-                  <div className="space-y-2.5 pt-2 border-t border-zinc-200 dark:border-zinc-800">
-                    <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-950 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0">
-                      <span className="text-[11px] font-black uppercase text-zinc-800 dark:text-zinc-200">
-                        Total a agregar: <b className="text-red-600 dark:text-red-400 font-mono text-xs">{parsedBulkItems.filter(i => i.selected).reduce((acc, i) => acc + i.quantity, 0)} cartas</b>
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => selectAllBulkItems(true)}
-                          className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
-                        >
-                          Todas
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => selectAllBulkItems(false)}
-                          className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
-                        >
-                          Ninguna
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
-                      {parsedBulkItems.map((item) => (
-                        <div
-                          key={item.id}
-                          onClick={() => toggleBulkItem(item.id)}
-                          className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer select-none ${
-                            item.selected
-                              ? 'bg-zinc-50 dark:bg-zinc-950/80 border-red-500/50 dark:border-red-500/40 shadow-xs'
-                              : 'bg-zinc-100/50 dark:bg-zinc-950/30 border-zinc-200 dark:border-zinc-800 opacity-60'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={item.selected}
-                            onChange={() => toggleBulkItem(item.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="rounded border-zinc-300 text-red-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer shrink-0"
-                          />
-                          <div className="w-7 h-10 rounded overflow-hidden shadow-xs shrink-0">
-                            <CardImage
-                              src={item.image_url_small || item.image_url}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                              {item.name}
-                            </p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className={`inline-block px-1.5 py-0.2 text-[8.5px] font-black uppercase rounded tracking-wider ${
-                                item.section === 'extra' 
-                                  ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800' 
-                                  : item.section === 'side'
-                                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                                  : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                              }`}>
-                                {item.section}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); toggleBulkItemLink(item.id); }}
-                                className={`px-1.5 py-0.2 rounded text-[8.5px] font-bold font-mono uppercase tracking-wider border transition-colors cursor-pointer ${
-                                  item.linkWithCollection !== false
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                                    : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-700'
-                                }`}
-                                title={item.linkWithCollection !== false ? 'Enlazada a Colección (Click para desenlazar)' : 'Desvinculada: se registrará como nueva carta'}
-                              >
-                                {item.linkWithCollection !== false ? '🔗 Enlazada' : '⚫ Nueva'}
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Columna de comparación directa En Colección vs A Agregar */}
-                          <div className="flex items-center gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex flex-col items-end text-right">
-                              <span className="text-[8px] font-black uppercase text-zinc-400 font-mono tracking-wider">
-                                En Colección
-                              </span>
-                              <span className={`text-[10.5px] font-mono font-black px-1.5 py-0.5 rounded-md border ${
-                                (userInventoryCounts[item.card_id] || 0) > 0
-                                  ? 'bg-purple-50 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/80'
-                                  : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-400 border-zinc-200 dark:border-zinc-800'
-                              }`}>
-                                📦 {userInventoryCounts[item.card_id] || 0}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-col items-end">
-                              <span className="text-[8px] font-black uppercase text-zinc-400 font-mono tracking-wider">
-                                A Agregar
-                              </span>
-                              <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-300 dark:border-zinc-800">
-                                <button
-                                  type="button"
-                                  onClick={() => updateBulkItemQty(item.id, -1)}
-                                  disabled={item.quantity <= 1}
-                                  className="w-4 h-4 rounded flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer"
-                                >
-                                  -
-                                </button>
-                                <span className="text-xs font-mono font-black text-zinc-900 dark:text-zinc-100 px-1">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateBulkItemQty(item.id, 1)}
-                                  disabled={item.quantity >= 3}
-                                  className="w-4 h-4 rounded flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-30 text-zinc-900 dark:text-zinc-100 font-bold text-xs cursor-pointer"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Botón de acción Sticky al fondo del panel */}
-              <div className="sticky bottom-0 pt-2 pb-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xs z-10 border-t border-zinc-200/60 dark:border-zinc-800/60 -mx-1 px-1 shrink-0">
-                {parsedBulkItems.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={confirmAddParsedBulkToDeck}
-                    disabled={parsedBulkItems.filter(i => i.selected).length === 0}
-                    className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 flex items-center justify-center gap-2 cursor-pointer font-display"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>Confirmar y Agregar ({parsedBulkItems.filter(i => i.selected).reduce((acc, i) => acc + i.quantity, 0)} Cartas)</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleProcessBulkText}
-                    disabled={analyzingBulk || !bulkText.trim()}
-                    className="w-full py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 flex items-center justify-center gap-2 cursor-pointer font-display"
-                  >
-                    {analyzingBulk ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Analizando Lote...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>Analizar Lote de Cartas</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-
+            <SearchBulkImportTab {...bulk} userInventoryCounts={userInventoryCounts} />
           ) : (
-            <>
-          <div className="flex gap-2 items-center">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                inputMode={/^\d+$/.test(localQuery.trim()) && localQuery.trim().length > 0 ? 'numeric' : 'search'}
-                placeholder={
-                  searchScope === 'staged'
-                    ? "Buscar por nombre o ID..."
-                    : searchScope === 'collection'
-                    ? "Buscar en mi colección (nombre o ID)..."
-                    : searchScope === 'recent'
-                    ? "Filtrar en cartas recientes..."
-                    : searchScope === 'meta'
-                    ? "Buscar cartas del meta..."
-                    : searchScope === 'suggested'
-                    ? "Buscar en sugerencias..."
-                    : "Nombre o ID de carta (ej: 89631139)..."
-                }
-                value={localQuery}
-                onChange={(e) => setLocalQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-red-500 text-zinc-900 dark:text-zinc-100 rounded-xl text-xs focus:outline-none transition-colors"
-              />
-              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-zinc-400" />
-              {localQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLocalQuery('');
-                    setSearchQuery('');
-                  }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
-                  title="Limpiar búsqueda"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-            
-            <button
-              onClick={() => setOnlyFavorites(prev => !prev)}
-              className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                onlyFavorites
-                  ? 'bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 border-pink-300 dark:border-pink-500/50 shadow-sm'
-                  : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-pink-500'
-              }`}
-              title={onlyFavorites ? "Mostrar todas las cartas" : "Filtrar por Favoritas"}
-            >
-              <Heart className={`w-4 h-4 ${onlyFavorites ? 'fill-pink-500' : ''}`} />
-            </button>
-          </div>
-
-
-          {/* Selector de Ámbito de Búsqueda (Dropdown Unificado) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="flex-1 min-w-0">
-              <PremiumDropdown
-                value={searchScope}
-                onChange={(val) => setSearchScope(val as SearchScope)}
-                options={[
-                  { value: 'global', label: '🌐 Global' },
-                  { value: 'collection', label: '📦 Colección' },
-                  { value: 'recent', label: `🕒 Recientes${recentCardsCount > 0 ? ` (${recentCardsCount})` : ''}` },
-                  { value: 'meta', label: '📈 Meta MDM' },
-                  { value: 'suggested', label: '✨ Sugeridas' },
-                  ...(showStagedTab ? [{ value: 'staged', label: `📥 Pendientes (${stagedCardsCount})` }] : []),
-                ]}
-                size="sm"
-                triggerClassName="bg-zinc-100 dark:bg-zinc-950 font-bold border-zinc-200 dark:border-zinc-800 rounded-xl"
-              />
-            </div>
-            {searchScope === 'recent' && recentCardsCount > 0 && onClearRecentCards && (
-              <button
-                type="button"
-                onClick={onClearRecentCards}
-                className="px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 hover:bg-red-500/10 hover:border-red-500/30 text-zinc-500 hover:text-red-500 text-[10px] font-bold uppercase transition-colors cursor-pointer shrink-0"
-                title="Limpiar historial de recientes"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
-
-          {/* Banner de acción rápida para cartas pendientes */}
-          {searchScope === 'staged' && stagedCardsCount > 0 && onSelectAllStaged && (
-            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200 truncate">
-                  {stagedCardsCount} {stagedCardsCount === 1 ? 'carta pendiente' : 'cartas pendientes'}
-                </p>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
-                  Sin ranura asignada en el binder
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onSelectAllStaged}
-                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase font-mono tracking-wider transition-colors shrink-0 cursor-pointer shadow-xs"
-                title="Seleccionar todas para mover a otro contenedor con la barra inferior"
-              >
-                Seleccionar Todo
-              </button>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-1.5">
-            {(['All', 'Monster', 'Spell', 'Trap', 'Extra'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setSearchType(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  searchType === t
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:text-zinc-900 dark:hover:text-white'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative z-20 shrink-0">
-            <CardFilters
-              filters={advancedFilters}
-              onFilterChange={setAdvancedFilters}
-              onReset={() => setAdvancedFilters({
-                type: '',
-                attribute: '',
-                race: '',
-                level: '',
-                atkMin: '',
-                atkMax: '',
-                defMin: '',
-                defMax: '',
-                archetype: ''
-              })}
+            <SearchPanelSingleTab
+              localQuery={localQuery} setLocalQuery={setLocalQuery} setSearchQuery={setSearchQuery}
+              searchScope={searchScope} setSearchScope={setSearchScope} recentCardsCount={recentCardsCount}
+              onClearRecentCards={onClearRecentCards} showStagedTab={showStagedTab} stagedCardsCount={stagedCardsCount}
+              onSelectAllStaged={onSelectAllStaged} onlyFavorites={onlyFavorites} setOnlyFavorites={setOnlyFavorites}
+              searchType={searchType} setSearchType={setSearchType} advancedFilters={advancedFilters}
+              setAdvancedFilters={setAdvancedFilters} searchResults={searchResults} isSearching={isSearching}
+              searchViewMode={searchViewMode} isMobile={isMobile} getBanlistBadge={(c) => renderBanlistBadge(c, format)}
+              userInventoryCounts={userInventoryCounts} addCardToDeck={handleAddCardWithCopyCheck}
+              openPreviewForCard={openPreviewForCard} handleDragCardStart={handleDragCardStart}
+              handleCardMouseEnter={handleCardMouseEnter} handleCardMouseLeave={handleCardMouseLeave}
+              searchLimit={searchLimit} setSearchLimit={setSearchLimit}
             />
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin">
-            <SearchResultsList
-              searchResults={searchResults}
-              isSearching={isSearching}
-              searchViewMode={searchViewMode}
-              isMobile={isMobile}
-              getBanlistBadge={getBanlistBadge}
-              userInventoryCounts={userInventoryCounts}
-              addCardToDeck={handleAddCardWithCopyCheck}
-              openPreviewForCard={openPreviewForCard}
-              handleDragCardStart={handleDragCardStart}
-              handleCardMouseEnter={handleCardMouseEnter}
-              handleCardMouseLeave={handleCardMouseLeave}
-              searchScope={searchScope}
-            />
-
-            {searchResults.length > 0 && searchResults.length >= searchLimit && (
-              <button
-                onClick={() => setSearchLimit(prev => prev + 45)}
-                className="w-full mt-3 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" /> : <ChevronDown className="w-3.5 h-3.5 text-purple-400" />}
-                <span>Cargar más cartas</span>
-              </button>
-            )}
-          </div>
-          </>
           )}
         </>
       ) : (
-
         <div className="flex-1 flex items-center justify-center">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest" style={{ writingMode: 'vertical-rl' }}>Búsqueda</span>
         </div>
       )}
 
-      {/* MODAL DE ESCANEO DE CÓDIGOS OCR */}
-      {isScannerOpen && (
+      {bulk.isScannerOpen && (
         <CardCodeScannerModal
-          isOpen={isScannerOpen}
-          onClose={() => setIsScannerOpen(false)}
-          onCardRegistered={handleScannerCardRegistered}
+          isOpen={bulk.isScannerOpen}
+          onClose={() => bulk.setIsScannerOpen(false)}
+          onCardRegistered={bulk.handleScannerCardRegistered}
           title="Escanear Código de Carta"
           subtitle="Apunta al código numérico de 8 dígitos de la esquina inferior"
         />
       )}
 
-      {/* MODAL SELECTOR DE COPIA FÍSICA ESPECÍFICA */}
       {copyPickerState && (
         <SearchCardCopyPickerModal
           isOpen={Boolean(copyPickerState)}

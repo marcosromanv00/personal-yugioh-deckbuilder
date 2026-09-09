@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Check, Layers } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Layers, BookOpen, ArrowRight, Columns2, FileText } from 'lucide-react';
 import { UserCard } from '@/types/collection';
 import { Card } from '@/components/deckbuilder/types';
 import { getCategoryBadgeStyle } from '@/lib/collectionUtils';
@@ -70,23 +70,85 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
   onSendCardToStaged,
 }) => {
   const [slotModalData, setSlotModalData] = useState<{ page: number; slot: number; cards: UserCard[] } | null>(null);
+  const [userSelectedSide, setUserSelectedSide] = useState<'left' | 'right' | null>(null);
+  const [prevViewIndex, setPrevViewIndex] = useState<number>(currentBinderViewIndex);
+  const [desktopViewMode, setDesktopViewMode] = useState<'spread' | 'single'>('spread');
   const hasActiveSelection = isSelectMode || selectedCardIds.length > 0;
+
+  // Si cambia la vista, resetear la preferencia manual de lado (ajuste canónico en render)
+  if (currentBinderViewIndex !== prevViewIndex) {
+    setPrevViewIndex(currentBinderViewIndex);
+    setUserSelectedSide(null);
+  }
+
+  // En la vista 0 las ranuras inician a la derecha (Pág 1); en vistas posteriores inicia a la izquierda
+  const defaultMobileSide: 'left' | 'right' = currentBinderViewIndex === 0 ? 'right' : 'left';
+  const activeMobileSide = userSelectedSide ?? defaultMobileSide;
 
   return (
     <div className={`h-full flex flex-col items-center justify-between transition-all ${hasActiveSelection ? 'pb-28 sm:pb-32' : 'pb-2'}`}>
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 items-center justify-center">
+      {/* Selector de página para vista de 1 página a la vez (móvil y toggle desktop) */}
+      <div className={`items-center justify-between gap-2 mb-3 w-full max-w-md px-2 ${desktopViewMode === 'spread' ? 'flex md:hidden' : 'flex'}`}>
+        <button
+          type="button"
+          onClick={() => setUserSelectedSide('left')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 touch-manipulation min-h-11 cursor-pointer ${
+            activeMobileSide === 'left'
+              ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm ring-1 ring-zinc-900/10 dark:ring-white/20'
+              : 'bg-zinc-200/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+          }`}
+        >
+          <span>{leftPageNum ? `Pág. ${leftPageNum}` : 'Contraportada'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setUserSelectedSide('right')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 touch-manipulation min-h-11 cursor-pointer ${
+            activeMobileSide === 'right'
+              ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm ring-1 ring-zinc-900/10 dark:ring-white/20'
+              : 'bg-zinc-200/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+          }`}
+        >
+          <span>{rightPageNum ? `Pág. ${rightPageNum}` : 'Contraportada'}</span>
+        </button>
+      </div>
+
+      <div className={`w-full ${desktopViewMode === 'spread' ? 'max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6' : 'max-w-md flex flex-col'} items-center justify-center`}>
         {/* Página Izquierda */}
-        <div className="bg-zinc-100 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+        <div className={`w-full bg-zinc-100 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 ${
+          desktopViewMode === 'spread' 
+            ? (activeMobileSide === 'left' ? 'block md:block' : 'hidden md:block')
+            : (activeMobileSide === 'left' ? 'block' : 'hidden')
+        }`}>
           <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
-            {leftPageNum ? `Página ${leftPageNum}` : 'Portada Interior'}
+            {leftPageNum ? `Página ${leftPageNum}` : 'Contraportada Interior'}
           </div>
-          <div
-            className="grid gap-2 aspect-3/4"
-            style={{
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-            }}
-          >
+
+          {leftPageNum === null ? (
+            /* Contraportada Interior: Superficie física del binder SIN slots */
+            <div className="bg-zinc-200/60 dark:bg-zinc-900/90 p-6 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 flex flex-col items-center justify-center text-center aspect-3/4 select-none relative overflow-hidden">
+              <div className="w-14 h-14 rounded-2xl bg-zinc-300/80 dark:bg-zinc-800/80 border border-zinc-400/30 dark:border-zinc-700/50 flex items-center justify-center text-zinc-500 dark:text-zinc-400 mb-3 shadow-inner">
+                <BookOpen className="w-7 h-7 opacity-75" />
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300 font-display">
+                Contraportada Interior
+              </h4>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 max-w-[210px] leading-relaxed font-medium">
+                Superficie interna del archivador físico sin ranuras.
+              </p>
+              <div className="mt-4 px-3 py-1.5 rounded-full bg-red-600/10 border border-red-500/30 text-red-600 dark:text-red-400 text-[10px] font-bold flex items-center gap-1.5 shadow-2xs">
+                <span>Las ranuras inician en la Página 1</span>
+                <ArrowRight className="w-3 h-3" />
+              </div>
+            </div>
+          ) : (
+            <div
+              className="grid gap-2 aspect-3/4"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+              }}
+            >
             {Array.from({ length: pocketsPerPage }).map((_, idx) => {
               const slotNum = idx + 1;
               const cardsInSlot = leftPageCards.filter(c => c.binder_slot === slotNum);
@@ -245,20 +307,40 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Página Derecha */}
-        <div className="bg-zinc-100 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+        <div className={`w-full bg-zinc-100 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 ${
+          desktopViewMode === 'spread' 
+            ? (activeMobileSide === 'right' ? 'block md:block' : 'hidden md:block')
+            : (activeMobileSide === 'right' ? 'block' : 'hidden')
+        }`}>
           <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2 text-center uppercase tracking-widest font-bold">
-            {rightPageNum ? `Página ${rightPageNum}` : 'Contraportada'}
+            {rightPageNum ? `Página ${rightPageNum}` : 'Contraportada Trasera'}
           </div>
-          <div
-            className="grid gap-2 aspect-3/4"
-            style={{
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-            }}
-          >
+
+          {rightPageNum === null ? (
+            /* Contraportada Trasera: Superficie física del binder SIN slots */
+            <div className="bg-zinc-200/60 dark:bg-zinc-900/90 p-6 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 flex flex-col items-center justify-center text-center aspect-3/4 select-none relative overflow-hidden">
+              <div className="w-14 h-14 rounded-2xl bg-zinc-300/80 dark:bg-zinc-800/80 border border-zinc-400/30 dark:border-zinc-700/50 flex items-center justify-center text-zinc-500 dark:text-zinc-400 mb-3 shadow-inner">
+                <BookOpen className="w-7 h-7 opacity-75" />
+              </div>
+              <h4 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300 font-display">
+                Contraportada Trasera
+              </h4>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 max-w-[210px] leading-relaxed font-medium">
+                Final del archivador físico.
+              </p>
+            </div>
+          ) : (
+            <div
+              className="grid gap-2 aspect-3/4"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+              }}
+            >
             {Array.from({ length: pocketsPerPage }).map((_, idx) => {
               const slotNum = idx + 1;
               const cardsInSlot = rightPageCards.filter(c => c.binder_slot === slotNum);
@@ -417,30 +499,65 @@ export const ContainerBinderView: React.FC<ContainerBinderViewProps> = ({
               );
             })}
           </div>
+          )}
         </div>
       </div>
 
       {/* Controles de página para Binder */}
-      <div className="flex items-center gap-4 mt-4">
+      <div className="flex items-center flex-wrap justify-center gap-3 sm:gap-4 mt-4 w-full">
         <button
+          type="button"
           disabled={currentBinderViewIndex <= 0}
           onClick={() => setCurrentBinderViewIndex(p => Math.max(0, p - 1))}
-          className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+          className="px-4 py-2 min-h-11 touch-manipulation bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer transition-all hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <ChevronLeft className="w-4 h-4" />
           <span>Anterior</span>
         </button>
-        <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+
+        <span className="text-xs font-mono font-bold text-zinc-600 dark:text-zinc-400 px-2">
           Vista {currentBinderViewIndex + 1} de {totalBinderViews}
         </span>
+
         <button
+          type="button"
           disabled={currentBinderViewIndex >= totalBinderViews - 1}
           onClick={() => setCurrentBinderViewIndex(p => Math.min(totalBinderViews - 1, p + 1))}
-          className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+          className="px-4 py-2 min-h-11 touch-manipulation bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer transition-all hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <span>Siguiente</span>
           <ChevronRight className="w-4 h-4" />
         </button>
+
+        {/* Toggle de Modo en Escritorio (2 Páginas vs 1 Página) */}
+        <div className="hidden md:flex items-center bg-zinc-200/80 dark:bg-zinc-800/80 p-0.5 rounded-xl text-[11px] font-semibold border border-zinc-300 dark:border-zinc-700">
+          <button
+            type="button"
+            onClick={() => setDesktopViewMode('spread')}
+            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all min-h-8 ${
+              desktopViewMode === 'spread'
+                ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-2xs font-bold'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+            title="Vista de doble página (abierto)"
+          >
+            <Columns2 className="w-3.5 h-3.5" />
+            <span>2 Páginas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setDesktopViewMode('single')}
+            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all min-h-8 ${
+              desktopViewMode === 'single'
+                ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-2xs font-bold'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+            title="Vista de una sola página"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>1 Página</span>
+          </button>
+        </div>
       </div>
 
       {/* Modal para slots con múltiples cartas */}
