@@ -260,7 +260,7 @@ export const ContainerCenterPanel: React.FC<ContainerCenterPanelProps> = ({
       </AnimatePresence>
 
       {/* Contenido Visual: Grid estándar vs Binder Book */}
-      <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+      <div className="flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto overscroll-contain scrollbar-thin">
         {loading ? (
           <ContainerWorkspaceSkeleton containerType={containerType} />
         ) : containerType === 'binder' ? (

@@ -1,6 +1,4 @@
-import { StorageLocation, UserCard, SleeveInventory, Deck, CompartmentsConfig } from '@/types/collection';
-import { Card, HoverCardBase } from '@/components/deckbuilder/types';
-import { LaneCluster, BestRecommendation } from '@/lib/cardClassificationEngine';
+import { StorageLocation, UserCard, SleeveInventory, Deck } from '@/types/collection';
 
 export interface UniversalContainerWorkspaceModalProps {
   isOpen: boolean;
@@ -72,3 +70,10 @@ export type ContainerHistoryAction =
         newCard: UserCard;
       }[];
     };
+
+export interface WorkspaceToastMethods {
+  success: (msg: string, opt?: { title?: string }) => void;
+  error: (msg: string, opt?: { title?: string }) => void;
+  warning?: (msg: string, opt?: { title?: string }) => void;
+  info?: (msg: string, opt?: { title?: string }) => void;
+}
