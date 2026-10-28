@@ -52,8 +52,7 @@ export function useDeckBuilderSaveLoadActions({
   const handleLoadDeck = useCallback(async (selected: Deck) => {
     state.setDeckId(selected.id);
     state.setDeckName(selected.name);
-    state.setIsManualDeckName(true);
-    state.isManualDeckNameRef.current = true;
+    state.setManualDeckNameFlag(true);
     state.setDeckDescription(selected.description || '');
     const fmt = selected.format === 'Master Duel' || selected.format === 'TCG' || selected.format === 'Duel Links' ? selected.format : 'Master Duel';
     state.setFormat(fmt);
@@ -171,7 +170,7 @@ export function useDeckBuilderSaveLoadActions({
 
   const handleClearDeck = () => {
     setDeckCards([]); state.setDeckId(null); state.setDeckName('Nuevo Deck TCG');
-    state.setIsManualDeckName(false); state.isManualDeckNameRef.current = false;
+    state.setManualDeckNameFlag(false);
     setSelectedMainSleeveId(''); setSelectedExtraSleeveId(''); state.setLastSavedSnapshot(''); state.setLoadedVariants([]);
   };
 
