@@ -57,3 +57,5 @@ personal-yugioh-deckbuilder/
 3. **Prefijo de Base de Datos `yg_`**: Todas las tablas de Yu-Gi-Oh! usan el prefijo `yg_` con RLS habilitado.
 4. **Ergonomía Móvil**: Touch targets ≥ 44px (`min-h-11`) con `touch-manipulation` y prevención de ghost clicks con `isTouchRef`.
 5. **Invariante Desktop**: Mantener las 3 columnas en pantallas grandes (`lg:`, `xl:`).
+6. **Anclaje a Datos en Vivo & Zero-Memoria Paramétrica**: Prohibido asumir datos fácticos de memoria (precios, contenidos de cajas/latas, banlist, tiers). Obligatorio consultar `search_web`, `yugioh-card.com`, `ygoprodeck.com`, `masterduelmeta.com`, `tcgplayer.com` y emitir siempre calificación de fuerza cuantitativa 1.0 a 10.0 con evidencia.
+7. **Auditoría de Sugerencias & Reportes (Escala 1-5)**: Integrar componentes de calificación y descripción de error (`yg_suggestion_reports`) en todo punto donde la IA o el motor de sugerencias ofrezca recomendaciones.
