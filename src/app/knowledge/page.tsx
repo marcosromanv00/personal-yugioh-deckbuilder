@@ -147,24 +147,24 @@ export default function KnowledgePage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={openChatDrawer}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display min-h-11 touch-manipulation"
+              className="flex items-center justify-center gap-1.5 px-3.5 h-11 min-h-11 rounded-xl bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-xs border border-red-500/40 transition-all cursor-pointer font-display touch-manipulation active:scale-95 shrink-0"
               title="Abrir Asistente Táctico de IA (Juez, Rulings & Combos)"
             >
-              <BrainCircuit className="w-4 h-4" />
+              <BrainCircuit className="w-4 h-4 shrink-0" />
               <span>IA</span>
             </button>
 
             <button
               onClick={() => setIsTeachSynergyModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer font-display"
+              className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 h-11 min-h-11 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:border-zinc-400 dark:hover:border-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-black uppercase tracking-wider shadow-xs transition-all cursor-pointer font-display touch-manipulation active:scale-95 shrink-0"
             >
-              <Plus className="w-3.5 h-3.5 text-red-500" />
+              <Plus className="w-4 h-4 text-red-500 shrink-0" />
               <span>Enseñar Sinergia</span>
             </button>
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="w-11 h-11 min-w-11 min-h-11 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer touch-manipulation flex items-center justify-center active:scale-95 shrink-0"
               title="Alternar tema claro/oscuro"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-zinc-600" />}

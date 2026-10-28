@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bot, Sparkles, X, Loader2, DollarSign, Trophy, Layers, CheckCircle2 } from 'lucide-react';
+import { Bot, Sparkles, X, Loader2, DollarSign, Trophy, Layers, CheckCircle2, Flag } from 'lucide-react';
 import { DeckCard } from '@/components/deckbuilder/types';
 import { useToast } from '@/components/ui/ToastProvider';
+import { SuggestionReportModal } from '@/components/ui/SuggestionReportModal';
 
 interface AIDeckAssistantModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const AIDeckAssistantModal: React.FC<AIDeckAssistantModalProps> = ({
   const [budgetMax, setBudgetMax] = useState<number>(50);
   const [isLoading, setIsLoading] = useState(false);
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,13 +237,24 @@ export const AIDeckAssistantModal: React.FC<AIDeckAssistantModalProps> = ({
                   </span>
                 </div>
 
-                <button
-                  onClick={handleApplyToDeck}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Aplicar al Deckbuilder</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 hover:text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Calificar o reportar error en esta receta de IA"
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                    <span>Reportar Error</span>
+                  </button>
+                  <button
+                    onClick={handleApplyToDeck}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Aplicar al Deckbuilder</span>
+                  </button>
+                </div>
               </div>
 
               <p className="text-xs text-zinc-300 leading-relaxed">
@@ -298,6 +311,21 @@ export const AIDeckAssistantModal: React.FC<AIDeckAssistantModalProps> = ({
           )}
         </div>
       </motion.div>
+
+      {resultData && (
+        <SuggestionReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          source="deck_assistant"
+          suggestionSnippet={`${String(resultData.deckName)} (${String(resultData.archetype)}): ${String(resultData.strategyOverview)}`}
+          contextData={{
+            mode,
+            format,
+            deckName: resultData.deckName,
+            archetype: resultData.archetype,
+          }}
+        />
+      )}
     </div>
   );
 };

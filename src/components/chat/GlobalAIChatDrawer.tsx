@@ -16,9 +16,11 @@ import {
   Scale,
   Swords,
   Package,
+  Flag,
 } from 'lucide-react';
 import { useAIChat } from '@/context/AIChatContext';
 import { AI_MODELS } from '@/lib/constants/models';
+import { SuggestionReportModal } from '@/components/ui/SuggestionReportModal';
 
 type AIModeType = 'judge' | 'duel' | 'collection';
 
@@ -55,6 +57,7 @@ export const GlobalAIChatDrawer: React.FC = () => {
 
   const [input, setInput] = useState('');
   const [selectedAIMode, setSelectedAIMode] = useState<AIModeType>('judge');
+  const [reportingMessage, setReportingMessage] = useState<{ id: string; content: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -271,14 +274,30 @@ export const GlobalAIChatDrawer: React.FC = () => {
                         <Bot className="w-4 h-4" />
                       </div>
                     )}
-                    <div
-                      className={`max-w-[82%] rounded-2xl p-3.5 text-xs leading-relaxed shadow-2xs ${
-                        msg.role === 'user'
-                          ? 'bg-red-600 text-white rounded-tr-none'
-                          : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 rounded-tl-none prose dark:prose-invert prose-xs max-w-none'
-                      }`}
-                    >
-                      {msg.content}
+                    <div className="flex flex-col max-w-[82%]">
+                      <div
+                        className={`rounded-2xl p-3.5 text-xs leading-relaxed shadow-2xs ${
+                          msg.role === 'user'
+                            ? 'bg-red-600 text-white rounded-tr-none'
+                            : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 rounded-tl-none prose dark:prose-invert prose-xs max-w-none'
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                      {msg.role === 'assistant' && (
+                        <div className="flex items-center justify-between mt-1 px-1">
+                          <span className="text-[10px] text-zinc-400">Exordio IA</span>
+                          <button
+                            type="button"
+                            onClick={() => setReportingMessage({ id: msg.id, content: msg.content })}
+                            className="text-[10px] text-zinc-400 hover:text-amber-500 dark:hover:text-amber-400 flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            title="Calificar o reportar error en esta sugerencia"
+                          >
+                            <Flag className="w-2.5 h-2.5" />
+                            <span>Calificar / Reportar</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {msg.role === 'user' && (
                       <div className="w-8 h-8 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300 shrink-0 mt-0.5 shadow-2xs">
@@ -320,6 +339,15 @@ export const GlobalAIChatDrawer: React.FC = () => {
               </button>
             </form>
           </motion.div>
+
+          <SuggestionReportModal
+            isOpen={!!reportingMessage}
+            onClose={() => setReportingMessage(null)}
+            source="global_chat"
+            suggestionId={reportingMessage?.id}
+            suggestionSnippet={reportingMessage?.content}
+            contextData={{ mode: selectedAIMode, model: selectedModel }}
+          />
         </>
       )}
     </AnimatePresence>

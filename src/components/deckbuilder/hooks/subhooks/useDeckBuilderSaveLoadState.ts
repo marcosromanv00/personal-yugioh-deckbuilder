@@ -94,9 +94,15 @@ export function useDeckBuilderSaveLoadState(
     if (!deckId) setDeckName('Nuevo Deck TCG');
   };
 
+  const setManualDeckNameFlag = useCallback((val: boolean) => {
+    setIsManualDeckName(val);
+    isManualDeckNameRef.current = val;
+  }, []);
+
   return {
     format, setFormat, saveFormat, setSaveFormat, saveIsActive, setSaveIsActive,
     deckName, setDeckName, isManualDeckName, setIsManualDeckName, isManualDeckNameRef,
+    setManualDeckNameFlag,
     handleUpdateDeckName, handleResetDeckName,
     deckDescription, setDeckDescription, deckId, setDeckId, loadedVariants, setLoadedVariants,
     savedDecks, setSavedDecks, loadingDecks, setLoadingDecks, locations, setLocations,

@@ -10,6 +10,7 @@ import {
   ArrowRight, 
   Search, 
   AlertTriangle, 
+  Flag,
 } from 'lucide-react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { 
@@ -17,6 +18,7 @@ import {
 } from '@/lib/collectionSuggestions';
 import { MultiLevelMovementDropdown } from '@/components/collection/MultiLevelMovementDropdown';
 import { CardImage } from '@/components/ui/CardImage';
+import { SuggestionReportModal } from '@/components/ui/SuggestionReportModal';
 
 interface SuggestionsTabProps {
   allUserCards: UserCard[];
@@ -42,6 +44,7 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
   const [filterView, setFilterView] = useState<FilterView>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [stapleCategoryFilter, setStapleCategoryFilter] = useState<string>('all');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Análisis integral memoizado
   const analysis = useMemo(() => {
@@ -136,11 +139,22 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
       {/* TOP: ASISTENTE DE SUGERENCIAS / RECOMENDACIONES DE 1 CLIC */}
       {analysis.assistantActionCards.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-500" />
-            <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100 font-display">
-              Recomendaciones del Asistente Exordio
-            </h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-500" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900 dark:text-zinc-100 font-display">
+                Recomendaciones del Asistente Exordio
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="text-[11px] font-bold text-zinc-500 hover:text-amber-500 dark:text-zinc-400 dark:hover:text-amber-400 flex items-center gap-1.5 transition-colors cursor-pointer px-2.5 py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 touch-manipulation"
+              title="Calificar o reportar sugerencias erróneas en la colección"
+            >
+              <Flag className="w-3 h-3 text-amber-500" />
+              <span>Reportar Discrepancia</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -577,6 +591,18 @@ export const SuggestionsTab: React.FC<SuggestionsTabProps> = ({
         </section>
       )}
 
+      <SuggestionReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        source="collection_suggestions"
+        suggestionSnippet={`Arquetipos viables detectados: ${analysis.stats.totalArchetypesDetected}, Staples: ${analysis.stats.totalStaplesCount}, Duplicados: ${analysis.stats.totalDispersedDuplicates}`}
+        contextData={{
+          totalArchetypes: analysis.stats.totalArchetypesDetected,
+          totalStaples: analysis.stats.totalStaplesCount,
+          totalDuplicates: analysis.stats.totalDispersedDuplicates,
+        }}
+      />
     </div>
   );
 };
+

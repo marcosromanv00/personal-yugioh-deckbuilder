@@ -71,7 +71,7 @@ export const DeckActionsDropdown: React.FC<DeckActionsDropdownProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         onMouseEnter={onPreloadSave}
         onFocus={onPreloadSave}
-        className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-700 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer min-h-11 touch-manipulation"
+        className="flex items-center justify-center gap-2 px-3.5 h-11 min-h-11 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer touch-manipulation font-display active:scale-95 shrink-0"
       >
         <FileText className="w-3.5 h-3.5 text-zinc-500" />
         <span>Deck</span>

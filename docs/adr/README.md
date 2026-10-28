@@ -29,3 +29,4 @@ Cada documento sigue el estándar canónico MADR / Michael Nygard:
 | [0011](file:///docs/adr/0011-two-column-card-detail-modal-and-sleeve-wizard.md) | Modal de Detalle de Carta en 2 Columnas y Wizard de Guardado con Modelo Take/Add | **Aceptado** | PR #11 | 2026-03 |
 | [0012](file:///docs/adr/0012-deck-variants-and-physical-exchange-engine.md) | Sistema de Variantes de Decks, Motor Hipergeométrico y Préstamos entre Deckboxes | **Aceptado** | PR #12 | 2026-03 |
 | [0013](file:///docs/adr/0013-clean-code-audit-surgical-decomposition.md) | Auditoría Clean Code Integral, Límite Estricto $<200$ LOC y Patrón de Fachada con Servicios | **Aceptado** | PR #13 | 2026-03 |
+| [0014](file:///docs/adr/0014-triage-workstation-and-tactical-classification-engine.md) | Mesa de Triaje de Colección, Reubicación Física Persistente y Motor Táctico de Clasificación | **Aceptado** | PR #14 | 2026-10 |

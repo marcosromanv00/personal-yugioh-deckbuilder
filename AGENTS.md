@@ -104,3 +104,17 @@ Para mantener el proyecto pulido para su venta, queda terminantemente prohibido 
 
 6. **Ejecución de Comandos en Terminal (PowerShell / Windows)**:
    - **Prohibición del operador `&&`**: En PowerShell de Windows, queda terminantemente prohibido encadenar comandos utilizando `&&`. Ejecuta siempre cada comando (`git add`, `git commit`, `tsc`, `lint`, `build`, etc.) de forma individual, atómica y secuencial.
+
+7. **Prohibición de Memoria Paramétrica en Yu-Gi-Oh! & Calificación de Fuerza Obligatoria**:
+   - **Tolerancia Cero a Memoria Interna para el Meta:** Queda terminantemente prohibido asumir tierlists, listas de torneos, precios de cartas, contenidos de cajas/latas o legalidad de banlist basándose en el conocimiento paramétrico o memoria previa del modelo (la cual sufre desfase temporal y asume metas del pasado como Tenpai Tier 1 de 2024).
+   - **Investigación Web en Tiempo Real Obligatoria:** Toda evaluación competitiva, banlist, soporte reciente, precios de mercado y sinergias DEBE ser investigada en la web en tiempo real (`search_web`) consultando fuentes vivas y oficiales:
+     - `yugioh-card.com` (Konami oficial: banlists y rulings)
+     - `ygoprodeck.com` (Base de datos maestra, passcodes Konami, sets y rarezas)
+     - `masterduelmeta.com` y `ygometa.com` (Tiers y breakdowns estadísticos)
+     - `tcgplayer.com` y `cardmarket.com` (Precios reales de mercado)
+   - **Métrica Cuantitativa de Fuerza:** En cualquier reporte, archivo de ruta o comparativa de decks, es OBLIGATORIO incluir una **Calificación de Fuerza Numérica en escala de 1.0 a 10.0** (ej. *Branded: 8.5/10*, *Ryzeal: 9.2/10*, *Darklord: 4.2/10*), además de su Tier de torneo justificado con resultados recientes.
+
+8. **Auditoría de Sugerencias de IA & Sistema de Reportes (Escala 1-5)**:
+   - Todo módulo del sistema que presente recomendaciones automáticas, análisis de barajas o respuestas del asistente inteligente debe contar con integración al sistema de reportes (`yg_suggestion_reports`).
+   - El usuario puede calificar cada sugerencia de 1 a 5 estrellas e ingresar una descripción obligatoria del error para retroalimentar la base de conocimiento y erradicar alucinaciones.
+

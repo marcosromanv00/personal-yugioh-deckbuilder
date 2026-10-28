@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Box, 
@@ -238,6 +239,17 @@ export const CollectionSidebar: React.FC<CollectionSidebarProps> = ({
             )}
           </button>
         )}
+
+        <Link
+          href="/collection/triage"
+          className={`w-full flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 hover:bg-red-600 dark:hover:bg-red-600 dark:hover:text-white transition-all cursor-pointer text-xs font-black uppercase tracking-wider shadow-sm min-h-10 touch-manipulation ${
+            isCollapsed ? 'justify-center px-0' : ''
+          }`}
+          title="Mesa de Triaje (Clasificar Cartas)"
+        >
+          <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+          {!isCollapsed && <span className="truncate font-display">Mesa de Triaje</span>}
+        </Link>
 
         {onNewContainerClick && (
           <button
