@@ -327,3 +327,32 @@ CREATE INDEX IF NOT EXISTS idx_yg_deck_variant_cards_variant ON yg_deck_variant_
 
 ALTER TABLE yg_deck_variant_cards ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public access deck variant cards" ON yg_deck_variant_cards FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- 20. yg_suggestion_reports: Reportes y Calificaciones de Sugerencias de IA
+CREATE TABLE IF NOT EXISTS yg_suggestion_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    user_id VARCHAR(100),
+    source VARCHAR(50) NOT NULL CONSTRAINT chk_report_source CHECK (source IN (
+        'global_chat', 
+        'deck_assistant', 
+        'deck_diagnostics', 
+        'collection_suggestions', 
+        'duel_copilot', 
+        'combo_advisor', 
+        'general'
+    )),
+    suggestion_id VARCHAR(100),
+    rating SMALLINT NOT NULL CONSTRAINT chk_report_rating CHECK (rating >= 1 AND rating <= 5),
+    error_description TEXT NOT NULL,
+    context_data JSONB DEFAULT '{}'::jsonb,
+    status VARCHAR(50) DEFAULT 'pending' CONSTRAINT chk_report_status CHECK (status IN ('pending', 'reviewed', 'resolved'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_yg_suggestion_reports_source ON yg_suggestion_reports (source);
+CREATE INDEX IF NOT EXISTS idx_yg_suggestion_reports_rating ON yg_suggestion_reports (rating);
+CREATE INDEX IF NOT EXISTS idx_yg_suggestion_reports_created_at ON yg_suggestion_reports (created_at DESC);
+
+ALTER TABLE yg_suggestion_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public insert suggestion reports" ON yg_suggestion_reports FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Public select suggestion reports" ON yg_suggestion_reports FOR SELECT TO public USING (true);
