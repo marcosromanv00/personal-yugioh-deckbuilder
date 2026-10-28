@@ -110,10 +110,11 @@ export function DeckBuilderHeader({
           <button
             type="button"
             onClick={openChatDrawer}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display min-h-11 touch-manipulation"
+            className="flex items-center justify-center gap-1.5 px-3.5 h-11 min-h-11 rounded-xl bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-xs border border-red-500/40 transition-all cursor-pointer font-display touch-manipulation active:scale-95 shrink-0"
             title="Abrir Asistente Táctico de IA (Juez, Rulings & Combos)"
           >
-            <BrainCircuit className="w-4 h-4" /><span>IA</span>
+            <BrainCircuit className="w-4 h-4 shrink-0" />
+            <span>IA</span>
           </button>
 
           <button
@@ -122,15 +123,15 @@ export function DeckBuilderHeader({
             onMouseEnter={preloadSaveModal}
             onFocus={preloadSaveModal}
             disabled={!canQuickSave}
-            className={`flex items-center justify-center p-2.5 rounded-xl min-h-11 min-w-11 touch-manipulation transition-all ${
+            className={`flex items-center justify-center w-11 h-11 min-h-11 min-w-11 rounded-xl touch-manipulation transition-all active:scale-95 shrink-0 ${
               canQuickSave
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/35 border border-emerald-400/50 cursor-pointer active:scale-95'
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-sm shadow-emerald-500/35 border border-emerald-400/50 cursor-pointer'
                 : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-400 dark:text-zinc-600 border border-zinc-200 dark:border-zinc-700/60 cursor-not-allowed opacity-50'
             }`}
             title={!canQuickSave ? 'No hay cartas para guardar' : state.deckId ? `Guardado Rápido: Sobrescribir "${state.deckName}" (Ctrl+S)` : 'Guardar Nueva Baraja (Ctrl+S)'}
             aria-label={!canQuickSave ? 'Guardar desactivado' : state.deckId ? `Guardado Rápido: Sobrescribir "${state.deckName}"` : 'Guardar Nueva Baraja'}
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-4 h-4 shrink-0" />
           </button>
 
           <DeckActionsDropdown
@@ -157,7 +158,7 @@ export function DeckBuilderHeader({
           <button
             type="button"
             onClick={toggleTheme}
-            className="p-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer min-h-11 touch-manipulation flex items-center justify-center"
+            className="w-11 h-11 min-w-11 min-h-11 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer touch-manipulation flex items-center justify-center active:scale-95 shrink-0"
             title={`Cambiar a modo ${theme === 'dark' ? 'Light Tech' : 'Dark Carbón'}`}
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-zinc-700" />}

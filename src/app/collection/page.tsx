@@ -223,10 +223,10 @@ export default function CollectionPage() {
             {/* Botón Flotante IA */}
             <button
               onClick={openChatDrawer}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer font-display min-h-11 touch-manipulation"
+              className="flex items-center justify-center gap-1.5 px-3.5 h-11 min-h-11 rounded-xl bg-linear-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-xs border border-red-500/40 transition-all cursor-pointer font-display touch-manipulation active:scale-95 shrink-0"
               title="Abrir Asistente Táctico de IA (Juez, Rulings & Combos)"
             >
-              <BrainCircuit className="w-4 h-4" />
+              <BrainCircuit className="w-4 h-4 shrink-0" />
               <span>IA</span>
             </button>
 
@@ -234,18 +234,19 @@ export default function CollectionPage() {
             <button
               type="button"
               onClick={() => state.setIsValuationModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-900 dark:bg-zinc-800 hover:bg-black dark:hover:bg-zinc-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+              className="flex items-center justify-center gap-1.5 px-3.5 h-11 min-h-11 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:border-zinc-400 dark:hover:border-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-black uppercase tracking-wider shadow-xs transition-all cursor-pointer font-display touch-manipulation active:scale-95 shrink-0"
               title="Abrir Reporte Financiero y Valoración de la Colección"
             >
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0" />
               <span className="hidden sm:inline">Valoración</span>
             </button>
 
+            {/* Botón CTA Primario Nuevo Contenedor */}
             <button
               onClick={state.handleNewContainerClick}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-red-600/25 transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 px-3.5 sm:px-4 h-11 min-h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider shadow-sm shadow-red-600/20 border border-red-500 transition-all cursor-pointer font-display touch-manipulation active:scale-95 shrink-0"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline">Nuevo Contenedor</span>
             </button>
 
@@ -255,7 +256,7 @@ export default function CollectionPage() {
             {/* Toggle Global de Tema */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="w-11 h-11 min-w-11 min-h-11 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer touch-manipulation flex items-center justify-center active:scale-95 shrink-0"
               title={`Cambiar a modo ${theme === 'dark' ? 'Light Tech' : 'Dark Carbón'}`}
             >
               {theme === 'dark' ? (
