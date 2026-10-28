@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Layers, Swords, Settings, Boxes, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Layers, Swords, Settings, Boxes, AlertCircle, Sparkles } from 'lucide-react';
 import { StorageLocation, UserCard, Deck } from '@/types/collection';
 import { analyzeLanePatterns, LaneCluster } from '@/lib/cardClassificationEngine';
 
@@ -135,6 +136,16 @@ export const ContainerLaneAnalysisView: React.FC<ContainerLaneAnalysisViewProps>
         <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
           {lanePatternReport.summaryRecommendation}
         </p>
+
+        <div className="pt-1 flex items-center justify-end">
+          <Link
+            href={`/collection/triage?location_id=${(currentLocation || location)?.id}&compartment=${activeCompartment !== -1 ? activeCompartment : 0}`}
+            className="text-[10.5px] font-mono font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <Sparkles className="w-3 h-3 text-amber-500" />
+            <span>Clasificar este {activeCompartment === -1 ? 'contenedor' : 'carril'} en Mesa de Triaje</span>
+          </Link>
+        </div>
       </div>
 
       {/* Coincidencias y Clusters Detectados */}

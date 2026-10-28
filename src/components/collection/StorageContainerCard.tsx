@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { StorageLocation, Deck } from '@/types/collection';
 import { 
@@ -150,6 +151,14 @@ export const StorageContainerCard: React.FC<StorageContainerCardProps> = ({
 
           {/* Acciones discretas al pasar el cursor */}
           <div className="flex items-center gap-1 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+            <Link
+              href={`/collection/triage?location_id=${location.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors cursor-pointer"
+              title="Clasificar contenedor en Mesa de Triaje"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+            </Link>
             <button
               type="button"
               onClick={(e) => {
