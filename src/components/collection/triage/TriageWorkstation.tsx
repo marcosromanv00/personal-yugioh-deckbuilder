@@ -11,10 +11,7 @@ import { TriageQueueFilmstrip } from './TriageQueueFilmstrip';
 import { TriageActiveCardViewer } from './TriageActiveCardViewer';
 import { TriageDiagnosticPanel } from './TriageDiagnosticPanel';
 import { TriageActionButtonBar } from './TriageActionButtonBar';
-import { TriageRarityPricingModal } from './TriageRarityPricingModal';
-import { TriageThematicModal } from './TriageThematicModal';
-import { TriageDisagreementFeedbackModal } from './components/TriageDisagreementFeedbackModal';
-import { TriagePriceCorrectionModal } from './components/TriagePriceCorrectionModal';
+import { TriageModalsPortal } from './components/TriageModalsPortal';
 
 interface TriageWorkstationProps {
   initialCards: UserCard[];
@@ -39,7 +36,9 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
     destinationType: TriageCardActionPayload['destinationType'],
     overrideThemeTag?: string,
     overrideSalePrice?: number,
-    userReason?: string
+    userReason?: string,
+    overrideDeckId?: string,
+    overrideDeckSection?: 'main' | 'extra' | 'side'
   ) => {
     if (!state.currentCard) return;
 
@@ -63,9 +62,18 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
     };
 
     if (destinationType === 'active_deck') {
-      const match = state.currentDiagnosis?.competitiveMatches[0];
-      payload.deckId = match ? match.deckId : decks.find(d => d.is_active)?.id || null;
-      payload.deckSection = match ? match.section : 'main';
+      if (overrideDeckId) {
+        payload.deckId = overrideDeckId;
+        payload.deckSection = overrideDeckSection || 'main';
+      } else {
+        const match = state.currentDiagnosis?.competitiveMatches[0];
+        if (!match && decks.length > 0) {
+          state.setIsDeckModalOpen(true);
+          return;
+        }
+        payload.deckId = match ? match.deckId : decks.find(d => d.is_active)?.id || null;
+        payload.deckSection = match ? match.section : 'main';
+      }
     } else if (destinationType === 'thematic_pool') {
       payload.themeTag = overrideThemeTag || state.currentDiagnosis?.thematicIncubators[0]?.themeName || 'Temático';
     } else if (destinationType === 'trade_sale') {
@@ -76,16 +84,25 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
   };
 
   useTriageKeyboardShortcuts({
-    onAction1: () => handleExecuteAction('active_deck'),
+    onAction1: () => {
+      const match = state.currentDiagnosis?.competitiveMatches[0];
+      if (!match && decks.length > 0) {
+        state.setIsDeckModalOpen(true);
+      } else {
+        handleExecuteAction('active_deck');
+      }
+    },
     onAction2: () => state.setIsThemeModalOpen(true),
     onAction3: () => handleExecuteAction('workshop_salad'),
     onAction4: () => handleExecuteAction('collection_binder'),
     onAction5: () => handleExecuteAction('trade_sale'),
     onAction6: () => handleExecuteAction('bulk_discard'),
     onOpenRarityModal: () => state.setIsRarityModalOpen(true),
-    onNavigateNext: state.handleNext, onNavigatePrev: state.handlePrev,
-    onUndo: mutations.handleUndo, canUndo: mutations.canUndo,
-    isDisabled: state.isRarityModalOpen || state.isThemeModalOpen || state.isPriceCorrectionOpen,
+    onNavigateNext: state.handleNext,
+    onNavigatePrev: state.handlePrev,
+    onUndo: mutations.handleUndo,
+    canUndo: mutations.canUndo,
+    isDisabled: state.isRarityModalOpen || state.isThemeModalOpen || state.isPriceCorrectionOpen || state.isDeckModalOpen || isDisagreementModalOpen,
   });
 
   return (
@@ -101,6 +118,7 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
         targetBulkLocationId={state.targetBulkLocationId}
         onSelectBulkLocation={state.setTargetBulkLocationId}
         availableThemes={state.availableThemes}
+        bulkCardsCount={state.bulkCardsCount}
       />
 
       <TriageQueueFilmstrip cards={state.filteredCards} currentIndex={state.safeIndex} onSelectIndex={state.handleJumpToIndex} />
@@ -119,11 +137,20 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
           onOpenThemeModal={() => state.setIsThemeModalOpen(true)}
           onOpenRarityModal={() => state.setIsRarityModalOpen(true)}
           onOpenDisagreement={() => setIsDisagreementModalOpen(true)}
+          onOpenDeckModal={() => state.setIsDeckModalOpen(true)}
         />
       </div>
 
       <TriageActionButtonBar
-        onAction={dest => dest === 'thematic_pool' ? state.setIsThemeModalOpen(true) : handleExecuteAction(dest)}
+        onAction={dest => {
+          if (dest === 'thematic_pool') {
+            state.setIsThemeModalOpen(true);
+          } else if (dest === 'active_deck' && !state.currentDiagnosis?.competitiveMatches[0] && decks.length > 0) {
+            state.setIsDeckModalOpen(true);
+          } else {
+            handleExecuteAction(dest);
+          }
+        }}
         onPrev={state.handlePrev}
         onNext={state.handleNext}
         onUndo={mutations.handleUndo}
@@ -134,65 +161,36 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
         suggestedAction={state.currentDiagnosis?.suggestedPrimaryAction}
       />
 
-      {state.isRarityModalOpen && state.currentCard && (
-        <TriageRarityPricingModal
-          key={`rarity-${state.currentCard.id}`}
-          isOpen={state.isRarityModalOpen}
-          onClose={() => state.setIsRarityModalOpen(false)}
-          cardName={state.currentCard.card_details?.name || 'Carta'}
-          currentRarity={state.currentCard.rarity || 'Common'}
-          currentSalePrice={state.currentCard.sale_price}
-          setsData={state.currentSetsData}
-          onApplyRarityAndPrice={(newRarity, newPrice) => {
-            if (!state.currentCard) return;
-            const destMap: Record<string, TriageCardActionPayload['destinationType']> = { in_deck: 'active_deck', workshop: 'workshop_salad', collection: 'collection_binder', trade_sale: 'trade_sale' };
-            mutations.applyCardAction(state.currentCard, {
-              userCardId: state.currentCard.id,
-              destinationType: destMap[state.currentCard.status_flag] || 'bulk_discard',
-              rarity: newRarity, salePrice: newPrice, condition: state.currentCard.condition,
-            });
-          }}
-        />
-      )}
-
-      {state.isThemeModalOpen && state.currentCard && (
-        <TriageThematicModal
-          key={`theme-${state.currentCard.id}`}
-          isOpen={state.isThemeModalOpen}
-          onClose={() => state.setIsThemeModalOpen(false)}
-          cardName={state.currentCard.card_details?.name || 'Carta'}
-          currentThemeTag={state.currentCard.notes?.match(/\[Tema:\s*([^\]]+)\]/i)?.[1] || null}
-          suggestedIncubators={state.currentDiagnosis?.thematicIncubators || []}
-          availableThemes={state.availableThemes}
-          onApplyTheme={tag => handleExecuteAction('thematic_pool', tag)}
-        />
-      )}
-
-      {isDisagreementModalOpen && state.currentCard && state.currentDiagnosis && (
-        <TriageDisagreementFeedbackModal
-          key={`disagree-${state.currentCard.id}`}
-          isOpen={isDisagreementModalOpen}
-          onClose={() => setIsDisagreementModalOpen(false)}
-          cardName={state.currentCard.card_details?.name || 'Carta'}
-          cardId={state.currentCard.card_id}
-          currentVerdict={state.currentDiagnosis.tacticalVerdict}
-          onApplyOverride={(chosenAction, themeTag, salePrice, reason) => {
-            handleExecuteAction(chosenAction, themeTag, salePrice, reason);
-          }}
-        />
-      )}
-
-      {state.isPriceCorrectionOpen && state.currentCard && (
-        <TriagePriceCorrectionModal
-          key={`price-${state.currentCard.id}`}
-          isOpen={state.isPriceCorrectionOpen}
-          onClose={() => state.setIsPriceCorrectionOpen(false)}
-          cardName={state.currentCard.card_details?.name || 'Carta'}
-          cardId={state.currentCard.card_id}
-          currentPrice={state.currentCard.sale_price ?? state.currentSetsData?.marketPriceTcg ?? 0.25}
-          onApplyCorrection={state.handleCorrectPrice}
-        />
-      )}
+      <TriageModalsPortal
+        currentCard={state.currentCard}
+        currentDiagnosis={state.currentDiagnosis}
+        currentSetsData={state.currentSetsData}
+        decks={decks}
+        availableThemes={state.availableThemes}
+        isRarityModalOpen={state.isRarityModalOpen}
+        onCloseRarityModal={() => state.setIsRarityModalOpen(false)}
+        isThemeModalOpen={state.isThemeModalOpen}
+        onCloseThemeModal={() => state.setIsThemeModalOpen(false)}
+        isDisagreementModalOpen={isDisagreementModalOpen}
+        onCloseDisagreementModal={() => setIsDisagreementModalOpen(false)}
+        isPriceCorrectionOpen={state.isPriceCorrectionOpen}
+        onClosePriceCorrectionModal={() => state.setIsPriceCorrectionOpen(false)}
+        isDeckModalOpen={state.isDeckModalOpen}
+        onCloseDeckModal={() => state.setIsDeckModalOpen(false)}
+        onApplyRarityAction={(newRarity, newPrice) => {
+          if (!state.currentCard) return;
+          const destMap: Record<string, TriageCardActionPayload['destinationType']> = { in_deck: 'active_deck', workshop: 'workshop_salad', collection: 'collection_binder', trade_sale: 'trade_sale' };
+          mutations.applyCardAction(state.currentCard, {
+            userCardId: state.currentCard.id,
+            destinationType: destMap[state.currentCard.status_flag] || 'bulk_discard',
+            rarity: newRarity, salePrice: newPrice, condition: state.currentCard.condition,
+          });
+        }}
+        onApplyThemeAction={tag => handleExecuteAction('thematic_pool', tag)}
+        onApplyDisagreement={(action, themeTag, salePrice, reason) => handleExecuteAction(action, themeTag, salePrice, reason)}
+        onApplyPriceCorrection={state.handleCorrectPrice}
+        onAssignToDeck={(deckId, section) => handleExecuteAction('active_deck', undefined, undefined, undefined, deckId, section)}
+      />
     </div>
   );
 };

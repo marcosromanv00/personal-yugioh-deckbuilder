@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Swords, Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Swords, Sparkles, CheckCircle2, AlertTriangle, Plus } from 'lucide-react';
 import { TriageDiagnosis, RarityAlertEvaluation } from '@/types/triage';
 import { TriageTacticalVerdictCard } from './TriageTacticalVerdictCard';
 import { TriageThematicIncubatorSection } from './components/TriageThematicIncubatorSection';
@@ -13,6 +13,7 @@ interface TriageDiagnosticPanelProps {
   onOpenThemeModal?: () => void;
   onOpenRarityModal?: () => void;
   onOpenDisagreement?: () => void;
+  onOpenDeckModal?: () => void;
 }
 
 export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
@@ -22,6 +23,7 @@ export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
   onOpenThemeModal,
   onOpenRarityModal,
   onOpenDisagreement,
+  onOpenDeckModal,
 }) => {
   if (!diagnosis) return null;
 
@@ -112,11 +114,32 @@ export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
                 </button>
               </div>
             ))}
+            {onOpenDeckModal && (
+              <button
+                type="button"
+                onClick={onOpenDeckModal}
+                className="w-full py-1 text-center text-[10px] font-mono font-bold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+              >
+                + Elegir otro mazo manualmente...
+              </button>
+            )}
           </div>
         ) : (
-          <p className="text-[11px] text-zinc-500 italic">
-            Ningún mazo activo requiere copias físicas de esta carta en este momento.
-          </p>
+          <div className="flex items-center justify-between pt-1 gap-2">
+            <p className="text-[11px] text-zinc-500 italic">
+              Sin coincidencias automáticas en mazos activos.
+            </p>
+            {onOpenDeckModal && (
+              <button
+                type="button"
+                onClick={onOpenDeckModal}
+                className="px-2.5 py-1 bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 text-xs font-bold font-mono rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Elegir Mazo</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
