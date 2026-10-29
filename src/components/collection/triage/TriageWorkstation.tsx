@@ -14,6 +14,7 @@ import { TriageActionButtonBar } from './TriageActionButtonBar';
 import { TriageRarityPricingModal } from './TriageRarityPricingModal';
 import { TriageThematicModal } from './TriageThematicModal';
 import { TriageDisagreementFeedbackModal } from './components/TriageDisagreementFeedbackModal';
+import { TriagePriceCorrectionModal } from './components/TriagePriceCorrectionModal';
 
 interface TriageWorkstationProps {
   initialCards: UserCard[];
@@ -42,12 +43,15 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
   ) => {
     if (!state.currentCard) return;
 
-    let targetLocationId: string | null = null;
-    if (destinationType === 'collection_binder' || destinationType === 'trade_sale') {
-      targetLocationId = state.targetBinderLocationId || locations.find(l => l.type === 'binder')?.id || null;
-    } else if (destinationType === 'bulk_discard') {
-      targetLocationId = state.targetBulkLocationId || locations.find(l => l.type === 'tin')?.id || null;
+    if (userReason) {
+      state.recordLearnedRule(state.currentCard.card_id, destinationType, userReason, overrideThemeTag);
     }
+
+    const targetLocationId = (destinationType === 'collection_binder' || destinationType === 'trade_sale')
+      ? (state.targetBinderLocationId || locations.find(l => l.type === 'binder')?.id || null)
+      : destinationType === 'bulk_discard'
+      ? (state.targetBulkLocationId || locations.find(l => l.type === 'tin')?.id || null)
+      : null;
 
     const payload: TriageCardActionPayload = {
       userCardId: state.currentCard.id,
@@ -79,11 +83,9 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
     onAction5: () => handleExecuteAction('trade_sale'),
     onAction6: () => handleExecuteAction('bulk_discard'),
     onOpenRarityModal: () => state.setIsRarityModalOpen(true),
-    onNavigateNext: state.handleNext,
-    onNavigatePrev: state.handlePrev,
-    onUndo: mutations.handleUndo,
-    canUndo: mutations.canUndo,
-    isDisabled: state.isRarityModalOpen || state.isThemeModalOpen,
+    onNavigateNext: state.handleNext, onNavigatePrev: state.handlePrev,
+    onUndo: mutations.handleUndo, canUndo: mutations.canUndo,
+    isDisabled: state.isRarityModalOpen || state.isThemeModalOpen || state.isPriceCorrectionOpen,
   });
 
   return (
@@ -108,6 +110,7 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
           card={state.currentCard}
           setsData={state.currentSetsData}
           onOpenRarityModal={() => state.setIsRarityModalOpen(true)}
+          onOpenPriceCorrection={() => state.setIsPriceCorrectionOpen(true)}
         />
         <TriageDiagnosticPanel
           diagnosis={state.currentDiagnosis}
@@ -146,9 +149,7 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
             mutations.applyCardAction(state.currentCard, {
               userCardId: state.currentCard.id,
               destinationType: destMap[state.currentCard.status_flag] || 'bulk_discard',
-              rarity: newRarity,
-              salePrice: newPrice,
-              condition: state.currentCard.condition,
+              rarity: newRarity, salePrice: newPrice, condition: state.currentCard.condition,
             });
           }}
         />
@@ -178,6 +179,18 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
           onApplyOverride={(chosenAction, themeTag, salePrice, reason) => {
             handleExecuteAction(chosenAction, themeTag, salePrice, reason);
           }}
+        />
+      )}
+
+      {state.isPriceCorrectionOpen && state.currentCard && (
+        <TriagePriceCorrectionModal
+          key={`price-${state.currentCard.id}`}
+          isOpen={state.isPriceCorrectionOpen}
+          onClose={() => state.setIsPriceCorrectionOpen(false)}
+          cardName={state.currentCard.card_details?.name || 'Carta'}
+          cardId={state.currentCard.card_id}
+          currentPrice={state.currentCard.sale_price ?? state.currentSetsData?.marketPriceTcg ?? 0.25}
+          onApplyCorrection={state.handleCorrectPrice}
         />
       )}
     </div>

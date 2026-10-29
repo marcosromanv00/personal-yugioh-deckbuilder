@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Sparkles, Award, Layers, ExternalLink } from 'lucide-react';
+import { Sparkles, Award, Layers, ExternalLink, DollarSign } from 'lucide-react';
 import { UserCard } from '@/types/collection';
 import { CardSetPrintingsResponse } from '@/types/triage';
 import { analyzeRarityDisparity } from '@/lib/rarityDisparity.utils';
@@ -12,27 +12,20 @@ interface TriageActiveCardViewerProps {
   card: UserCard | null;
   setsData: CardSetPrintingsResponse | null;
   onOpenRarityModal: () => void;
+  onOpenPriceCorrection?: () => void;
 }
 
 export const TriageActiveCardViewer: React.FC<TriageActiveCardViewerProps> = ({
   card,
   setsData,
   onOpenRarityModal,
+  onOpenPriceCorrection,
 }) => {
   const details = card?.card_details;
   const imgUrl = details?.image_url || details?.image_url_small;
   const hasCustomPrice = card?.sale_price !== null && card?.sale_price !== undefined;
-
-  const rarityEval = useMemo(
-    () => setsData?.rarityAlert || analyzeRarityDisparity(setsData),
-    [setsData]
-  );
-
-  const isHighValue = Boolean(
-    (hasCustomPrice && card!.sale_price! >= 3.0) ||
-      setsData?.highValueWarning ||
-      rarityEval.hasDisparity
-  );
+  const rarityEval = useMemo(() => setsData?.rarityAlert || analyzeRarityDisparity(setsData), [setsData]);
+  const isHighValue = Boolean((hasCustomPrice && card!.sale_price! >= 3.0) || setsData?.highValueWarning || rarityEval.hasDisparity);
 
   if (!card) {
     return (
@@ -122,6 +115,17 @@ export const TriageActiveCardViewer: React.FC<TriageActiveCardViewerProps> = ({
             </kbd>
           </div>
         </button>
+
+        {onOpenPriceCorrection && (
+          <button
+            type="button"
+            onClick={onOpenPriceCorrection}
+            className="mt-2 w-full max-w-72 py-1.5 px-3 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-emerald-500 bg-white dark:bg-zinc-900 text-[11px] font-mono text-zinc-600 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-98"
+          >
+            <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Corregir precio / Enseñar</span>
+          </button>
+        )}
       </div>
 
       {/* ─── Columna Derecha: Alerta de Rareza, Atributos y Efecto Seleccionable ─── */}

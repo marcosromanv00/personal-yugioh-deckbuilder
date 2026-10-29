@@ -388,4 +388,41 @@ describe('triageClassification.utils (Node:test)', () => {
     assert.ok(tacticalVerdict.metaTier.length > 0);
     assert.ok(tacticalVerdict.cardEconomy.length > 0);
   });
+
+  it('recalcula dinámicamente el veredicto táctico cuando se corrige el precio de una carta', () => {
+    const unknownFoilCard: UserCard = {
+      id: 'uuid-foil-1',
+      card_id: 55555555,
+      storage_location_id: 'loc-1',
+      compartment_index: 0,
+      rarity: 'Common',
+      condition: 'Near Mint',
+      language: 'EN',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+      card_details: {
+        name: 'Retro Foil Beast',
+        type: 'Effect Monster',
+        desc: 'Flip: gain 500 LP.',
+      },
+    };
+
+    // 1. Con precio bajo/default ($0.10), el sistema sugiere desechar a Bulk
+    const diagInitial = diagnoseCardTriage(unknownFoilCard, [unknownFoilCard], [], 0.10);
+    assert.strictEqual(diagInitial.suggestedPrimaryAction, 'bulk_discard');
+    assert.strictEqual(diagInitial.tacticalVerdict.actionNumber, 6);
+
+    // 2. Al corregir el precio a $4.50 (carta cara/coleccionable), el veredicto cambia a Binder Colección [4]
+    const diagCorrectedHigh = diagnoseCardTriage(unknownFoilCard, [unknownFoilCard], [], 4.50);
+    assert.strictEqual(diagCorrectedHigh.suggestedPrimaryAction, 'collection_binder');
+    assert.strictEqual(diagCorrectedHigh.tacticalVerdict.actionNumber, 4);
+
+    // 3. Al corregir el precio a $1.20 (rango comercial), el veredicto cambia a Poner en Venta [5]
+    const diagCorrectedTrade = diagnoseCardTriage(unknownFoilCard, [unknownFoilCard], [], 1.20);
+    assert.strictEqual(diagCorrectedTrade.suggestedPrimaryAction, 'trade_sale');
+    assert.strictEqual(diagCorrectedTrade.tacticalVerdict.actionNumber, 5);
+  });
 });
+

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, ArrowRight, ThumbsDown, Zap, Shield, TrendingUp } from 'lucide-react';
+import { Sparkles, ArrowRight, ThumbsDown, Zap } from 'lucide-react';
 import { TacticalVerdict, TriageDiagnosis } from '@/types/triage';
 
 interface TriageTacticalVerdictCardProps {
@@ -18,7 +18,9 @@ export const TriageTacticalVerdictCard: React.FC<TriageTacticalVerdictCardProps>
   return (
     <div
       className={`p-4 rounded-2xl border space-y-2.5 shadow-sm select-text ${
-        verdict.badgeColor === 'emerald'
+        verdict.isLearnedOverride
+          ? 'bg-purple-50/90 dark:bg-purple-950/40 border-purple-400 dark:border-purple-600 ring-2 ring-purple-500/20'
+          : verdict.badgeColor === 'emerald'
           ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
           : verdict.badgeColor === 'blue'
           ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-300 dark:border-blue-800/60'
@@ -30,10 +32,17 @@ export const TriageTacticalVerdictCard: React.FC<TriageTacticalVerdictCardProps>
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-md bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 flex items-center gap-1 shadow-2xs">
-          <Sparkles className="w-3 h-3 text-red-500 shrink-0" />
-          <span>Veredicto del Asesor</span>
-        </span>
+        {verdict.isLearnedOverride ? (
+          <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-md bg-purple-600 text-white flex items-center gap-1 shadow-2xs">
+            <Zap className="w-3 h-3 text-amber-300 shrink-0" />
+            <span>⚡ Criterio Aprendido</span>
+          </span>
+        ) : (
+          <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-md bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 flex items-center gap-1 shadow-2xs">
+            <Sparkles className="w-3 h-3 text-red-500 shrink-0" />
+            <span>Veredicto del Asesor</span>
+          </span>
+        )}
 
         {/* Calificación Numérica de Fuerza Obligatoria (Regla 7 de AGENTS.md) */}
         <div className="flex items-center gap-1.5">

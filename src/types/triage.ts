@@ -110,6 +110,17 @@ export interface TacticalVerdict {
   tacticalRole: string;
   metaTier: string;
   cardEconomy: string;
+  isLearnedOverride?: boolean;
+  learnedReason?: string;
+}
+
+export interface TriageLearnedRule {
+  cardId: number;
+  destinationType: TriageCardActionPayload['destinationType'];
+  themeTag?: string;
+  reason: string;
+  rating?: number;
+  timestamp: number;
 }
 
 export interface TriageDiagnosis {
