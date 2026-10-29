@@ -261,3 +261,17 @@ src/
 - **When** selecciona texto con el cursor del ratón y presiona Ctrl+C, o hace middle-click en los enlaces a YGOPRODeck/TCGPlayer o en la imagen.
 - **Then** el texto es seleccionado y copiado sin bloqueos de `select-none`, y el enlace se abre en segundo plano en una nueva pestaña sin interrumpir la sesión de triaje, permitiendo además el autoscroll con botón central en los contenedores desplazables.
 
+### Escenario 7: Filtro Canónico "Solo Pendientes" y Persistencia de Clasificación
+- **Given** un carril o contenedor con cartas clasificadas (con etiquetas temáticas `[Tema: ...]`, asignadas a mazo, taller o venta) y cartas vírgenes sin clasificar.
+- **When** el usuario activa el filtro *"Solo pendientes"*.
+- **Then** el sistema evalúa `isCardPendingTriage` y muestra exclusivamente las cartas sin clasificar/etiquetar, erradicando pantallas en blanco.
+- **And** al clasificar una carta, ésta adquiere su marca/etiqueta persistente, garantizando que al recargar la página la cola muestre únicamente las pendientes reales y el cursor inicial se posicione en la primera carta no clasificada.
+
+### Escenario 8: Veredicto Táctico Profundo, Calificación 1-10 y Modal de Desacuerdo/Aprendizaje
+- **Given** una carta activa evaluada en la mesa de triaje.
+- **Then** el veredicto táctico presenta una **Calificación Numérica de Fuerza en escala de 1.0 a 10.0** (Regla 7 de AGENTS.md), su rol táctico específico (ej. *Extender*, *Starter*, *Brick Pesado*) y un razonamiento de juego real.
+- **When** el usuario no concuerda con la recomendación del sistema y presiona el botón *"No estoy de acuerdo con este veredicto"*.
+- **Then** se abre el modal de auditoría permitiéndole seleccionar el destino correcto (1 a 6), justificar su criterio técnico y calificar la sugerencia (1-5 estrellas).
+- **And** el sistema registra el reporte en `yg_suggestion_reports` (Regla 8 de AGENTS.md), aplica la acción del usuario en `yg_user_cards` con memoria táctica y avanza la cola sin fricción.
+
+

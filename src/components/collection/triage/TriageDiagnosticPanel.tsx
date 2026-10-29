@@ -12,6 +12,7 @@ interface TriageDiagnosticPanelProps {
   onSelectAction: (actionType: TriageDiagnosis['suggestedPrimaryAction'], themeTag?: string) => void;
   onOpenThemeModal?: () => void;
   onOpenRarityModal?: () => void;
+  onOpenDisagreement?: () => void;
 }
 
 export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
@@ -20,6 +21,7 @@ export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
   onSelectAction,
   onOpenThemeModal,
   onOpenRarityModal,
+  onOpenDisagreement,
 }) => {
   if (!diagnosis) return null;
 
@@ -69,6 +71,7 @@ export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
       <TriageTacticalVerdictCard
         verdict={diagnosis.tacticalVerdict}
         onSelectAction={onSelectAction}
+        onOpenDisagreement={onOpenDisagreement}
       />
 
       {/* 1. Diagnóstico Competitivo / Mazos Activos */}

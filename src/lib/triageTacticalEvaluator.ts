@@ -1,89 +1,54 @@
 import { UserCard } from '@/types/collection';
 import { TriageCompetitiveMatch, TriageThematicIncubator, TacticalVerdict } from '@/types/triage';
 
-/**
- * Evalúa las estadísticas y rol en combate de una carta.
- */
+function determineTacticalRole(card: UserCard): { role: string; economy: string } {
+  const d = card.card_details;
+  if (!d) return { role: 'Desconocido', economy: 'Sin datos' };
+  const desc = (d.desc || '').toLowerCase();
+  const type = d.type || '';
+
+  if (type.includes('Link') || type.includes('Synchro') || type.includes('XYZ') || type.includes('Fusion')) {
+    const isNeg = desc.includes('negate') || desc.includes('destroy');
+    return {
+      role: isNeg ? 'Boss / Interrupción de Extra Deck' : 'Extender / Puente de Extra Deck',
+      economy: isNeg ? 'Control / Negación de Campo' : 'Presencia en Campo (+1)',
+    };
+  }
+  if (desc.includes('add 1') && (desc.includes('from your deck to your hand') || desc.includes('to your hand'))) {
+    return { role: 'Starter / Buscador de Consistencia', economy: 'Genera Ventaja Neta (+1)' };
+  }
+  if (desc.includes('special summon this card') || desc.includes('if you control')) {
+    return { role: 'Extender de Invocación Especial', economy: 'Despliegue de Campo Neutro' };
+  }
+  if (desc.includes('during either player') || desc.includes('quick effect')) {
+    return { role: 'Interrupción Rápida / Disrupción', economy: 'Intercambio en Turno Rival (1x1)' };
+  }
+  if (type.includes('Trap')) {
+    return { role: 'Trampa Reactiva', economy: 'Pérdida de Tempo en Turno 1 (-1 inicial)' };
+  }
+  if (d.level && d.level >= 5 && !desc.includes('special summon')) {
+    return { role: 'Monstruo Pesado de Main Deck (Potencial Brick)', economy: 'Pérdida de Mano / Consumo de Normal (-1)' };
+  }
+  if (type === 'Normal Monster') {
+    return { role: 'Vainilla / Beatstick Didáctico', economy: 'Combate Puro (Sin Ventaja)' };
+  }
+  return { role: 'Soporte Casual / Genérico', economy: 'Sin Generación de Ventaja' };
+}
+
 function analyzeStats(card: UserCard): string {
   const d = card.card_details;
   if (!d) return 'Sin datos de estadísticas.';
-
   if (d.type?.includes('Monster')) {
     const atk = d.atk ?? 0;
     const lvl = d.level ?? 4;
     if (lvl <= 4) {
-      return atk >= 1900
-        ? `${atk} ATK en Nivel ${lvl} es un atacante fuerte sin tributo (beatstick clásico de combate).`
-        : atk >= 1600
-        ? `${atk} ATK en Nivel ${lvl}: ataque decente para nivel bajo, pero requiere efecto relevante.`
-        : `${atk} ATK en Nivel ${lvl}: estadísticas bajas, depende totalmente del impacto de su efecto.`;
+      return `${atk} ATK en Nivel ${lvl}: ${atk >= 1800 ? 'combatiente fuerte sin tributo.' : 'combate bajo; valor depende 100% del efecto.'}`;
     }
-    if (lvl <= 6) {
-      return atk < 2400
-        ? `Nivel ${lvl} con ${atk} ATK requiere 1 tributo y tiene estadísticas por debajo del estándar.`
-        : `Nivel ${lvl} con ${atk} ATK: estadísticas sólidas de rango medio.`;
-    }
-    return `Monstruo de Nivel ${lvl} (${atk} ATK): monstruo jefe o pesado; necesita invocación especial para no ser un brick.`;
+    return `Nivel ${lvl} con ${atk} ATK: requiere tributo o invocación especial para no atascar la mano.`;
   }
-
-  if (d.type?.includes('Spell')) {
-    return `Carta Mágica (${d.race || 'Normal'}): se activa de inmediato en tu turno para generar ventaja.`;
-  }
-  return `Carta Trampa (${d.race || 'Normal'}): requiere colocarse 1 turno antes; su velocidad depende de ser activada en el turno rival.`;
+  return `${d.type} (${d.race || 'Normal'}): utilidad condicionada al ritmo de activación.`;
 }
 
-/**
- * Evalúa la velocidad, proactividad o lentitud del efecto.
- */
-function analyzeEffectSpeed(card: UserCard): string {
-  const d = card.card_details;
-  if (!d) return 'Sin efecto analizable.';
-  if (d.type === 'Normal Monster') {
-    return 'Monstruo Vainilla: sin efecto de texto. No sufre de negaciones de efecto pero no genera ventaja automática.';
-  }
-
-  const desc = (d.desc || '').toLowerCase();
-  const isPassive =
-    desc.includes("opponent's card effect") ||
-    desc.includes('during the end phase') ||
-    desc.includes('destroyed by battle') ||
-    desc.includes('when this card is destroyed') ||
-    desc.includes('flip:');
-
-  if (isPassive) {
-    return 'Efecto Lento y Pasivo: depende de que el oponente lo destruya/active o se resuelve hasta la End Phase. Inviable en Yu-Gi-Oh! moderno.';
-  }
-
-  const isProactive =
-    desc.includes('quick effect') ||
-    desc.includes("during either player's turn") ||
-    desc.includes('special summon this card') ||
-    desc.includes('you can discard this card') ||
-    desc.includes('negate the activation');
-
-  if (isProactive) {
-    return 'Efecto Proactivo / Rápido: permite responder, extender o generar presencia en campo en el mismo turno.';
-  }
-  return 'Efecto estándar: activación en tu turno con utilidad moderada si no es interrumpido.';
-}
-
-/**
- * Evalúa la viabilidad de armar un proyecto temático alrededor de la carta.
- */
-function analyzeThemeViability(card: UserCard): string {
-  const d = card.card_details;
-  if (!d) return 'Sin arquetipo ni sinergia identificable.';
-  if (d.archetype) {
-    return `Arquetipo oficial "${d.archetype}". Puede ser pieza de soporte o motor temático si tienes más cartas de su arquetipo.`;
-  }
-  const race = d.race || 'Desconocida';
-  return `Raza ${race} genérica sin arquetipo. No forma parte de los combos ni motores de ${race} modernos. NO justifica armar una baraja temática.`;
-}
-
-/**
- * Genera el veredicto táctico definitivo respondiendo:
- * "¿Me recomiendas armar algo temático o la desecho a bulk? ¿Qué hacer con ella?"
- */
 export function evaluateTacticalVerdict(
   card: UserCard,
   isStaple: boolean,
@@ -94,11 +59,11 @@ export function evaluateTacticalVerdict(
 ): TacticalVerdict {
   const d = card.card_details;
   const statsAnalysis = analyzeStats(card);
-  const effectSpeedAnalysis = analyzeEffectSpeed(card);
-  const themeViability = analyzeThemeViability(card);
+  const { role: tacticalRole, economy: cardEconomy } = determineTacticalRole(card);
   const effectivePrice = card.sale_price ?? marketPrice ?? 0;
+  const desc = (d?.desc || '').toLowerCase();
 
-  // 1. Prioridad: Mazo Activo del usuario
+  // 1. Prioridad: Mazo Activo
   if (competitiveMatches.length > 0) {
     const match = competitiveMatches[0];
     return {
@@ -108,30 +73,38 @@ export function evaluateTacticalVerdict(
       badgeColor: 'emerald',
       headline: `Asignar a ${match.deckName}`,
       statsAnalysis,
-      effectSpeedAnalysis,
-      themeViability,
-      recommendationDecision: `¡Pieza necesaria! Tu mazo activo "${match.deckName}" requiere ${match.neededCopies} copia(s) física(s) en la sección ${match.section.toUpperCase()}.`,
+      effectSpeedAnalysis: 'Sinergia confirmada con las líneas de juego de tu baraja registrada.',
+      themeViability: `Requerida en sección ${match.section.toUpperCase()} (${match.neededCopies} copia(s) faltante(s)).`,
+      recommendationDecision: `¡Pieza necesaria! Tu mazo "${match.deckName}" la solicita explícitamente. Asigna copia física a la caja del mazo [1].`,
+      powerScore: 8.8,
+      tacticalRole,
+      metaTier: `Pieza de Lista Activa (${match.format})`,
+      cardEconomy,
     };
   }
 
-  // 2. Prioridad: Staple de Formato o Carta de Colección Cara (>= $3.00)
+  // 2. Prioridad: Staple de Formato o Carta Cara (>= $3.00)
   if (isStaple || effectivePrice >= 3.0) {
+    const score = isStaple ? 9.5 : Math.min(9.0, 7.5 + effectivePrice / 10);
     return {
       action: 'collection_binder',
       actionLabel: 'Binder Colección',
       actionNumber: 4,
       badgeColor: 'blue',
-      headline: isStaple ? 'Staple Universal / Proteger' : 'Joya de Colección / Proteger',
+      headline: isStaple ? 'Staple Competitiva / Proteger' : 'Joya de Colección / Proteger',
       statsAnalysis,
-      effectSpeedAnalysis,
-      themeViability,
+      effectSpeedAnalysis: isStaple ? 'Interrupción / disrupción de alto impacto en el metajuego.' : 'Preservación de valor coleccionable.',
+      themeViability: isStaple ? 'Universal: encaja en múltiples motores competitivos.' : 'Carta de alto valor de mercado.',
       recommendationDecision: isStaple
-        ? 'Staple universal de alta demanda en torneos. Consérvala en binder o en tu reserva competitiva.'
-        : `Carta de alto valor estimado ($${effectivePrice.toFixed(2)}). Archívala en binder protegido [4].`,
+        ? `Staple de alta demanda en torneos (Poder: ${score.toFixed(1)}/10). Protégela en binder o reserva de cambio [4].`
+        : `Cotización de mercado destacada ($${effectivePrice.toFixed(2)}). Archívala en binder protegido [4].`,
+      powerScore: score,
+      tacticalRole: isStaple ? 'Staple / Disrupción Universal' : 'Pieza de Alto Valor',
+      metaTier: isStaple ? 'Tier 1 Staples' : 'Colección / Inversión',
+      cardEconomy,
     };
   }
-
-  // 3. Prioridad: Monetizar / Venta (Inútil para ti pero con Valor Comercial >= $0.50)
+  // 3. Prioridad: Monetizar / Venta (>= $0.50)
   if (effectivePrice >= 0.5) {
     return {
       action: 'trade_sale',
@@ -140,16 +113,19 @@ export function evaluateTacticalVerdict(
       badgeColor: 'amber',
       headline: `Monetizar: Poner en Venta ($${effectivePrice.toFixed(2)})`,
       statsAnalysis,
-      effectSpeedAnalysis,
-      themeViability,
-      recommendationDecision: `Sin uso en tus mazos activos pero tiene cotización de mercado ($${effectivePrice.toFixed(2)}). Deshazte de ella vendiéndola o cambiándola por singles útiles [5].`,
+      effectSpeedAnalysis: 'No requerida en tus estrategias vivas pero con liquidez comercial.',
+      themeViability: 'Sin mazo activo que la aproveche en tu repertorio.',
+      recommendationDecision: `Sin espacio en tus barajas pero con cotización ($${effectivePrice.toFixed(2)}). Deshazte de ella vendiéndola o cambiándola por singles útiles [5].`,
+      powerScore: 6.0,
+      tacticalRole,
+      metaTier: 'Comercial / Trade',
+      cardEconomy,
     };
   }
 
-  // 4. Prioridad: Arquetipo Oficial Cohesivo con Masa Crítica Real
+  // 4. Prioridad: Arquetipo Oficial Cohesivo con Core Real
   const hasRealArchetypeCore = Boolean(
-    d?.archetype &&
-      thematicIncubators.some(i => i.themeCategory === 'archetype' && i.hasEnoughForCore)
+    d?.archetype && thematicIncubators.some(i => i.themeCategory === 'archetype' && i.hasEnoughForCore)
   );
 
   if (hasRealArchetypeCore && d?.archetype) {
@@ -160,13 +136,17 @@ export function evaluateTacticalVerdict(
       badgeColor: 'purple',
       headline: `Guardar para Proyecto: ${d.archetype}`,
       statsAnalysis,
-      effectSpeedAnalysis,
-      themeViability,
-      recommendationDecision: `Posees una base sólida de cartas de "${d.archetype}". Vale la pena conservarla en este lote temático para armar el mazo.`,
+      effectSpeedAnalysis: 'Pieza de motor o buscador sinérgico con tu lote temático.',
+      themeViability: `Posees masa crítica suficiente (${thematicIncubators[0]?.totalCardsInCollection || 0}+ cartas) para el core.`,
+      recommendationDecision: `Cuentas con la base para armar "${d.archetype}". Consérvala en el lote de incubación temática [2].`,
+      powerScore: 7.0,
+      tacticalRole,
+      metaTier: `Motor Temático (${d.archetype})`,
+      cardEconomy,
     };
   }
 
-  // 5. Prioridad: Ensalada Didáctica de Taller / Fun
+  // 5. Prioridad: Ensalada Didáctica para Talleres
   if (workshopCandidate) {
     return {
       action: 'workshop_salad',
@@ -175,13 +155,21 @@ export function evaluateTacticalVerdict(
       badgeColor: 'emerald',
       headline: 'Conservar para Ensalada Didáctica',
       statsAnalysis,
-      effectSpeedAnalysis,
-      themeViability,
-      recommendationDecision: 'Mecánicas accesibles de invocación, combate o interacción limpia sin candados xenófobos. Excelente para barajas didácticas y talleres [3].',
+      effectSpeedAnalysis: 'Efecto comprensible sin párrafos densos ni candados restrictivos.',
+      themeViability: 'Apta para barajas didácticas de iniciación.',
+      recommendationDecision: 'Mecánicas claras de combate o interacción limpia. Ideal para enseñar a nuevos jugadores [3].',
+      powerScore: 5.2,
+      tacticalRole,
+      metaTier: 'Casual / Didáctico',
+      cardEconomy,
     };
   }
 
-  // 6. Prioridad: Inútil y con Valor Nulo / Despreciable (< $0.50) -> ¡DESECHAR A BULK [6]!
+  // 6. Prioridad: Inútil / Sin Demanda (< $0.50) -> ¡DESECHAR A BULK [6]!
+  const isHeavyBrick = Boolean(d?.level && d.level >= 5 && !desc.includes('special summon'));
+  const isSlowPassive = desc.includes('end phase') || desc.includes('opponent');
+  const powerScore = isHeavyBrick ? 2.8 : 3.5;
+
   return {
     action: 'bulk_discard',
     actionLabel: 'Desechar a Bulk',
@@ -189,8 +177,20 @@ export function evaluateTacticalVerdict(
     badgeColor: 'zinc',
     headline: 'Desechar a Bulk (Valor Nulo)',
     statsAnalysis,
-    effectSpeedAnalysis,
-    themeViability,
-    recommendationDecision: `Efecto lento o irrelevante en el meta actual y valor comercial nulo ($${effectivePrice.toFixed(2)}). No acumules cartas inútiles; deséchala a Bulk [6].`,
+    effectSpeedAnalysis: isSlowPassive
+      ? 'Efecto Lento y Pasivo: depende de condiciones tardías del oponente o End Phase.'
+      : isHeavyBrick
+        ? 'Monstruo pesado sin invocación inherente: alto riesgo de mano muerta (brick).'
+        : 'Efecto lento o superado por el estándar del formato actual.',
+    themeViability: d?.archetype
+      ? `Arquetipo "${d.archetype}" sin masa crítica ni soporte suficiente.`
+      : 'Sin arquetipo oficial: NO justifica armar una baraja temática.',
+    recommendationDecision: isHeavyBrick
+      ? `Nivel ${d?.level} que exige tributos normales y carece de invocación propia. En el ritmo actual, reduce la consistencia del mazo. Sin valor comercial ($${effectivePrice.toFixed(2)}): deséchala a Bulk [6].`
+      : `Efecto de impacto marginal sin demanda en torneos ni valor de reventa ($${effectivePrice.toFixed(2)}). Evita acumular cartas muertas; deséchala a Bulk [6].`,
+    powerScore,
+    tacticalRole,
+    metaTier: 'Inviable / Bulk',
+    cardEconomy,
   };
 }

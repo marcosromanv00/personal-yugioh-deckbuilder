@@ -106,6 +106,10 @@ export interface TacticalVerdict {
   themeViability: string;
   recommendationDecision: string;
   aiDetailedAdvice?: string;
+  powerScore: number;
+  tacticalRole: string;
+  metaTier: string;
+  cardEconomy: string;
 }
 
 export interface TriageDiagnosis {

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { TriageCardActionPayload } from '@/types/triage';
 import { useTriageState } from './hooks/useTriageState';
@@ -13,6 +13,7 @@ import { TriageDiagnosticPanel } from './TriageDiagnosticPanel';
 import { TriageActionButtonBar } from './TriageActionButtonBar';
 import { TriageRarityPricingModal } from './TriageRarityPricingModal';
 import { TriageThematicModal } from './TriageThematicModal';
+import { TriageDisagreementFeedbackModal } from './components/TriageDisagreementFeedbackModal';
 
 interface TriageWorkstationProps {
   initialCards: UserCard[];
@@ -31,8 +32,14 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
 }) => {
   const state = useTriageState({ initialCards, locations, decks, initialLocationId, initialCompartmentIndex });
   const mutations = useTriageCardMutations({ onCardUpdated: state.handleCardUpdated, onUndoSuccess: state.handleUndoSuccess });
+  const [isDisagreementModalOpen, setIsDisagreementModalOpen] = useState(false);
 
-  const handleExecuteAction = (destinationType: TriageCardActionPayload['destinationType'], overrideThemeTag?: string) => {
+  const handleExecuteAction = (
+    destinationType: TriageCardActionPayload['destinationType'],
+    overrideThemeTag?: string,
+    overrideSalePrice?: number,
+    userReason?: string
+  ) => {
     if (!state.currentCard) return;
 
     let targetLocationId: string | null = null;
@@ -46,7 +53,7 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
       userCardId: state.currentCard.id,
       destinationType,
       rarity: state.currentCard.rarity,
-      salePrice: state.currentCard.sale_price ?? null,
+      salePrice: overrideSalePrice ?? state.currentCard.sale_price ?? null,
       condition: state.currentCard.condition || 'Near Mint',
       ...(targetLocationId ? { targetLocationId, targetCompartmentIndex: 0 } : {}),
     };
@@ -58,7 +65,7 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
     } else if (destinationType === 'thematic_pool') {
       payload.themeTag = overrideThemeTag || state.currentDiagnosis?.thematicIncubators[0]?.themeName || 'Temático';
     } else if (destinationType === 'trade_sale') {
-      payload.salePrice = state.currentCard.sale_price ?? state.currentSetsData?.marketPriceTcg ?? 0.25;
+      payload.salePrice = overrideSalePrice ?? state.currentCard.sale_price ?? state.currentSetsData?.marketPriceTcg ?? 0.25;
     }
 
     mutations.applyCardAction(state.currentCard, payload);
@@ -108,6 +115,7 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
           onSelectAction={handleExecuteAction}
           onOpenThemeModal={() => state.setIsThemeModalOpen(true)}
           onOpenRarityModal={() => state.setIsRarityModalOpen(true)}
+          onOpenDisagreement={() => setIsDisagreementModalOpen(true)}
         />
       </div>
 
@@ -156,6 +164,20 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
           suggestedIncubators={state.currentDiagnosis?.thematicIncubators || []}
           availableThemes={state.availableThemes}
           onApplyTheme={tag => handleExecuteAction('thematic_pool', tag)}
+        />
+      )}
+
+      {isDisagreementModalOpen && state.currentCard && state.currentDiagnosis && (
+        <TriageDisagreementFeedbackModal
+          key={`disagree-${state.currentCard.id}`}
+          isOpen={isDisagreementModalOpen}
+          onClose={() => setIsDisagreementModalOpen(false)}
+          cardName={state.currentCard.card_details?.name || 'Carta'}
+          cardId={state.currentCard.card_id}
+          currentVerdict={state.currentDiagnosis.tacticalVerdict}
+          onApplyOverride={(chosenAction, themeTag, salePrice, reason) => {
+            handleExecuteAction(chosenAction, themeTag, salePrice, reason);
+          }}
         />
       )}
     </div>

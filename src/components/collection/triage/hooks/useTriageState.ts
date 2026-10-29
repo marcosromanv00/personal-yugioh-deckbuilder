@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { UserCard, StorageLocation, Deck } from '@/types/collection';
 import { TriageScopeConfig, CardSetPrintingsResponse } from '@/types/triage';
-import { diagnoseCardTriage } from '@/lib/triageClassification.utils';
+import { diagnoseCardTriage, isCardPendingTriage } from '@/lib/triageClassification.utils';
 
 interface UseTriageStateProps {
   initialCards: UserCard[];
@@ -76,7 +76,7 @@ export function useTriageState({
     }
 
     if (scopeConfig.onlyUnclassified) {
-      result = result.filter(c => !c.deck_id && c.status_flag === 'bulk');
+      result = result.filter(isCardPendingTriage);
     }
 
     if (scopeConfig.sortOrder === 'name_asc') {
@@ -148,7 +148,7 @@ export function useTriageState({
             updatedCard.storage_location_id === scopeConfig.locationId &&
             updatedCard.compartment_index === (scopeConfig.compartmentIndex ?? 0)) ||
           (scopeConfig.scopeType === 'theme' && tag && Boolean(updatedCard.notes?.toLowerCase().includes(`[tema: ${tag}]`)))) &&
-        (!scopeConfig.onlyUnclassified || (!updatedCard.deck_id && updatedCard.status_flag === 'bulk'));
+        (!scopeConfig.onlyUnclassified || isCardPendingTriage(updatedCard));
 
       if (stillInScope) {
         setCurrentIndex(prev => prev + 1);

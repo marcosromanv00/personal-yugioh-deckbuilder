@@ -5,6 +5,7 @@ import {
   getCompetitiveDeckMatches,
   getThematicIncubators,
   diagnoseCardTriage,
+  isCardPendingTriage,
 } from '../src/lib/triageClassification.utils';
 import { UserCard, Deck } from '../src/types/collection';
 
@@ -321,5 +322,70 @@ describe('triageClassification.utils (Node:test)', () => {
     const bulkNotes = taggedNotes.replace(/\[Tema:\s*[^\]]+\]\s*/gi, '').trim();
     assert.strictEqual(bulkNotes, 'Carta intercambiada con Pedro');
     assert.strictEqual(Boolean(bulkNotes.match(/\[Tema:\s*[^\]]+\]/i)), false);
+  });
+
+  it('isCardPendingTriage identifica correctamente cartas no etiquetadas vs cartas ya categorizadas', () => {
+    const baseCard: UserCard = {
+      id: 'uuid-1',
+      card_id: 12345,
+      storage_location_id: 'loc-1',
+      compartment_index: 0,
+      rarity: 'Common',
+      condition: 'Near Mint',
+      language: 'ES',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+    };
+
+    // Pendiente
+    assert.strictEqual(isCardPendingTriage(baseCard), true);
+
+    // Con tema asignado -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, notes: '[Tema: Dragon Maid] Para mazo futuro' }), false);
+
+    // En mazo -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, deck_id: 'deck-1' }), false);
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'in_deck' }), false);
+
+    // En taller o venta -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'workshop' }), false);
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'trade_sale' }), false);
+
+    // Desechada a bulk -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'bulk' }), false);
+
+    // Con marca de triaje persistida -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, notes: '[Triaje: Colección Binder]' }), false);
+  });
+
+  it('evalúa veredicto táctico con puntuación de fuerza 1.0-10.0, rol técnico y economía de cartas', () => {
+    const bossCard: UserCard = {
+      id: 'uuid-boss',
+      card_id: 99999990,
+      storage_location_id: 'loc-1',
+      compartment_index: 0,
+      rarity: 'Secret Rare',
+      condition: 'Near Mint',
+      language: 'EN',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+      card_details: {
+        name: 'Accesscode Talker',
+        type: 'Link Monster',
+        race: 'Cyberse',
+        desc: 'Cannot be negated. You can banish 1 Link Monster from your GY; destroy 1 card your opponent controls.',
+      },
+    };
+
+    const diagnosis = diagnoseCardTriage(bossCard, [bossCard], []);
+    const { tacticalVerdict } = diagnosis;
+    assert.ok(tacticalVerdict.powerScore >= 1.0 && tacticalVerdict.powerScore <= 10.0);
+    assert.ok(tacticalVerdict.tacticalRole.length > 0);
+    assert.ok(tacticalVerdict.metaTier.length > 0);
+    assert.ok(tacticalVerdict.cardEconomy.length > 0);
   });
 });
