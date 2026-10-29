@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const triageScopeSchema = z.object({
-  scopeType: z.enum(['all', 'location', 'compartment', 'theme']),
+  scopeType: z.enum(['all', 'location', 'compartment', 'theme', 'bulk']),
   locationId: z.string().uuid().nullable().optional(),
   compartmentIndex: z.number().int().min(0).nullable().optional(),
   themeTag: z.string().trim().max(100).nullable().optional(),

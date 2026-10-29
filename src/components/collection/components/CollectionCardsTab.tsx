@@ -15,7 +15,8 @@ import {
   Filter,
   RotateCcw,
   Home,
-  Plane
+  Plane,
+  Package
 } from 'lucide-react';
 import { UserCard, StorageLocation, Deck, CardStatusFlag } from '@/types/collection';
 import { CardFilters, FilterState } from '@/components/deckbuilder/CardFilters';
@@ -273,6 +274,26 @@ export const CollectionCardsTab: React.FC<CollectionCardsTabProps> = ({
             {activeFilterCount > 0 && (
               <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold font-mono">
                 {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* Quick Toggle: Ver Bulk */}
+          <button
+            type="button"
+            onClick={() => setAllCollectionFilters(prev => ({ ...prev, status: prev.status === 'bulk' ? '' : 'bulk' }))}
+            className={`px-3 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs min-h-10 touch-manipulation ${
+              allCollectionFilters.status === 'bulk'
+                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-xs'
+                : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-transparent'
+            }`}
+            title="Ver cartas clasificadas en Bulk"
+          >
+            <Package className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+            <span>Bulk</span>
+            {allCollectionFilters.status === 'bulk' && (
+              <span className="text-[10px] font-mono font-bold bg-amber-600 text-white rounded-full px-1.5">
+                ON
               </span>
             )}
           </button>

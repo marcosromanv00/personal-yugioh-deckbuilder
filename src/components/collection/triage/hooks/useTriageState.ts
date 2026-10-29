@@ -49,6 +49,7 @@ export function useTriageState({
   const [isRarityModalOpen, setIsRarityModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isPriceCorrectionOpen, setIsPriceCorrectionOpen] = useState(false);
+  const [isDeckModalOpen, setIsDeckModalOpen] = useState(false);
   const [setsCache, setSetsCache] = useState<Record<number, CardSetPrintingsResponse>>({});
 
   const defaultBinder = useMemo(() => locations.find(l => l.name.toLowerCase().includes('ultimate') || l.type === 'binder') || null, [locations]);
@@ -63,6 +64,10 @@ export function useTriageState({
       return next;
     });
   }, [persistence]);
+
+  const bulkCardsCount = useMemo(() => {
+    return cards.filter(c => c.status_flag === 'bulk' || (targetBulkLocationId && c.storage_location_id === targetBulkLocationId)).length;
+  }, [cards, targetBulkLocationId]);
 
   const availableThemes = useMemo(() => {
     const map = new Map<string, number>();
@@ -85,13 +90,15 @@ export function useTriageState({
     } else if (scopeConfig.scopeType === 'theme' && scopeConfig.themeTag) {
       const t = scopeConfig.themeTag.toLowerCase().trim();
       result = result.filter(c => c.notes && c.notes.toLowerCase().includes(`[tema: ${t}]`));
+    } else if (scopeConfig.scopeType === 'bulk') {
+      result = result.filter(c => c.status_flag === 'bulk' || (targetBulkLocationId && c.storage_location_id === targetBulkLocationId));
     }
-    if (scopeConfig.onlyUnclassified) result = result.filter(isCardPendingTriage);
+    if (scopeConfig.onlyUnclassified && scopeConfig.scopeType !== 'bulk') result = result.filter(isCardPendingTriage);
     if (scopeConfig.sortOrder === 'name_asc') {
       result.sort((a, b) => (a.card_details?.name || '').localeCompare(b.card_details?.name || ''));
     }
     return result;
-  }, [cards, scopeConfig]);
+  }, [cards, scopeConfig, targetBulkLocationId]);
 
   const safeIndex = Math.min(currentIndex, Math.max(0, filteredCards.length - 1));
   const currentCard = filteredCards[safeIndex] || null;
@@ -130,7 +137,7 @@ export function useTriageState({
     return () => { isMounted = false; };
   }, [currentCard, setsCache]);
 
-  const handleCorrectPrice = useCallback(async (newPrice: number, _reason: string): Promise<boolean> => {
+  const handleCorrectPrice = useCallback(async (newPrice: number): Promise<boolean> => {
     if (!currentCard) return false;
     const { card_id: cardId, id: userCardId } = currentCard;
     learning.recordPriceCorrection(cardId, newPrice);
@@ -155,11 +162,12 @@ export function useTriageState({
         (scopeConfig.scopeType === 'compartment' &&
           updatedCard.storage_location_id === scopeConfig.locationId &&
           updatedCard.compartment_index === (scopeConfig.compartmentIndex ?? 0)) ||
-        (scopeConfig.scopeType === 'theme' && tag && Boolean(updatedCard.notes?.toLowerCase().includes(`[tema: ${tag}]`)))) &&
-      (!scopeConfig.onlyUnclassified || isCardPendingTriage(updatedCard));
+        (scopeConfig.scopeType === 'theme' && tag && Boolean(updatedCard.notes?.toLowerCase().includes(`[tema: ${tag}]`))) ||
+        (scopeConfig.scopeType === 'bulk' && (updatedCard.status_flag === 'bulk' || updatedCard.storage_location_id === targetBulkLocationId))) &&
+      (scopeConfig.scopeType === 'bulk' || !scopeConfig.onlyUnclassified || isCardPendingTriage(updatedCard));
 
     if (stillInScope) setCurrentIndex(prev => prev + 1);
-  }, [scopeConfig]);
+  }, [scopeConfig, targetBulkLocationId]);
 
   const handleUndoSuccess = useCallback((restoredCard: UserCard) => {
     setCards(prev => prev.map(c => (c.id === restoredCard.id ? { ...c, ...restoredCard } : c)));
@@ -169,8 +177,9 @@ export function useTriageState({
   return {
     cards, filteredCards, safeIndex, currentCard, currentDiagnosis,
     scopeConfig, setScopeConfig, targetBinderLocationId, setTargetBinderLocationId,
-    targetBulkLocationId, setTargetBulkLocationId, availableThemes,
+    targetBulkLocationId, setTargetBulkLocationId, availableThemes, bulkCardsCount,
     isThemeModalOpen, setIsThemeModalOpen, isPriceCorrectionOpen, setIsPriceCorrectionOpen,
+    isDeckModalOpen, setIsDeckModalOpen,
     handleCorrectPrice, recordLearnedRule: learning.recordRule,
     currentSetsData: currentCard ? setsCache[currentCard.card_id] || null : null,
     isRarityModalOpen, setIsRarityModalOpen,

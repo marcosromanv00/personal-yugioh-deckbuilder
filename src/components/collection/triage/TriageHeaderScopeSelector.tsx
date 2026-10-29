@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Layers, Box, Filter, Sparkles } from 'lucide-react';
+import { ChevronLeft, Sparkles } from 'lucide-react';
 import { StorageLocation } from '@/types/collection';
 import { TriageScopeConfig } from '@/types/triage';
 import { TriageDestinationSelects } from './TriageDestinationSelects';
@@ -18,6 +18,7 @@ interface TriageHeaderScopeSelectorProps {
   targetBulkLocationId: string;
   onSelectBulkLocation: (id: string) => void;
   availableThemes: { name: string; count: number }[];
+  bulkCardsCount?: number;
 }
 
 export const TriageHeaderScopeSelector: React.FC<TriageHeaderScopeSelectorProps> = ({
@@ -31,6 +32,7 @@ export const TriageHeaderScopeSelector: React.FC<TriageHeaderScopeSelectorProps>
   targetBulkLocationId,
   onSelectBulkLocation,
   availableThemes,
+  bulkCardsCount = 0,
 }) => {
   const selectedLocation = locations.find(l => l.id === scopeConfig.locationId) || null;
   const compartmentsCount = selectedLocation?.compartments?.count || 1;
@@ -83,6 +85,7 @@ export const TriageHeaderScopeSelector: React.FC<TriageHeaderScopeSelectorProps>
               <option value="location">Por Contenedor</option>
               <option value="compartment">Por Carril Específico</option>
               <option value="theme">🔥 Por Mesa Temática</option>
+              <option value="bulk">📦 Cartas en Bulk ({bulkCardsCount})</option>
             </select>
 
             {/* 2. Selector de Temática (si es 'theme') */}
@@ -147,6 +150,8 @@ export const TriageHeaderScopeSelector: React.FC<TriageHeaderScopeSelectorProps>
             onSelectBinderLocation={onSelectBinderLocation}
             targetBulkLocationId={targetBulkLocationId}
             onSelectBulkLocation={onSelectBulkLocation}
+            bulkCardsCount={bulkCardsCount}
+            onViewBulk={() => setScopeConfig(prev => ({ ...prev, scopeType: 'bulk', onlyUnclassified: false }))}
           />
         </div>
 
