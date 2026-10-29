@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const triageScopeSchema = z.object({
-  scopeType: z.enum(['all', 'location', 'compartment', 'theme']),
+  scopeType: z.enum(['all', 'location', 'compartment', 'theme', 'bulk']),
   locationId: z.string().uuid().nullable().optional(),
   compartmentIndex: z.number().int().min(0).nullable().optional(),
   themeTag: z.string().trim().max(100).nullable().optional(),
@@ -41,6 +41,26 @@ export interface CardSetPrinting {
   setPrice: number;
 }
 
+export type RarityAlertLevel = 'none' | 'info' | 'warning' | 'critical';
+
+export interface RarityAlertEvaluation {
+  hasDisparity: boolean;
+  alertLevel: RarityAlertLevel;
+  minPrice: number;
+  maxPrice: number;
+  priceDifference: number;
+  priceMultiplier: number;
+  hasCollectorRarity: boolean;
+  collectorRaritiesFound: string[];
+  highestPricedPrinting: CardSetPrinting | null;
+  lowestPricedPrinting: CardSetPrinting | null;
+  alertTitle: string;
+  alertMessage: string;
+  badgeLabel: string;
+  badgeColor: 'zinc' | 'blue' | 'amber' | 'red';
+  isSafeSamePrice: boolean;
+}
+
 export interface CardSetPrintingsResponse {
   cardId: number;
   name: string;
@@ -49,6 +69,7 @@ export interface CardSetPrintingsResponse {
   printings: CardSetPrinting[];
   marketPriceTcg: number;
   marketPriceCardmarket: number;
+  rarityAlert?: RarityAlertEvaluation;
 }
 
 export interface TriageCompetitiveMatch {
@@ -85,6 +106,21 @@ export interface TacticalVerdict {
   themeViability: string;
   recommendationDecision: string;
   aiDetailedAdvice?: string;
+  powerScore: number;
+  tacticalRole: string;
+  metaTier: string;
+  cardEconomy: string;
+  isLearnedOverride?: boolean;
+  learnedReason?: string;
+}
+
+export interface TriageLearnedRule {
+  cardId: number;
+  destinationType: TriageCardActionPayload['destinationType'];
+  themeTag?: string;
+  reason: string;
+  rating?: number;
+  timestamp: number;
 }
 
 export interface TriageDiagnosis {

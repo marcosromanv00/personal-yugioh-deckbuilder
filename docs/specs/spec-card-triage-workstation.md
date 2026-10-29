@@ -249,3 +249,46 @@ src/
 - **Given** que se evalúa una carta con efecto simple de 1 línea sin xenofobia de arquetipo.
 - **When** se renderiza el panel de diagnóstico tripartito.
 - **Then** la tarjeta *"Ensalada Didáctica"* aparece resaltada con badge verde y tecla de acceso rápido `3` recomendada.
+
+### Escenario 5: Alerta Visible Exterior de Disparidad de Rareza
+- **Given** que la carta activa tiene impresiones físicas con diferencia sustancial de costo (ej. base $0.22 vs impresión cara de $15.00 o rareza de coleccionista).
+- **When** el usuario observa la carta activa desde la estación de triaje sin abrir el modal.
+- **Then** el sistema presenta un banner de advertencia visual destacado con el rango de precios ($min a $max), destacando la necesidad de verificar la rareza física antes de clasificarla, y en el botón de rareza muestra el rango con icono de atención.
+- **And** si la carta tiene precios uniformes en todas sus ediciones (< $0.50 de diferencia), muestra una confirmación sutil de "Precio Uniforme" para que el usuario no dude.
+
+### Escenario 6: Selección de Texto, Click Scroll y Apertura en Nueva Ventana
+- **Given** que el usuario desea copiar el nombre o descripción del efecto de una carta, o investigar sus cotizaciones externas.
+- **When** selecciona texto con el cursor del ratón y presiona Ctrl+C, o hace middle-click en los enlaces a YGOPRODeck/TCGPlayer o en la imagen.
+- **Then** el texto es seleccionado y copiado sin bloqueos de `select-none`, y el enlace se abre en segundo plano en una nueva pestaña sin interrumpir la sesión de triaje, permitiendo además el autoscroll con botón central en los contenedores desplazables.
+
+### Escenario 7: Filtro Canónico "Solo Pendientes" y Persistencia de Clasificación
+- **Given** un carril o contenedor con cartas clasificadas (con etiquetas temáticas `[Tema: ...]`, asignadas a mazo, taller o venta) y cartas vírgenes sin clasificar.
+- **When** el usuario activa el filtro *"Solo pendientes"*.
+- **Then** el sistema evalúa `isCardPendingTriage` y muestra exclusivamente las cartas sin clasificar/etiquetar, erradicando pantallas en blanco.
+- **And** al clasificar una carta, ésta adquiere su marca/etiqueta persistente, garantizando que al recargar la página la cola muestre únicamente las pendientes reales y el cursor inicial se posicione en la primera carta no clasificada.
+
+### Escenario 8: Veredicto Táctico Profundo, Calificación 1-10 y Modal de Desacuerdo/Aprendizaje
+- **Given** una carta activa evaluada en la mesa de triaje.
+- **Then** el veredicto táctico presenta una **Calificación Numérica de Fuerza en escala de 1.0 a 10.0** (Regla 7 de AGENTS.md), su rol táctico específico (ej. *Extender*, *Starter*, *Brick Pesado*) y un razonamiento de juego real.
+- **When** el usuario no concuerda con la recomendación del sistema y presiona el botón *"No estoy de acuerdo con este veredicto"*.
+- **Then** se abre el modal de auditoría permitiéndole seleccionar el destino correcto (1 a 6), justificar su criterio técnico y calificar la sugerencia (1-5 estrellas).
+- **And** el sistema registra el reporte en `yg_suggestion_reports` (Regla 8 de AGENTS.md), aplica la acción del usuario en `yg_user_cards` con memoria táctica y avanza la cola sin fricción.
+
+### Escenario 9: Aprendizaje Dinámico en Sesión sin Recargar
+- **Given** que el usuario sobreescribe una decisión en el modal de desacuerdo para una carta específica (ej. determina que debe ir a Proyecto Temático o Binder con cierta justificación).
+- **When** aparece otra copia física de la misma carta (o del mismo core temático) más adelante en la cola.
+- **Then** el motor de veredictos tácticos detecta el criterio aprendido en memoria y sugiere automáticamente la acción preferida por el usuario con el badge *"⚡ Criterio Aprendido del Usuario"*, sin requerir recargar la página ni volver a discrepar.
+
+### Escenario 10: Persistencia de Posición y Alcance al Recargar Vista
+- **Given** que el usuario está revisando la carta en la posición N de un compartimento o carril con filtros específicos activados.
+- **When** recarga el navegador (F5 o refresh) para actualizar la vista con datos del servidor.
+- **Then** el estado de triaje recupera automáticamente el alcance (`scopeConfig`) y la carta activa previa desde el almacenamiento de sesión (`sessionStorage`), restaurando la posición exacta donde se encontraba y evitando tener que recorrer la cola desde el inicio.
+
+### Escenario 11: Corrección de Precios en Tiempo Real & Aprendizaje Activo
+- **Given** que una carta muestra una cotización incorrecta o desactualizada proveniente de la API externa.
+- **When** el usuario presiona el botón *"Corregir Precio / Enseñar Precio Real"*.
+- **Then** se despliega el modal interactivo de corrección de precio, permitiendo fijar la cotización verídica en USD y la justificación.
+- **And** al confirmar, el sistema actualiza la base de datos física, almacena el precio corregido en el caché en memoria para todas las copias de esa carta, registra el reporte en `yg_suggestion_reports` para aprendizaje de la IA y recalcula al vuelo el veredicto táctico sin recargar la página.
+
+
+

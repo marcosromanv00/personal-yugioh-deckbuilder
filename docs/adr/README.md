@@ -30,3 +30,4 @@ Cada documento sigue el estándar canónico MADR / Michael Nygard:
 | [0012](file:///docs/adr/0012-deck-variants-and-physical-exchange-engine.md) | Sistema de Variantes de Decks, Motor Hipergeométrico y Préstamos entre Deckboxes | **Aceptado** | PR #12 | 2026-03 |
 | [0013](file:///docs/adr/0013-clean-code-audit-surgical-decomposition.md) | Auditoría Clean Code Integral, Límite Estricto $<200$ LOC y Patrón de Fachada con Servicios | **Aceptado** | PR #13 | 2026-03 |
 | [0014](file:///docs/adr/0014-triage-workstation-and-tactical-classification-engine.md) | Mesa de Triaje de Colección, Reubicación Física Persistente y Motor Táctico de Clasificación | **Aceptado** | PR #14 | 2026-10 |
+| [0015](file:///docs/adr/0015-dynamic-deck-selector-and-bulk-visibility.md) | Selector Dinámico de Mazos, Auto-Detección de Secciones y Visibilidad Inmediata de Bulk | **Aceptado** | PR #15 | 2026-10 |

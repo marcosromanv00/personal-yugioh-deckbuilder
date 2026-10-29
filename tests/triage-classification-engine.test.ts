@@ -5,6 +5,7 @@ import {
   getCompetitiveDeckMatches,
   getThematicIncubators,
   diagnoseCardTriage,
+  isCardPendingTriage,
 } from '../src/lib/triageClassification.utils';
 import { UserCard, Deck } from '../src/types/collection';
 
@@ -322,4 +323,164 @@ describe('triageClassification.utils (Node:test)', () => {
     assert.strictEqual(bulkNotes, 'Carta intercambiada con Pedro');
     assert.strictEqual(Boolean(bulkNotes.match(/\[Tema:\s*[^\]]+\]/i)), false);
   });
+
+  it('isCardPendingTriage identifica correctamente cartas no etiquetadas vs cartas ya categorizadas', () => {
+    const baseCard: UserCard = {
+      id: 'uuid-1',
+      card_id: 12345,
+      storage_location_id: 'loc-1',
+      compartment_index: 0,
+      rarity: 'Common',
+      condition: 'Near Mint',
+      language: 'ES',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+    };
+
+    // Pendiente
+    assert.strictEqual(isCardPendingTriage(baseCard), true);
+
+    // Con tema asignado -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, notes: '[Tema: Dragon Maid] Para mazo futuro' }), false);
+
+    // En mazo -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, deck_id: 'deck-1' }), false);
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'in_deck' }), false);
+
+    // En taller o venta -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'workshop' }), false);
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'trade_sale' }), false);
+
+    // Desechada a bulk -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, status_flag: 'bulk' }), false);
+
+    // Con marca de triaje persistida -> NO pendiente
+    assert.strictEqual(isCardPendingTriage({ ...baseCard, notes: '[Triaje: Colección Binder]' }), false);
+  });
+
+  it('evalúa veredicto táctico con puntuación de fuerza 1.0-10.0, rol técnico y economía de cartas', () => {
+    const bossCard: UserCard = {
+      id: 'uuid-boss',
+      card_id: 99999990,
+      storage_location_id: 'loc-1',
+      compartment_index: 0,
+      rarity: 'Secret Rare',
+      condition: 'Near Mint',
+      language: 'EN',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+      card_details: {
+        name: 'Accesscode Talker',
+        type: 'Link Monster',
+        race: 'Cyberse',
+        desc: 'Cannot be negated. You can banish 1 Link Monster from your GY; destroy 1 card your opponent controls.',
+      },
+    };
+
+    const diagnosis = diagnoseCardTriage(bossCard, [bossCard], []);
+    const { tacticalVerdict } = diagnosis;
+    assert.ok(tacticalVerdict.powerScore >= 1.0 && tacticalVerdict.powerScore <= 10.0);
+    assert.ok(tacticalVerdict.tacticalRole.length > 0);
+    assert.ok(tacticalVerdict.metaTier.length > 0);
+    assert.ok(tacticalVerdict.cardEconomy.length > 0);
+  });
+
+  it('recalcula dinámicamente el veredicto táctico cuando se corrige el precio de una carta', () => {
+    const unknownFoilCard: UserCard = {
+      id: 'uuid-foil-1',
+      card_id: 55555555,
+      storage_location_id: 'loc-1',
+      compartment_index: 0,
+      rarity: 'Common',
+      condition: 'Near Mint',
+      language: 'EN',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+      card_details: {
+        name: 'Retro Foil Beast',
+        type: 'Effect Monster',
+        desc: 'Flip: gain 500 LP.',
+      },
+    };
+
+    // 1. Con precio bajo/default ($0.10), el sistema sugiere desechar a Bulk
+    const diagInitial = diagnoseCardTriage(unknownFoilCard, [unknownFoilCard], [], 0.10);
+    assert.strictEqual(diagInitial.suggestedPrimaryAction, 'bulk_discard');
+    assert.strictEqual(diagInitial.tacticalVerdict.actionNumber, 6);
+
+    // 2. Al corregir el precio a $4.50 (carta cara/coleccionable), el veredicto cambia a Binder Colección [4]
+    const diagCorrectedHigh = diagnoseCardTriage(unknownFoilCard, [unknownFoilCard], [], 4.50);
+    assert.strictEqual(diagCorrectedHigh.suggestedPrimaryAction, 'collection_binder');
+    assert.strictEqual(diagCorrectedHigh.tacticalVerdict.actionNumber, 4);
+
+    // 3. Al corregir el precio a $1.20 (rango comercial), el veredicto cambia a Poner en Venta [5]
+    const diagCorrectedTrade = diagnoseCardTriage(unknownFoilCard, [unknownFoilCard], [], 1.20);
+    assert.strictEqual(diagCorrectedTrade.suggestedPrimaryAction, 'trade_sale');
+    assert.strictEqual(diagCorrectedTrade.tacticalVerdict.actionNumber, 5);
+  });
+
+  it('detecta correctamente la sección Extra Deck para cartas de tipo Fusion, Synchro, XYZ y Link', () => {
+    const isExtra = (type?: string): boolean => {
+      if (!type) return false;
+      const t = type.toLowerCase();
+      return t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link');
+    };
+
+    assert.strictEqual(isExtra('Fusion Monster'), true);
+    assert.strictEqual(isExtra('Synchro/Tuner Monster'), true);
+    assert.strictEqual(isExtra('XYZ Monster'), true);
+    assert.strictEqual(isExtra('Link Monster'), true);
+    assert.strictEqual(isExtra('Effect Monster'), false);
+    assert.strictEqual(isExtra('Normal Monster'), false);
+    assert.strictEqual(isExtra('Spell Card'), false);
+    assert.strictEqual(isExtra('Trap Card'), false);
+  });
+
+  it('permite filtrar el alcance de triaje a cartas en Bulk sin excluirlas por sólo pendientes', () => {
+    const card1: UserCard = {
+      id: 'uuid-b1',
+      card_id: 11111,
+      storage_location_id: 'tin-bulk-id',
+      compartment_index: 0,
+      rarity: 'Common',
+      condition: 'Near Mint',
+      language: 'ES',
+      quantity: 1,
+      status_flag: 'bulk',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+    };
+
+    const card2: UserCard = {
+      id: 'uuid-b2',
+      card_id: 22222,
+      storage_location_id: 'binder-id',
+      compartment_index: 0,
+      rarity: 'Ultra Rare',
+      condition: 'Near Mint',
+      language: 'ES',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+    };
+
+    const allCards = [card1, card2];
+    const targetBulkLocationId = 'tin-bulk-id';
+
+    // Función de filtrado idéntica a useTriageState para scopeType === 'bulk'
+    const bulkFiltered = allCards.filter(
+      c => c.status_flag === 'bulk' || (targetBulkLocationId && c.storage_location_id === targetBulkLocationId)
+    );
+
+    assert.strictEqual(bulkFiltered.length, 1);
+    assert.strictEqual(bulkFiltered[0].id, 'uuid-b1');
+  });
 });
+

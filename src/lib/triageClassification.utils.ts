@@ -179,3 +179,18 @@ export function diagnoseCardTriage(
     tacticalVerdict,
   };
 }
+
+/**
+ * Evalúa si una carta está pendiente de clasificar en la mesa de triaje
+ * (sin etiqueta temática, sin mazo, sin taller, sin venta y sin marca de triaje).
+ */
+export function isCardPendingTriage(card: UserCard): boolean {
+  if (card.deck_id || card.status_flag === 'in_deck') return false;
+  if (card.notes && /\[Tema:\s*[^\]]+\]/i.test(card.notes)) return false;
+  if (card.status_flag === 'workshop') return false;
+  if (card.status_flag === 'trade_sale') return false;
+  if (card.notes && /\[Triaje:\s*[^\]]+\]/i.test(card.notes)) return false;
+  if (card.status_flag === 'bulk') return false;
+  return true;
+}
+

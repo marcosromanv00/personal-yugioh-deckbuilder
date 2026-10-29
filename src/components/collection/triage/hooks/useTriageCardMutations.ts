@@ -37,7 +37,10 @@ export function useTriageCardMutations({
         let newStatusFlag = currentCard.status_flag;
         let newDeckId = currentCard.deck_id || null;
         let newDeckSection = currentCard.deck_section || null;
-        const cleanNotes = (currentCard.notes || '').replace(/\[Tema:\s*[^\]]+\]\s*/gi, '').trim();
+        const cleanNotes = (currentCard.notes || '')
+          .replace(/\[Tema:\s*[^\]]+\]\s*/gi, '')
+          .replace(/\[Triaje:\s*[^\]]+\]\s*/gi, '')
+          .trim();
         let newNotes = cleanNotes;
 
         switch (payload.destinationType) {
@@ -63,7 +66,7 @@ export function useTriageCardMutations({
             newStatusFlag = 'collection';
             newDeckId = null;
             newDeckSection = null;
-            newNotes = cleanNotes;
+            newNotes = `[Triaje: binder] ${cleanNotes}`.trim();
             break;
           case 'trade_sale':
             newStatusFlag = 'trade_sale';

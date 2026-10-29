@@ -1,25 +1,38 @@
 'use client';
 
 import React from 'react';
-import { Swords, Flame, Sparkles, CheckCircle2, Plus } from 'lucide-react';
-import { TriageDiagnosis } from '@/types/triage';
+import { Swords, Sparkles, CheckCircle2, AlertTriangle, Plus } from 'lucide-react';
+import { TriageDiagnosis, RarityAlertEvaluation } from '@/types/triage';
 import { TriageTacticalVerdictCard } from './TriageTacticalVerdictCard';
+import { TriageThematicIncubatorSection } from './components/TriageThematicIncubatorSection';
 
 interface TriageDiagnosticPanelProps {
   diagnosis: TriageDiagnosis | null;
+  rarityAlert?: RarityAlertEvaluation | null;
   onSelectAction: (actionType: TriageDiagnosis['suggestedPrimaryAction'], themeTag?: string) => void;
   onOpenThemeModal?: () => void;
+  onOpenRarityModal?: () => void;
+  onOpenDisagreement?: () => void;
+  onOpenDeckModal?: () => void;
 }
 
 export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
   diagnosis,
+  rarityAlert,
   onSelectAction,
   onOpenThemeModal,
+  onOpenRarityModal,
+  onOpenDisagreement,
+  onOpenDeckModal,
 }) => {
   if (!diagnosis) return null;
 
+  const showBulkRarityWarning =
+    diagnosis.suggestedPrimaryAction === 'bulk_discard' &&
+    Boolean(rarityAlert?.hasDisparity);
+
   return (
-    <div className="space-y-3.5 p-4 bg-zinc-50/70 dark:bg-zinc-900/40 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 w-full lg:w-88 xl:w-96 shrink-0 overflow-y-auto">
+    <div className="space-y-3.5 p-4 bg-zinc-50/70 dark:bg-zinc-900/40 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 w-full lg:w-88 xl:w-96 shrink-0 overflow-y-auto select-text">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-mono font-black uppercase text-zinc-500 tracking-wider">
           Diagnóstico & Veredicto
@@ -32,10 +45,35 @@ export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
         </div>
       </div>
 
+      {/* Alerta de Prevención antes de Descartar si hay versiones caras */}
+      {showBulkRarityWarning && (
+        <div className="p-3 bg-amber-500/15 border border-amber-500/50 rounded-xl text-amber-900 dark:text-amber-200 text-xs space-y-1 select-text shadow-2xs">
+          <div className="flex items-center justify-between font-bold">
+            <span className="flex items-center gap-1 text-[11px] uppercase font-mono">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Ojo antes de desechar a Bulk</span>
+            </span>
+            {onOpenRarityModal && (
+              <button
+                type="button"
+                onClick={onOpenRarityModal}
+                className="text-[10px] font-mono underline hover:text-amber-600 dark:hover:text-amber-300 cursor-pointer"
+              >
+                Ver rarezas [R]
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] leading-tight">
+            Existen impresiones de hasta ${rarityAlert?.maxPrice.toFixed(2)}. Verifica que tu copia no sea la versión cara.
+          </p>
+        </div>
+      )}
+
       {/* 0. Veredicto Prominente del Asesor Táctico */}
       <TriageTacticalVerdictCard
         verdict={diagnosis.tacticalVerdict}
         onSelectAction={onSelectAction}
+        onOpenDisagreement={onOpenDisagreement}
       />
 
       {/* 1. Diagnóstico Competitivo / Mazos Activos */}
@@ -76,75 +114,41 @@ export const TriageDiagnosticPanel: React.FC<TriageDiagnosticPanelProps> = ({
                 </button>
               </div>
             ))}
+            {onOpenDeckModal && (
+              <button
+                type="button"
+                onClick={onOpenDeckModal}
+                className="w-full py-1 text-center text-[10px] font-mono font-bold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+              >
+                + Elegir otro mazo manualmente...
+              </button>
+            )}
           </div>
         ) : (
-          <p className="text-[11px] text-zinc-500 italic">
-            Ningún mazo activo requiere copias físicas de esta carta en este momento.
-          </p>
+          <div className="flex items-center justify-between pt-1 gap-2">
+            <p className="text-[11px] text-zinc-500 italic">
+              Sin coincidencias automáticas en mazos activos.
+            </p>
+            {onOpenDeckModal && (
+              <button
+                type="button"
+                onClick={onOpenDeckModal}
+                className="px-2.5 py-1 bg-red-600/10 hover:bg-red-600/20 text-red-600 dark:text-red-400 text-xs font-bold font-mono rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Elegir Mazo</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
       {/* 2. Incubadora Temática (Arquetipo / Raza) */}
-      <div className="p-3.5 bg-white dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2 shadow-2xs">
-        <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-purple-600 dark:text-purple-400 uppercase">
-          <Flame className="w-3.5 h-3.5" />
-          <span>Incubadora Temática</span>
-        </div>
-
-        {diagnosis.thematicIncubators.length > 0 ? (
-          <div className="space-y-1.5 pt-1">
-            {diagnosis.thematicIncubators.map((inc, i) => (
-              <div
-                key={`${inc.themeName}-${i}`}
-                className="p-2 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 rounded-xl flex items-center justify-between text-xs"
-              >
-                <div>
-                  <div className="font-bold text-purple-900 dark:text-purple-200">
-                    {inc.themeName} ({inc.themeCategory === 'race' ? 'Raza/Tipo' : 'Arquetipo'})
-                  </div>
-                  <div className="text-[10px] font-mono text-purple-600 dark:text-purple-400">
-                    {inc.totalCardsInCollection} cartas en colección {inc.hasEnoughForCore ? '• ¡Core Viable!' : '• Sin Arquetipo'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onSelectAction('thematic_pool', inc.themeName)}
-                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded-lg shrink-0 cursor-pointer shadow-2xs"
-                >
-                  Agrupar en {inc.themeName}
-                </button>
-              </div>
-            ))}
-
-            {onOpenThemeModal && (
-              <button
-                type="button"
-                onClick={onOpenThemeModal}
-                className="w-full pt-1 text-center text-[10.5px] font-mono text-purple-700 dark:text-purple-300 hover:underline flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Asignar a otra mesa temática...</span>
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-1.5 pt-1">
-            <p className="text-[11px] text-zinc-500 italic">
-              Sin arquetipo ni masa crítica acumulada para un mazo temático.
-            </p>
-            {onOpenThemeModal && (
-              <button
-                type="button"
-                onClick={onOpenThemeModal}
-                className="w-full py-1 text-center text-[10.5px] font-mono text-purple-700 dark:text-purple-300 hover:underline flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Definir mesa temática personalizada...</span>
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      <TriageThematicIncubatorSection
+        thematicIncubators={diagnosis.thematicIncubators}
+        onSelectAction={tag => onSelectAction('thematic_pool', tag)}
+        onOpenThemeModal={onOpenThemeModal}
+      />
 
       {/* 3. Ensalada Didáctica para Talleres */}
       <div className={`p-3.5 rounded-2xl border space-y-2 shadow-2xs ${

@@ -10,6 +10,8 @@ interface TriageDestinationSelectsProps {
   onSelectBinderLocation: (id: string) => void;
   targetBulkLocationId: string;
   onSelectBulkLocation: (id: string) => void;
+  bulkCardsCount?: number;
+  onViewBulk?: () => void;
 }
 
 export const TriageDestinationSelects: React.FC<TriageDestinationSelectsProps> = ({
@@ -18,6 +20,8 @@ export const TriageDestinationSelects: React.FC<TriageDestinationSelectsProps> =
   onSelectBinderLocation,
   targetBulkLocationId,
   onSelectBulkLocation,
+  bulkCardsCount,
+  onViewBulk,
 }) => {
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -59,6 +63,16 @@ export const TriageDestinationSelects: React.FC<TriageDestinationSelectsProps> =
             </option>
           ))}
         </select>
+        {onViewBulk && (
+          <button
+            type="button"
+            onClick={onViewBulk}
+            title="Ver cartas actualmente en Bulk"
+            className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+          >
+            Ver ({bulkCardsCount ?? 0})
+          </button>
+        )}
       </div>
     </div>
   );

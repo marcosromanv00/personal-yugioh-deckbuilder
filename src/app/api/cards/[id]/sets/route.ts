@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CardSetPrinting, CardSetPrintingsResponse } from '@/types/triage';
+import { analyzeRarityDisparity } from '@/lib/rarityDisparity.utils';
 
 interface YgoCardApiSet {
   set_name: string;
@@ -36,17 +37,20 @@ export async function GET(
     });
 
     if (!res.ok) {
+      const fallbackPayload: CardSetPrintingsResponse = {
+        cardId,
+        name: `Carta #${cardId}`,
+        defaultRarity: 'Common',
+        highValueWarning: false,
+        printings: [],
+        marketPriceTcg: 0.25,
+        marketPriceCardmarket: 0.20,
+      };
+      fallbackPayload.rarityAlert = analyzeRarityDisparity(fallbackPayload);
+
       return NextResponse.json({
         success: true,
-        data: {
-          cardId,
-          name: `Carta #${cardId}`,
-          defaultRarity: 'Common',
-          highValueWarning: false,
-          printings: [],
-          marketPriceTcg: 0.25,
-          marketPriceCardmarket: 0.20,
-        },
+        data: fallbackPayload,
       });
     }
 
@@ -60,12 +64,7 @@ export async function GET(
     const rawSets: YgoCardApiSet[] = Array.isArray(cardData?.card_sets) ? cardData.card_sets : [];
     const printings: CardSetPrinting[] = rawSets.map(s => {
       const parsedSetPrice = parseFloat(s.set_price || '0');
-      let finalPrice = parsedSetPrice;
-      if (rawSets.length === 1 || parsedSetPrice <= 0) {
-        finalPrice = tcgPrice;
-      } else if (tcgPrice < 1.0 && parsedSetPrice > tcgPrice * 2.5) {
-        finalPrice = tcgPrice;
-      }
+      const finalPrice = parsedSetPrice > 0 ? parsedSetPrice : tcgPrice;
 
       return {
         setName: s.set_name,
@@ -79,7 +78,7 @@ export async function GET(
     const hasHighValue = tcgPrice >= 3.0 || printings.some(p => p.setPrice >= 3.0);
     const defaultRarity = printings[0]?.setRarity || 'Common';
 
-    const payload: CardSetPrintingsResponse = {
+    const tempPayload: CardSetPrintingsResponse = {
       cardId,
       name: cardData?.name || `Carta #${cardId}`,
       defaultRarity,
@@ -87,6 +86,13 @@ export async function GET(
       printings,
       marketPriceTcg: tcgPrice,
       marketPriceCardmarket: cmPrice,
+    };
+
+    const rarityAlert = analyzeRarityDisparity(tempPayload);
+    const payload: CardSetPrintingsResponse = {
+      ...tempPayload,
+      highValueWarning: hasHighValue || rarityAlert.hasDisparity,
+      rarityAlert,
     };
 
     setsCache.set(cardId, { data: payload, timestamp: now });
