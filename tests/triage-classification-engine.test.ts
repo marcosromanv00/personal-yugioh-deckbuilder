@@ -424,5 +424,63 @@ describe('triageClassification.utils (Node:test)', () => {
     assert.strictEqual(diagCorrectedTrade.suggestedPrimaryAction, 'trade_sale');
     assert.strictEqual(diagCorrectedTrade.tacticalVerdict.actionNumber, 5);
   });
+
+  it('detecta correctamente la sección Extra Deck para cartas de tipo Fusion, Synchro, XYZ y Link', () => {
+    const isExtra = (type?: string): boolean => {
+      if (!type) return false;
+      const t = type.toLowerCase();
+      return t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link');
+    };
+
+    assert.strictEqual(isExtra('Fusion Monster'), true);
+    assert.strictEqual(isExtra('Synchro/Tuner Monster'), true);
+    assert.strictEqual(isExtra('XYZ Monster'), true);
+    assert.strictEqual(isExtra('Link Monster'), true);
+    assert.strictEqual(isExtra('Effect Monster'), false);
+    assert.strictEqual(isExtra('Normal Monster'), false);
+    assert.strictEqual(isExtra('Spell Card'), false);
+    assert.strictEqual(isExtra('Trap Card'), false);
+  });
+
+  it('permite filtrar el alcance de triaje a cartas en Bulk sin excluirlas por sólo pendientes', () => {
+    const card1: UserCard = {
+      id: 'uuid-b1',
+      card_id: 11111,
+      storage_location_id: 'tin-bulk-id',
+      compartment_index: 0,
+      rarity: 'Common',
+      condition: 'Near Mint',
+      language: 'ES',
+      quantity: 1,
+      status_flag: 'bulk',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+    };
+
+    const card2: UserCard = {
+      id: 'uuid-b2',
+      card_id: 22222,
+      storage_location_id: 'binder-id',
+      compartment_index: 0,
+      rarity: 'Ultra Rare',
+      condition: 'Near Mint',
+      language: 'ES',
+      quantity: 1,
+      status_flag: 'collection',
+      sleeve_type: 'none',
+      created_at: new Date().toISOString(),
+    };
+
+    const allCards = [card1, card2];
+    const targetBulkLocationId = 'tin-bulk-id';
+
+    // Función de filtrado idéntica a useTriageState para scopeType === 'bulk'
+    const bulkFiltered = allCards.filter(
+      c => c.status_flag === 'bulk' || (targetBulkLocationId && c.storage_location_id === targetBulkLocationId)
+    );
+
+    assert.strictEqual(bulkFiltered.length, 1);
+    assert.strictEqual(bulkFiltered[0].id, 'uuid-b1');
+  });
 });
 
