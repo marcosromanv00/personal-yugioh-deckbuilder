@@ -41,6 +41,26 @@ export interface CardSetPrinting {
   setPrice: number;
 }
 
+export type RarityAlertLevel = 'none' | 'info' | 'warning' | 'critical';
+
+export interface RarityAlertEvaluation {
+  hasDisparity: boolean;
+  alertLevel: RarityAlertLevel;
+  minPrice: number;
+  maxPrice: number;
+  priceDifference: number;
+  priceMultiplier: number;
+  hasCollectorRarity: boolean;
+  collectorRaritiesFound: string[];
+  highestPricedPrinting: CardSetPrinting | null;
+  lowestPricedPrinting: CardSetPrinting | null;
+  alertTitle: string;
+  alertMessage: string;
+  badgeLabel: string;
+  badgeColor: 'zinc' | 'blue' | 'amber' | 'red';
+  isSafeSamePrice: boolean;
+}
+
 export interface CardSetPrintingsResponse {
   cardId: number;
   name: string;
@@ -49,6 +69,7 @@ export interface CardSetPrintingsResponse {
   printings: CardSetPrinting[];
   marketPriceTcg: number;
   marketPriceCardmarket: number;
+  rarityAlert?: RarityAlertEvaluation;
 }
 
 export interface TriageCompetitiveMatch {

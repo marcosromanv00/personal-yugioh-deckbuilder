@@ -80,7 +80,7 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
   });
 
   return (
-    <div className="flex flex-col h-screen w-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-screen w-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans">
       <TriageHeaderScopeSelector
         scopeConfig={state.scopeConfig}
         setScopeConfig={state.setScopeConfig}
@@ -97,8 +97,18 @@ export const TriageWorkstation: React.FC<TriageWorkstationProps> = ({
       <TriageQueueFilmstrip cards={state.filteredCards} currentIndex={state.safeIndex} onSelectIndex={state.handleJumpToIndex} />
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-        <TriageActiveCardViewer card={state.currentCard} setsData={state.currentSetsData} onOpenRarityModal={() => state.setIsRarityModalOpen(true)} />
-        <TriageDiagnosticPanel diagnosis={state.currentDiagnosis} onSelectAction={handleExecuteAction} onOpenThemeModal={() => state.setIsThemeModalOpen(true)} />
+        <TriageActiveCardViewer
+          card={state.currentCard}
+          setsData={state.currentSetsData}
+          onOpenRarityModal={() => state.setIsRarityModalOpen(true)}
+        />
+        <TriageDiagnosticPanel
+          diagnosis={state.currentDiagnosis}
+          rarityAlert={state.currentSetsData?.rarityAlert}
+          onSelectAction={handleExecuteAction}
+          onOpenThemeModal={() => state.setIsThemeModalOpen(true)}
+          onOpenRarityModal={() => state.setIsRarityModalOpen(true)}
+        />
       </div>
 
       <TriageActionButtonBar

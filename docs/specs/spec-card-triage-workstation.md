@@ -249,3 +249,15 @@ src/
 - **Given** que se evalúa una carta con efecto simple de 1 línea sin xenofobia de arquetipo.
 - **When** se renderiza el panel de diagnóstico tripartito.
 - **Then** la tarjeta *"Ensalada Didáctica"* aparece resaltada con badge verde y tecla de acceso rápido `3` recomendada.
+
+### Escenario 5: Alerta Visible Exterior de Disparidad de Rareza
+- **Given** que la carta activa tiene impresiones físicas con diferencia sustancial de costo (ej. base $0.22 vs impresión cara de $15.00 o rareza de coleccionista).
+- **When** el usuario observa la carta activa desde la estación de triaje sin abrir el modal.
+- **Then** el sistema presenta un banner de advertencia visual destacado con el rango de precios ($min a $max), destacando la necesidad de verificar la rareza física antes de clasificarla, y en el botón de rareza muestra el rango con icono de atención.
+- **And** si la carta tiene precios uniformes en todas sus ediciones (< $0.50 de diferencia), muestra una confirmación sutil de "Precio Uniforme" para que el usuario no dude.
+
+### Escenario 6: Selección de Texto, Click Scroll y Apertura en Nueva Ventana
+- **Given** que el usuario desea copiar el nombre o descripción del efecto de una carta, o investigar sus cotizaciones externas.
+- **When** selecciona texto con el cursor del ratón y presiona Ctrl+C, o hace middle-click en los enlaces a YGOPRODeck/TCGPlayer o en la imagen.
+- **Then** el texto es seleccionado y copiado sin bloqueos de `select-none`, y el enlace se abre en segundo plano en una nueva pestaña sin interrumpir la sesión de triaje, permitiendo además el autoscroll con botón central en los contenedores desplazables.
+
